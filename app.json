@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Kitchen Hub",
+    "slug": "Kitchen Hub",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/images/appLogo.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.KDS"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/appLogo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "windowSoftInputMode": "adjustResize",
+      "resizeMode": "contain",
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.anonymous.KDS"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/appLogo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/appLogo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "LANDSCAPE"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

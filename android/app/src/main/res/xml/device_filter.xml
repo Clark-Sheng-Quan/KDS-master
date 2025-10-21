@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通用打印机设备，您可能需要根据打印机说明书添加具体的vendorId和productId -->
+    <usb-device vendor-id="1155" /> <!-- Epson常见ID -->
+    <usb-device vendor-id="1208" /> <!-- 汉印常见ID -->
+    <usb-device vendor-id="4070" /> <!-- 佳博常见ID -->
+    <usb-device vendor-id="8137" /> <!-- 热敏打印机常见ID -->
+    
+    <!-- 如果知道K1215打印机的具体ID，请替换或添加下面的行 -->
+    <!-- <usb-device vendor-id="XXXX" product-id="YYYY" /> -->
+    
+    <!-- 如果想支持所有打印机，可以不指定具体ID（但不推荐，可能导致权限问题） -->
+    <!-- <usb-device /> -->
+</resources> 
