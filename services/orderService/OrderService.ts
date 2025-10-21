@@ -112,8 +112,8 @@ export class OrderService {
       // 添加到处理缓存
       this.addToProcessedCache(order.id);
 
-      // 添加新订单
-      this.networkOrders = [order, ...this.networkOrders];
+      // 添加新订单到末尾
+      this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
       console.log(`网络订单已添加并保存，当前总数: ${this.networkOrders.length}`);
      
@@ -169,8 +169,8 @@ export class OrderService {
       // 添加到处理缓存
       this.addToProcessedCache(order.id);
 
-      // 添加新订单
-      this.tcpOrders = [order, ...this.tcpOrders];
+      // 添加新订单到末尾
+      this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
       console.log(`TCP订单已添加并保存，当前总数: ${this.tcpOrders.length}`);
      

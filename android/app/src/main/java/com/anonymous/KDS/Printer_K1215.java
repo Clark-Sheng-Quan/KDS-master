@@ -31,7 +31,7 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
 
     private ReactApplicationContext appContext;
     private POSPrinter printer;
-    Printer_K1215(ReactApplicationContext reactContext){
+    public Printer_K1215(ReactApplicationContext reactContext){
         super(reactContext);
 
         this.appContext = reactContext;
@@ -50,14 +50,14 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
 
     
     @ReactMethod
-    public static void PrinterStatus(Promise promise){
+    public void PrinterStatus(Promise promise){
         promise.resolve("this is returned");
         Log.d("vendingapp_log", "Test clicked");
     }
 
 
     @ReactMethod
-    private void Print(String text, boolean cutPaper, Promise promise){
+    public void Print(String text, boolean cutPaper, Promise promise){
         int H2 = POSConst.TXT_1WIDTH |POSConst.TXT_1HEIGHT ;
 
         if (printer != null){
@@ -85,7 +85,7 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
     }
     
     @ReactMethod
-    private void isConnected(Promise promise){
+    public void isConnected(Promise promise){
         if (printer != null){
             printer.isConnect(
                 (int status) -> {          

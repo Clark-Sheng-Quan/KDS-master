@@ -28,5 +28,5 @@ export const categoryColors = {
   category3: "#FF69B4", // 粉红色
   category4: "#9370DB", // 中紫色
   category5: "#20B2AA", // 浅海洋绿
-  default: "#FFFFFF",   // 默认白色
+  default: "#F9F9F9",   // 默认浅灰色
 };

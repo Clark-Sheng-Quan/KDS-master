@@ -314,8 +314,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           style={[
             styles.itemRow,
             completedItems[`${order.id}-item-${index}`] && styles.completedItem,
-            console.log(`应用分类颜色: ${categoryColor} 给产品: ${item.name}`),
             { backgroundColor: categoryColor || "#f9f9f9" }, // 如果没有分类颜色则使用默认灰色
+            // 如果没有option，则添加底部圆角
+            (!item.options || item.options.length === 0) && {
+              borderBottomLeftRadius: 4,
+              borderBottomRightRadius: 4,
+            }
           ]}
           delayLongPress={500} // 500毫秒长按触发
         >
@@ -357,7 +361,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 }
                 disabled={disabled}
                 activeOpacity={0.7}
-                style={styles.optionRow}
+                style={[
+                  styles.optionRow,
+                  { backgroundColor: categoryColor || "#f9f9f9" },
+                  // 最后一个option有底部圆角
+                  optIndex === item.options.length - 1 && {
+                    borderBottomLeftRadius: 4,
+                    borderBottomRightRadius: 4,
+                  }
+                ]}
               >
                 <View style={styles.optionContent}>
                   <Text style={styles.optionName}>- {option.name}</Text>
@@ -603,9 +615,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 8,
-    borderRadius: 4,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     opacity: 1,
-    backgroundColor: "#841c1cff"
   },
   itemNameContainer: {
     flexDirection: "column",
@@ -624,7 +638,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   optionsContainer: {
-    marginTop: 4,
+    marginTop: 0,
     marginLeft: 8,
   },
   optionRow: {
@@ -634,7 +648,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 2,
     borderRadius: 0,
-    marginBottom: 2,
+    marginBottom: 0,
   },
   optionContent: {
     flexDirection: "row",

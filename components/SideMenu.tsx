@@ -120,7 +120,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
     );
   };
 
-  const navigateTo = (path: string) => {
+  const navigateTo = (path: any) => {
     router.push(path);
     onClose();
   };
