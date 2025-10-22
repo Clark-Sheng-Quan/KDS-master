@@ -20,6 +20,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
+import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
 
 // KDS角色类型
 enum KDSRole {
@@ -150,6 +151,88 @@ export default function SettingsScreen() {
     }
   };
 
+  // 处理从Device Discovery连接目标设备
+  const handleConnectToDevice = async (device: NetworkDevice) => {
+    // 根据当前角色决定目标设备的角色
+    const targetRole = kdsRole === KDSRole.MASTER ? KDSRole.SLAVE : KDSRole.MASTER;
+    const targetRoleCN = targetRole === KDSRole.MASTER ? "主KDS (Master)" : "从KDS (Slave)";
+    const currentRoleCN = kdsRole === KDSRole.MASTER ? "主KDS (Master)" : "从KDS (Slave)";
+    
+    Alert.alert(
+      "确认连接",
+      `当前角色: ${currentRoleCN}\n设备: ${device.name} (${device.ip}:${device.port})\n\n将该设备设为: ${targetRoleCN}?`,
+      [
+        { text: "取消", onPress: () => {}, style: "cancel" },
+        {
+          text: "确认",
+          onPress: async () => {
+            try {
+              // 如果当前是Master，则目标设备设为Slave，并添加到子KDS列表
+              if (kdsRole === KDSRole.MASTER) {
+                // 检查IP是否已存在
+                if (subKdsList.some((kds) => kds.ip === device.ip)) {
+                  Alert.alert("提示", "该设备已在子KDS列表中");
+                  setShowDeviceDiscovery(false);
+                  return;
+                }
+
+                // 自动分配品类
+                const categories = [
+                  CategoryType.DRINKS,
+                  CategoryType.HOT_FOOD,
+                  CategoryType.COLD_FOOD,
+                  CategoryType.DESSERT,
+                ];
+                const categoryIndex = subKdsList.length % categories.length;
+                const assignedCategory = categories[categoryIndex];
+
+                // 添加到子KDS列表
+                const newSubKdsList = [
+                  ...subKdsList,
+                  { ip: device.ip, category: assignedCategory },
+                ];
+                setSubKdsList(newSubKdsList);
+
+                // 使用DistributionService添加子KDS
+                const success = await DistributionService.addSubKDS(
+                  device.ip,
+                  assignedCategory
+                );
+
+                if (!success) {
+                  // 如果添加失败，回滚状态
+                  setSubKdsList(subKdsList);
+                  Alert.alert("错误", "添加子KDS失败");
+                  return;
+                }
+
+                // 保存到AsyncStorage
+                await AsyncStorage.setItem(
+                  "sub_kds_list",
+                  JSON.stringify(newSubKdsList)
+                );
+              } else {
+                // 如果当前是Slave，则设置Master IP
+                setMasterIP(device.ip);
+                await AsyncStorage.setItem("master_ip", device.ip);
+              }
+              
+              // 关闭Device Discovery面板
+              setShowDeviceDiscovery(false);
+              
+              Alert.alert(
+                "成功",
+                `已连接 ${device.name}\n目标设备角色: ${targetRoleCN}\n${kdsRole === KDSRole.MASTER ? "设备IP: " + device.ip : "主KDS IP: " + device.ip}`
+              );
+            } catch (error) {
+              Alert.alert("错误", "连接设备失败");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // 添加子KDS - 自动分配品类
   const addSubKds = async () => {
     if (!newSubKdsIP.trim()) {
@@ -246,8 +329,9 @@ export default function SettingsScreen() {
   };
 
   // 处理Compact模式每行卡片数量变更
-  const handleCompactCardsPerRowChange = (value: string) => {
+  const handleCompactCardsPerRowChange = async (value: string) => {
     setCompactCardsPerRow(value);
+    await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, value);
   };
 
   // 重置设置
@@ -363,15 +447,22 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>设备名称</Text>
+          <Text style={styles.infoLabel}>Device Name</Text>
           <TextInput
             style={styles.textInput}
             value={editingDeviceName}
             onChangeText={setEditingDeviceName}
-            placeholder="例如: KDS:厨房1号"
+            placeholder="e.g. KDS:Kitchen NO.1"
             placeholderTextColor="#999"
           />
         </View>
+
+        <TouchableOpacity
+          style={styles.deviceDiscoveryButton}
+          onPress={() => setShowDeviceDiscovery(true)}
+        >
+          <Text style={styles.deviceDiscoveryButtonText}>📡 Device Discovery</Text>
+        </TouchableOpacity>
 
         {kdsRole === KDSRole.SLAVE && (
           <>
@@ -381,19 +472,20 @@ export default function SettingsScreen() {
                 style={styles.input}
                 value={masterIP}
                 onChangeText={setMasterIP}
-                placeholder="例如: 192.168.1.100"
+                placeholder="e.g. 192.168.1.100"
               />
             </View>
 
-            <View style={styles.settingItem}>
-              <Text style={styles.settingLabel}>子KDS显示分类</Text>
+            <View style={[styles.settingItem, { marginBottom: 24 }]}>
+              <Text style={styles.settingLabel}>Slave KDS Category</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={kdsCategory}
-                  style={styles.picker}
+                  style={styles.textPicker}
                   onValueChange={(itemValue) =>
                     setKdsCategory(itemValue as CategoryType)
                   }
+                  dropdownIconColor="#666"
                 >
                   <Picker.Item
                     label={getCategoryDisplayName(CategoryType.ALL)}
@@ -462,28 +554,7 @@ export default function SettingsScreen() {
           <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
         </TouchableOpacity>
       </View>
-      {/* 设备发现 */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>📡 Device Discovery</Text>
-        <Text style={styles.infoText}>
-          Discover and connect to other KDS devices on the network
-        </Text>
-        <TouchableOpacity
-          style={[styles.saveButton, { marginTop: 12 }]}
-          onPress={() => setShowDeviceDiscovery(true)}
-        >
-          <Text style={styles.saveButtonText}>Discover Devices</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
-        <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
-      </TouchableOpacity> */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
-        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
-        <Text style={styles.infoText}>{t("copyright")}</Text>
-      </View>
       {/* 显示设置卡片 */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
@@ -493,7 +564,7 @@ export default function SettingsScreen() {
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={compactCardsPerRow}
-              style={styles.languagePicker}
+              style={styles.textPicker}
               onValueChange={handleCompactCardsPerRowChange}
               dropdownIconColor="#666"
             >
@@ -505,26 +576,12 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            { marginTop: 10, maxWidth: 200, alignSelf: "center" },
-          ]}
-          onPress={saveSettings}
-        >
-          <Text style={styles.saveButtonText}>{t("applyChanges")}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t("language")}</Text>
-
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>{t("selectLanguage")}:</Text>
+          <Text style={styles.settingLabel}>{t("language")}:</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={language}
-              style={styles.languagePicker}
+              style={styles.textPicker}
               onValueChange={(itemValue: SupportedLanguage) =>
                 handleLanguageChange(itemValue)
               }
@@ -537,11 +594,20 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
+        <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
+      </TouchableOpacity> */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
+        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+        <Text style={styles.infoText}>{t("copyright")}</Text>
+      </View>
     </ScrollView>
 
     <DeviceDiscoveryPanel
       visible={showDeviceDiscovery}
       onClose={() => setShowDeviceDiscovery(false)}
+      onSelectAsMaster={handleConnectToDevice}
     />
     </>
   );
@@ -746,9 +812,27 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-  languagePicker: {
+  textPicker: {
     width: 150,
     height: 55,
     color: "#333",
+  },
+  deviceDiscoveryButton: {
+    marginTop: 20,
+    marginBottom: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: "#2196F3",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    minWidth: 400,
+    
+  },
+  deviceDiscoveryButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });

@@ -19,11 +19,13 @@ import { theme } from '../styles/theme';
 interface DeviceDiscoveryPanelProps {
   visible: boolean;
   onClose: () => void;
+  onSelectAsMaster?: (device: NetworkDevice) => void;
 }
 
 export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
   visible,
   onClose,
+  onSelectAsMaster,
 }) => {
   const { t } = useLanguage();
   const {
@@ -170,6 +172,7 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
                   setShowEditModal(true);
                 }}
                 onLock={() => handleLockDevice(device)}
+                onSelectAsMaster={() => onSelectAsMaster?.(device)}
                 onRemove={() => handleRemoveDevice(device)}
               />
             ))
@@ -249,6 +252,7 @@ interface DeviceCardProps {
   onEdit: () => void;
   onLock: () => void;
   onRemove: () => void;
+  onSelectAsMaster?: () => void;
 }
 
 const DeviceCard: React.FC<DeviceCardProps> = ({
@@ -256,6 +260,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({
   onEdit,
   onLock,
   onRemove,
+  onSelectAsMaster,
 }) => {
   return (
     <View style={styles.deviceCard}>
@@ -282,22 +287,31 @@ const DeviceCard: React.FC<DeviceCardProps> = ({
         </View>
       </View>
 
-      <View style={styles.deviceActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
-          <Ionicons name="create" size={20} color="#2196F3" />
-        </TouchableOpacity>
+      <View style={styles.deviceActionsRow}>
+        <View style={styles.deviceActions}>
+          <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
+            <Ionicons name="create" size={20} color="#2196F3" />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onLock}>
-          <Ionicons
-            name={device.locked ? 'lock-open' : 'lock-closed'}
-            size={20}
-            color={device.locked ? '#FF9800' : '#4CAF50'}
-          />
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={onLock}>
+            <Ionicons
+              name={device.locked ? 'lock-open' : 'lock-closed'}
+              size={20}
+              color={device.locked ? '#FF9800' : '#4CAF50'}
+            />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onRemove}>
-          <Ionicons name="trash" size={20} color="#d32f2f" />
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={onRemove}>
+            <Ionicons name="trash" size={20} color="#d32f2f" />
+          </TouchableOpacity>
+        </View>
+
+        {onSelectAsMaster && (
+          <TouchableOpacity style={styles.connectButton} onPress={onSelectAsMaster}>
+            <Ionicons name="link" size={18} color="white" />
+            <Text style={styles.connectButtonText}>Connect</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -383,9 +397,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   deviceCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
     backgroundColor: '#fff',
     borderRadius: 8,
     padding: 12,
@@ -398,6 +410,7 @@ const styles = StyleSheet.create({
   },
   deviceInfo: {
     flex: 1,
+    marginBottom: 12,
   },
   deviceHeader: {
     marginBottom: 8,
@@ -444,6 +457,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
+  },
+  deviceActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  connectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2196F3',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    gap: 6,
+    marginLeft: 8,
+  },
+  connectButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   // Edit Modal Styles
   modalOverlay: {
