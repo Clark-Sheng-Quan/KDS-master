@@ -11,6 +11,7 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnable
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 import expo.modules.ReactActivityDelegateWrapper
+import com.anonymous.KDS.DeviceDiscovery.DiscoveryRegistry
 
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,6 +23,16 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+    
+    // 初始化设备发现服务
+    val discoveryRegistry = DiscoveryRegistry(this)
+    
+    // 从 SharedPreferences 读取保存的设备名称
+    val sharedPrefs = getSharedPreferences("device_prefs", android.content.Context.MODE_PRIVATE)
+    val savedDeviceName = sharedPrefs.getString("device_name", "KDS:Device")
+    
+    discoveryRegistry.setServiceName(savedDeviceName ?: "KDS:Device")
+    discoveryRegistry.StartService()
   }
 
   /**

@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   Platform,
+  NativeModules,
 } from "react-native";
 import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
@@ -18,6 +19,7 @@ import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
+import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 
 // KDS角色类型
 enum KDSRole {
@@ -46,6 +48,9 @@ export default function SettingsScreen() {
   const [kdsCategory, setKdsCategory] = useState<CategoryType>(
     CategoryType.ALL
   );
+  const [showDeviceDiscovery, setShowDeviceDiscovery] = useState(false);
+  const [deviceName, setDeviceName] = useState<string>("KDS:Device");
+  const [editingDeviceName, setEditingDeviceName] = useState<string>("KDS:Device");
 
   // 添加Compact模式下每行卡片数量状态
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
@@ -87,6 +92,13 @@ export default function SettingsScreen() {
           setKdsCategory(savedCategory as CategoryType);
         }
 
+        // 加载设备名称
+        const savedDeviceName = await AsyncStorage.getItem("device_name");
+        if (savedDeviceName) {
+          setDeviceName(savedDeviceName);
+          setEditingDeviceName(savedDeviceName);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("加载设置失败:", error);
@@ -114,6 +126,22 @@ export default function SettingsScreen() {
       // 如果是子KDS，同时保存分类设置
       if (kdsRole === KDSRole.SLAVE) {
         await AsyncStorage.setItem("kds_category", kdsCategory);
+      }
+
+      // 保存设备名称
+      await AsyncStorage.setItem("device_name", editingDeviceName);
+      setDeviceName(editingDeviceName);
+
+      // 通过原生模块更新设备在网络上的服务名称
+      if (Platform.OS === "android" && NativeModules.DeviceDiscoveryModule) {
+        try {
+          await NativeModules.DeviceDiscoveryModule.setDeviceServiceName(
+            editingDeviceName
+          );
+          console.log("✅ Device name updated on network");
+        } catch (error) {
+          console.warn("设备名称已保存，但网络更新可能延迟", error);
+        }
       }
 
       Alert.alert("成功", "设置已保存");
@@ -274,7 +302,8 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <>
+      <ScrollView style={styles.container}>
       <Text style={styles.title}>{t("settings")}</Text>
 
       <View style={styles.card}>
@@ -330,6 +359,17 @@ export default function SettingsScreen() {
             value={port}
             onChangeText={setPort}
             keyboardType="number-pad"
+          />
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>设备名称</Text>
+          <TextInput
+            style={styles.textInput}
+            value={editingDeviceName}
+            onChangeText={setEditingDeviceName}
+            placeholder="例如: KDS:厨房1号"
+            placeholderTextColor="#999"
           />
         </View>
 
@@ -422,7 +462,28 @@ export default function SettingsScreen() {
           <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
         </TouchableOpacity>
       </View>
+      {/* 设备发现 */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>📡 Device Discovery</Text>
+        <Text style={styles.infoText}>
+          Discover and connect to other KDS devices on the network
+        </Text>
+        <TouchableOpacity
+          style={[styles.saveButton, { marginTop: 12 }]}
+          onPress={() => setShowDeviceDiscovery(true)}
+        >
+          <Text style={styles.saveButtonText}>Discover Devices</Text>
+        </TouchableOpacity>
+      </View>
 
+      {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
+        <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
+      </TouchableOpacity> */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
+        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+        <Text style={styles.infoText}>{t("copyright")}</Text>
+      </View>
       {/* 显示设置卡片 */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
@@ -470,22 +531,19 @@ export default function SettingsScreen() {
               dropdownIconColor="#666"
             >
               <Picker.Item label={t("english")} value="en" />
-              <Picker.Item label={t("chinese")} value="zh" />
+              <Picker.Item label={t("中文")} value="zh" />
             </Picker>
           </View>
         </View>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
-        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
-        <Text style={styles.infoText}>{t("copyright")}</Text>
-      </View>
-
-      {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
-        <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
-      </TouchableOpacity> */}
     </ScrollView>
+
+    <DeviceDiscoveryPanel
+      visible={showDeviceDiscovery}
+      onClose={() => setShowDeviceDiscovery(false)}
+    />
+    </>
   );
 }
 

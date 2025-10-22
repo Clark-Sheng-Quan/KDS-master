@@ -177,4 +177,7 @@ dependencies {
     // 添加这一行来包含libs目录中的所有jar和aar文件
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
     
+    // Gson库，用于JSON序列化和反序列化
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
 }

@@ -305,6 +305,31 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     return text || "null";
   };
 
+  // 格式化时间为澳洲格式 (HH:MM-DD-MMM-YYYY)
+  const formatAustralianTime = (timeString: string) => {
+    try {
+      // 假设 timeString 格式为 "HH:MM" 或 ISO 格式
+      const date = new Date(timeString);
+      
+      // 如果是无效日期，尝试作为 "HH:MM" 处理
+      if (isNaN(date.getTime())) {
+        return timeString; // 返回原值
+      }
+      
+      // 格式化为澳洲格式: HH:MM-DD-MMM-YYYY
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = monthNames[date.getMonth()];
+      const year = date.getFullYear();
+      
+      return `${hours}:${minutes}-${day}-${month}-${year}`;
+    } catch (error) {
+      return timeString; // 出错时返回原值
+    }
+  };
+
   // 获取订单来源颜色
   const sourceColor = getSourceColor(order.source);
   const sourceName = getSourceDisplayName(order.source);
@@ -451,7 +476,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               {/* 左2：Pickup Method - 仅内容 */}
               <Text style={[
                 styles.pickupMethodText,
-                { color: order.pickupMethod?.toLowerCase() === 'take-away' ? '#cb082cff' : '#0096FF' }
+                { color: order.pickupMethod?.toLowerCase() === 'take-away' ? '#FF9B2F' : '#0096FF' }
               ]}>
                 {order.pickupMethod?.toLowerCase() === 'take-away' ? 'Take-Away' : 
                  order.pickupMethod?.toLowerCase() === 'dine_in' ? 'Dine-In' : 
@@ -462,7 +487,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               {order.total_prepare_time !== undefined &&
                 order.total_prepare_time > 0 && (
                   <Text style={styles.prepareTime}>
-                    {t("Prepare Time")}:{" "}
+                    {t("Prepare")}:{" "}
                     <Text style={styles.prepareTimeValue}>
                       {order.total_prepare_time}
                     </Text>{" "}
@@ -475,7 +500,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <View style={styles.rightColumn}>
               {/* 右1：Due + Pickup Time */}
               <Text style={styles.dueTimeText}>
-                Due: {order.pickupTime}
+                Due: {formatAustralianTime(order.pickupTime)}
               </Text>
               
               {/* 右2：Timer (active/urgent/delayed 状态框) */}
@@ -746,11 +771,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: theme.colors.warningColor,
   },
-  itemPrepareTime: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 2,
-  },
   scrollIndicatorText: {
     position: "absolute",
     bottom: 0, // done button上方（done button约50px高）
@@ -767,6 +787,7 @@ const styles = StyleSheet.create({
     fontSize: 18, // 从 14 增大到 18
     color: "#666",
     marginTop: 2,
+    flexWrap: "nowrap",
   },
   prepareTimeValue: {
     fontSize: 18, // 从 14 增大到 18
