@@ -411,12 +411,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           selected && styles.selectedCard,
         ]}
       >
-        {/* 添加订单来源指示器 */}
+        {/* 添加订单来源指示器
         <View
           style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
         >
           <Text style={styles.sourceText}>{sourceName}</Text>
-        </View>
+        </View> */}
 
         <View style={styles.textContainer}>
           <ConfirmModal
@@ -505,7 +505,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </View>
           )}
         </View>
-        {!disabled && !hideActions && (
+        {/* {!disabled && !hideActions && (
           <View>
             <OrderActions
               orderId={order.id}
@@ -515,7 +515,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               }}
             />
           </View>
-        )}
+        )} */}
 
         {/* 如果是可选择的，显示选择状态指示器 */}
         {selectable && (
