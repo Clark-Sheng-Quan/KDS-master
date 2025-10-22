@@ -20,12 +20,14 @@ interface DeviceDiscoveryPanelProps {
   visible: boolean;
   onClose: () => void;
   onSelectAsMaster?: (device: NetworkDevice) => void;
+  currentDeviceIP?: string;
 }
 
 export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
   visible,
   onClose,
   onSelectAsMaster,
+  currentDeviceIP,
 }) => {
   const { t } = useLanguage();
   const {
@@ -163,19 +165,21 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
               </Text>
             </View>
           ) : (
-            devices.map((device) => (
-              <DeviceCard
-                key={device.id}
-                device={device}
-                onEdit={() => {
-                  handleSelectDevice(device);
-                  setShowEditModal(true);
-                }}
-                onLock={() => handleLockDevice(device)}
-                onSelectAsMaster={() => onSelectAsMaster?.(device)}
-                onRemove={() => handleRemoveDevice(device)}
-              />
-            ))
+            devices
+              .filter((device) => device.ip !== currentDeviceIP)
+              .map((device) => (
+                <DeviceCard
+                  key={device.id}
+                  device={device}
+                  onEdit={() => {
+                    handleSelectDevice(device);
+                    setShowEditModal(true);
+                  }}
+                  onLock={() => handleLockDevice(device)}
+                  onSelectAsMaster={() => onSelectAsMaster?.(device)}
+                  onRemove={() => handleRemoveDevice(device)}
+                />
+              ))
           )}
         </ScrollView>
 

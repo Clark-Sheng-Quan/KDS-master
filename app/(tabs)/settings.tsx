@@ -638,6 +638,7 @@ export default function SettingsScreen() {
       visible={showDeviceDiscovery}
       onClose={() => setShowDeviceDiscovery(false)}
       onSelectAsMaster={handleConnectToDevice}
+      currentDeviceIP={ipAddress}
     />
     </>
   );
