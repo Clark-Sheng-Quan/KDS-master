@@ -272,11 +272,19 @@ export default function SettingsScreen() {
 
       if (success) {
         // 更新本地状态，使用原始输入的IP
-        setSubKdsList([
+        const newSubKdsList = [
           ...subKdsList,
           { ip: inputIP, category: assignedCategory },
-        ]);
+        ];
+        setSubKdsList(newSubKdsList);
         setNewSubKdsIP(""); // 清空输入框
+        
+        // 保存到AsyncStorage
+        await AsyncStorage.setItem(
+          "sub_kds_list",
+          JSON.stringify(newSubKdsList)
+        );
+        
         Alert.alert("成功", `已添加子KDS: ${inputIP}`);
       } else {
         Alert.alert("错误", "添加子KDS失败");
@@ -295,7 +303,14 @@ export default function SettingsScreen() {
 
       if (success) {
         // 更新本地状态
-        setSubKdsList(subKdsList.filter((kds) => kds.ip !== ip));
+        const updatedList = subKdsList.filter((kds) => kds.ip !== ip);
+        setSubKdsList(updatedList);
+        
+        // 保存到AsyncStorage
+        await AsyncStorage.setItem(
+          "sub_kds_list",
+          JSON.stringify(updatedList)
+        );
       } else {
         Alert.alert("错误", "移除子KDS失败");
       }
@@ -364,10 +379,25 @@ export default function SettingsScreen() {
   const saveKDSRole = async () => {
     try {
       await AsyncStorage.setItem("kds_role", kdsRole);
+      await AsyncStorage.setItem("kds_port", port);
+      await AsyncStorage.setItem("device_name", editingDeviceName);
 
-      // 如果是子KDS，同时保存分类设置
+      // 如果是子KDS，同时保存分类设置和Master IP
       if (kdsRole === KDSRole.SLAVE) {
         await AsyncStorage.setItem("kds_category", kdsCategory);
+        await AsyncStorage.setItem("master_ip", masterIP);
+      }
+
+      // 通过原生模块更新设备在网络上的服务名称
+      if (Platform.OS === "android" && NativeModules.DeviceDiscoveryModule) {
+        try {
+          await NativeModules.DeviceDiscoveryModule.setDeviceServiceName(
+            editingDeviceName
+          );
+          console.log("✅ Device name updated on network");
+        } catch (error) {
+          console.warn("设备名称已保存，但网络更新可能延迟", error);
+        }
       }
 
       Alert.alert(t("success"), t("settingsSavedRestart"));
