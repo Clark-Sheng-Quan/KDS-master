@@ -335,16 +335,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         >
           <View style={styles.itemNameContainer}>
             <Text style={styles.itemName}>{item.name}</Text>
-            {/* 移除产品准备时间显示，改为显示选项信息
-            {item.options && item.options.length > 0 && (
-              <View style={styles.optionsContainer}>
-                {item.options.map((option: OrderOption, optIndex: number) => (
-                  <Text key={optIndex} style={styles.optionText}>
-                    {option.name}: {option.value}
-                  </Text>
-                ))}
-              </View>
-            )} */}
           </View>
           {completedItems[`${order.id}-item-${index}`] ? (
             <Ionicons
@@ -459,15 +449,20 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               </Text>
               
               {/* 左2：Pickup Method - 仅内容 */}
-              <Text style={styles.pickupMethodText}>
-                {order.pickupMethod}
+              <Text style={[
+                styles.pickupMethodText,
+                { color: order.pickupMethod?.toLowerCase() === 'take-away' ? '#cb082cff' : '#0096FF' }
+              ]}>
+                {order.pickupMethod?.toLowerCase() === 'take-away' ? 'Take-Away' : 
+                 order.pickupMethod?.toLowerCase() === 'dine_in' ? 'Dine-In' : 
+                 order.pickupMethod}
               </Text>
               
               {/* 左3：Prepare Time */}
               {order.total_prepare_time !== undefined &&
                 order.total_prepare_time > 0 && (
                   <Text style={styles.prepareTime}>
-                    {t("PrepareTime")}:{" "}
+                    {t("Prepare Time")}:{" "}
                     <Text style={styles.prepareTimeValue}>
                       {order.total_prepare_time}
                     </Text>{" "}
@@ -632,8 +627,9 @@ const styles = StyleSheet.create({
   },
   pickupMethodText: {
     fontSize: 18,
-    color: "#555",
+    // color 已移到内联样式，根据 pickupMethod 动态设置
     marginBottom: 4,
+    fontWeight: "600", // 增加字重使其更突出
   },
   dueTimeText: {
     fontSize: 14,

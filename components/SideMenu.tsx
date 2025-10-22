@@ -9,8 +9,8 @@ import {
   ScrollView,
   Modal,
   Dimensions,
-  OrientationLocker,
-  ScreenOrientation,
+  // OrientationLocker,
+  // ScreenOrientation,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
