@@ -19,9 +19,10 @@ const { Printer_K1215: NativePrinter_K1215 } = NativeModules;
 
 interface OrderTimerProps {
   order: FormattedOrder;
+  onTimeUpdate?: (elapsedTime: number, statusColor: string, formattedTime: string) => void;
 }
 
-export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
+export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) => {
   const { t } = useLanguage();
   const [elapsedTime, setElapsedTime] = useState(0); // 存储已经过去的时间（秒）
   const [isPrinting, setIsPrinting] = useState(false);
@@ -62,11 +63,15 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
   };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs
-      .toString()
-      .padStart(2, "0")}`;
+    
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    } else {
+      return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
   };
 
   // 根据时间获取状态文本和颜色
@@ -107,6 +112,14 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
   };
 
   const statusInfo = getStatusInfo();
+
+  // 当 elapsedTime 变化时，通知父组件
+  useEffect(() => {
+    if (onTimeUpdate) {
+      const formattedTime = formatTime(elapsedTime);
+      onTimeUpdate(elapsedTime, statusInfo.color, formattedTime);
+    }
+  }, [elapsedTime, statusInfo.color, onTimeUpdate]);
 
   // 计算并格式化剩余准备时间
   const getRemainingPrepTime = () => {
@@ -170,13 +183,14 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
   };
   return (
     <View style={styles.headerRight}>
-      <Text style={styles.timer}>{formatTime(elapsedTime)}</Text>
+      {/* 已过时间已移除，只保留状态按钮 */}
       <View
         style={[styles.statusButton, { backgroundColor: statusInfo.color }]}
       >
         <Text style={styles.statusButtonText}>{statusInfo.text}</Text>
       </View>
-      <TouchableOpacity
+      {/* Print 按钮已注释 */}
+      {/* <TouchableOpacity
         style={[styles.printButton, isPrinting && styles.disabledButton]}
         onPress={handlePrint}
         disabled={isPrinting}
@@ -189,7 +203,7 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order }) => {
             <Text style={styles.printButtonText}>{t("print")}</Text>
           </>
         )}
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 };

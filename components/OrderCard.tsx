@@ -78,6 +78,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const [contentHeight, setContentHeight] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
+  // 添加已过时间状态（从 OrderTimer 接收）
+  const [elapsedTimeFormatted, setElapsedTimeFormatted] = useState<string>("00:00");
+  const [statusColor, setStatusColor] = useState<string>(colors.activeColor);
+
   // 检查当前KDS是否为slave
   useEffect(() => {
     const checkKDSRole = async () => {
@@ -87,6 +91,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
     checkKDSRole();
   }, []);
+
+  // 接收来自 OrderTimer 的时间更新
+  const handleTimeUpdate = (elapsedTime: number, color: string, formattedTime: string) => {
+    setElapsedTimeFormatted(formattedTime);
+    setStatusColor(color);
+  };
 
   // 监听颜色映射变化
   useEffect(() => {
@@ -439,41 +449,49 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             />
           )}
 
-          <View style={styles.header}>
-            <Text style={styles.orderId} numberOfLines={0} ellipsizeMode="tail">
-              {t("order")} #{order.order_num || order.orderId}
-            </Text>
-            {!disabled && !hideTimer && <OrderTimer order={order} />}
-          </View>
-
-          {order.orderId && (
-            <Text style={styles.orderDetail}>
-              {t("orderId")}: {order.orderId}
-            </Text>
-          )}
-          <Text style={styles.orderDetail}>
-            {t("pickupMethod")}: {order.pickupMethod}
-          </Text>
-          <Text style={styles.orderDetail}>
-            {t("pickupTime")}: {order.pickupTime}
-          </Text>
-          {order.tableNumber && (
-            <Text style={styles.orderDetail}>
-              {t("tableNumber")}: {safeText(order.tableNumber)}
-            </Text>
-          )}
-
-          {/* 显示总准备时间 */}
-          {order.total_prepare_time !== undefined &&
-            order.total_prepare_time > 0 && (
-              <Text style={styles.prepareTime}>
-                {t("totalPrepareTime")}:{" "}
-                <Text style={styles.prepareTimeValue}>
-                  {order.total_prepare_time}
-                </Text>{" "}
-                min
+          {/* 新 Header 设计 - 左右两列 */}
+          <View style={styles.headerLayout}>
+            {/* 左列 */}
+            <View style={styles.leftColumn}>
+              {/* 左1：Order Number */}
+              <Text style={styles.orderId}>
+                #{order.order_num || order.orderId}
               </Text>
-            )}
+              
+              {/* 左2：Pickup Method - 仅内容 */}
+              <Text style={styles.pickupMethodText}>
+                {order.pickupMethod}
+              </Text>
+              
+              {/* 左3：Prepare Time */}
+              {order.total_prepare_time !== undefined &&
+                order.total_prepare_time > 0 && (
+                  <Text style={styles.prepareTime}>
+                    {t("PrepareTime")}:{" "}
+                    <Text style={styles.prepareTimeValue}>
+                      {order.total_prepare_time}
+                    </Text>{" "}
+                    min
+                  </Text>
+                )}
+            </View>
+
+            {/* 右列 */}
+            <View style={styles.rightColumn}>
+              {/* 右1：Due + Pickup Time */}
+              <Text style={styles.dueTimeText}>
+                Due: {order.pickupTime}
+              </Text>
+              
+              {/* 右2：Timer (active/urgent/delayed 状态框) */}
+              {!disabled && !hideTimer && <OrderTimer order={order} onTimeUpdate={handleTimeUpdate} />}
+              
+              {/* 右3：已过时间 - 使用状态颜色 */}
+              <Text style={[styles.elapsedTimeText, { color: statusColor }]}>
+                {elapsedTimeFormatted}
+              </Text>
+            </View>
+          </View>
 
           <View 
             style={styles.itemsContainer}
@@ -505,7 +523,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </View>
           )}
         </View>
-        {/* {!disabled && !hideActions && (
+        {!disabled && !hideActions && (
           <View>
             <OrderActions
               orderId={order.id}
@@ -515,7 +533,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               }}
             />
           </View>
-        )} */}
+        )}
 
         {/* 如果是可选择的，显示选择状态指示器 */}
         {selectable && (
@@ -569,13 +587,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 10,
     paddingRight: 10,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between", // 添加：让内容两端对齐
   },
+  // Header 样式
   header: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginTop: 12,
+    marginTop: 4,
     marginBottom: 12,
     flexShrink: 1,
     minWidth: 0,
@@ -583,22 +605,53 @@ const styles = StyleSheet.create({
   orderId: {
     minWidth: "50%",
     flexShrink: 1,
-    fontSize: 24,
+    fontSize: 32, 
     fontWeight: "700",
     color: "#1a1a1a",
-    flexWrap: "wrap",
-    flex: 1,
+    marginBottom: 4,
   },
   orderDetail: {
     fontSize: 14,
     color: "#666",
     marginBottom: 3,
   },
+  headerLayout: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  leftColumn: {
+    flex: 1,
+    justifyContent: "flex-start",
+  },
+  rightColumn: {
+    flex: 1,
+    alignItems: "flex-end",
+    justifyContent: "flex-start",
+  },
+  pickupMethodText: {
+    fontSize: 18,
+    color: "#555",
+    marginBottom: 4,
+  },
+  dueTimeText: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 12
+  },
+  elapsedTimeText: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginTop: 12,
+  },
   itemsContainer: {
     flex: 1,
     minHeight: 0,
-    marginTop: 8,
-    maxHeight: 350, // 增加最大高度以显示更多商品
+    marginTop: 4, 
+    marginBottom: 8,
+    // maxHeight: 350
+    justifyContent: "flex-end", // 添加：从底部向上排列
   },
   itemsTitle: {
     fontSize: 15,
@@ -627,7 +680,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
     color: "#333",
   },
@@ -656,7 +709,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   optionName: {
-    fontSize: 14,
+    fontSize: 16,
     color: "#555",
     fontWeight: "500",
   },
@@ -715,12 +768,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   prepareTime: {
-    fontSize: 14,
+    fontSize: 18, // 从 14 增大到 18
     color: "#666",
     marginTop: 2,
   },
   prepareTimeValue: {
-    fontSize: 14,
+    fontSize: 18, // 从 14 增大到 18
     color: "#333",
     fontWeight: "bold",
   },
