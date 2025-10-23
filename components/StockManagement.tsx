@@ -520,8 +520,6 @@ const StockManagementScreen = () => {
       displayName = t("lowStock");
     }
 
-    const categoryBgColor = getCategoryColor(item);
-
     return (
       <TouchableOpacity
         style={[
@@ -529,7 +527,6 @@ const StockManagementScreen = () => {
           selectedCategory === item && styles.selectedCategoryItem,
           item === SOLD_OUT_CATEGORY && styles.soldOutCategoryItem,
           item === LOW_STOCK_CATEGORY && styles.lowStockCategoryItem,
-          { backgroundColor: categoryBgColor }, // 应用分类颜色
         ]}
         onPress={() => handleCategorySelect(item)}
         onLongPress={() => handleCategoryLongPress(item)}
@@ -541,8 +538,6 @@ const StockManagementScreen = () => {
             selectedCategory === item && styles.selectedCategoryText,
             item === SOLD_OUT_CATEGORY && styles.soldOutCategoryText,
             item === LOW_STOCK_CATEGORY && styles.lowStockCategoryText,
-            // 如果背景色较深，文字颜色为白色
-            categoryBgColor !== "#FFFFFF" && { color: "#333" },
           ]}
         >
           {displayName}
