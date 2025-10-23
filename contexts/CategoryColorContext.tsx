@@ -53,10 +53,10 @@ export const CategoryColorProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const updatedMap = { ...categoryColorMap };
 
-      // 限制最多5个分类颜色
+      // 限制最多20个分类颜色
       const currentCategories = Object.keys(updatedMap);
-      if (currentCategories.length >= 5 && !updatedMap[category]) {
-        // 如果已经有5个分类且当前分类不在映射中，则不添加
+      if (currentCategories.length >= 20 && !updatedMap[category]) {
+        // 如果已经有20个分类且当前分类不在映射中，则不添加
         return;
       }
 

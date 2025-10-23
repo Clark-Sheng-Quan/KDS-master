@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDeviceDiscovery, NetworkDevice } from '../hooks/useDeviceDiscovery';
 import { useLanguage } from '../contexts/LanguageContext';
 import { theme } from '../styles/theme';
+import { DistributionService } from '../services/distributionService';
 
 interface DeviceDiscoveryPanelProps {
   visible: boolean;
@@ -64,23 +65,23 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
 
   const handleSaveEdit = async () => {
     if (!selectedDevice || !editName.trim() || !editIp.trim()) {
-      Alert.alert('Invalid Input', 'Please fill in all required fields');
+      Alert.alert(t("invalidInput"), t("pleaseCheckAllFields"));
       return;
     }
 
     try {
       const port = parseInt(editPort, 10);
       if (isNaN(port) || port <= 0) {
-        Alert.alert('Invalid Port', 'Port must be a positive number');
+        Alert.alert(t("invalidPort"), t("portMustBePositive"));
         return;
       }
 
       await modifyDevice(selectedDevice.id, editName, editIp, port);
       setShowEditModal(false);
       setSelectedDevice(null);
-      Alert.alert('Success', 'Device updated successfully');
+      Alert.alert(t("success"), t("deviceUpdatedSuccessfully"));
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update device');
+      Alert.alert(t("failed"), err.message || t("failedToUpdateDevice"));
     }
   };
 
@@ -88,29 +89,67 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
     try {
       await lockDevice(device.id, !device.locked);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update device lock status');
+      Alert.alert(t("failed"), err.message || t("failedToUpdateLockStatus"));
     }
   };
 
   const handleRemoveDevice = (device: NetworkDevice) => {
     Alert.alert(
-      'Remove Device',
-      `Are you sure you want to remove ${device.name}?`,
+      t("removeDevice"),
+      `${t("areYouSureRemoveDevice")} ${device.name}?`,
       [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        { text: t("cancel"), onPress: () => {}, style: 'cancel' },
         {
-          text: 'Remove',
+          text: t("remove"),
           onPress: async () => {
             try {
               await removeDevice(device.id);
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to remove device');
+              Alert.alert(t("failed"), err.message || t("failedToRemoveDevice"));
             }
           },
           style: 'destructive',
         },
       ]
     );
+  };
+
+  const handleConnectToDevice = (device: NetworkDevice) => {
+    const isMaster = DistributionService.isMaster();
+    
+    if (isMaster) {
+      // 如果本机是Master，确认是否把目标设置为Slave
+      Alert.alert(
+        t("connectToDevice"),
+        t("setAsSlaveKDS"),
+        [
+          { text: t("cancel"), onPress: () => {}, style: 'cancel' },
+          {
+            text: t("connect"),
+            onPress: () => {
+              onSelectAsMaster?.(device);
+            },
+            style: 'default',
+          },
+        ]
+      );
+    } else {
+      // 如果本机是Slave，确认是否连接到Master
+      Alert.alert(
+        t("connectToDevice"),
+        t("connectToMasterKDS"),
+        [
+          { text: t("cancel"), onPress: () => {}, style: 'cancel' },
+          {
+            text: t("connect"),
+            onPress: () => {
+              onSelectAsMaster?.(device);
+            },
+            style: 'default',
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -123,7 +162,7 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>📡 Device Discovery</Text>
+          <Text style={styles.headerTitle}>📡 {t("deviceDiscovery")}</Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={28} color="#333" />
           </TouchableOpacity>
@@ -133,7 +172,7 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
         {!initialized && (
           <View style={styles.statusBox}>
             <ActivityIndicator size="small" color={theme.colors.primaryColor} />
-            <Text style={styles.statusText}>Initializing discovery...</Text>
+            <Text style={styles.statusText}>{t("initializingDiscovery")}</Text>
           </View>
         )}
 
@@ -154,14 +193,14 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
           {loading && devices.length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.colors.primaryColor} />
-              <Text style={styles.loadingText}>Discovering devices...</Text>
+              <Text style={styles.loadingText}>{t("discoveringDevices")}</Text>
             </View>
           ) : devices.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="cloud-offline" size={48} color="#999" />
-              <Text style={styles.emptyText}>No devices discovered</Text>
+              <Text style={styles.emptyText}>{t("noDevicesDiscovered")}</Text>
               <Text style={styles.emptySubText}>
-                Make sure other KDS devices are connected to the same network
+                {t("makesSureOtherKDSConnected")}
               </Text>
             </View>
           ) : (
@@ -178,6 +217,7 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
                   onLock={() => handleLockDevice(device)}
                   onSelectAsMaster={() => onSelectAsMaster?.(device)}
                   onRemove={() => handleRemoveDevice(device)}
+                  t={t}
                 />
               ))
           )}
@@ -196,31 +236,31 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
           >
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Edit Device</Text>
+                <Text style={styles.modalTitle}>{t("editDevice")}</Text>
 
-                <Text style={styles.label}>Device Name</Text>
+                <Text style={styles.label}>{t("deviceName")}</Text>
                 <TextInput
                   style={styles.input}
                   value={editName}
                   onChangeText={setEditName}
-                  placeholder="Enter device name"
+                  placeholder={t("deviceName")}
                 />
 
-                <Text style={styles.label}>IP Address</Text>
+                <Text style={styles.label}>{t("ipAddress")}</Text>
                 <TextInput
                   style={styles.input}
                   value={editIp}
                   onChangeText={setEditIp}
-                  placeholder="Enter IP address"
+                  placeholder={t("enterIPAddress")}
                   keyboardType="decimal-pad"
                 />
 
-                <Text style={styles.label}>Port</Text>
+                <Text style={styles.label}>{t("port")}</Text>
                 <TextInput
                   style={styles.input}
                   value={editPort}
                   onChangeText={setEditPort}
-                  placeholder="Enter port"
+                  placeholder={t("enterPort")}
                   keyboardType="number-pad"
                 />
 
@@ -232,14 +272,14 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
                       setSelectedDevice(null);
                     }}
                   >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                    <Text style={styles.cancelButtonText}>{t("cancel")}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[styles.modalButton, styles.saveButton]}
                     onPress={handleSaveEdit}
                   >
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    <Text style={styles.saveButtonText}>{t("save")}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -257,6 +297,7 @@ interface DeviceCardProps {
   onLock: () => void;
   onRemove: () => void;
   onSelectAsMaster?: () => void;
+  t: (key: string) => string;
 }
 
 const DeviceCard: React.FC<DeviceCardProps> = ({
@@ -265,6 +306,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({
   onLock,
   onRemove,
   onSelectAsMaster,
+  t,
 }) => {
   return (
     <View style={styles.deviceCard}>
@@ -277,7 +319,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({
               color={device.locked ? '#d32f2f' : '#4CAF50'}
             />
             <Text style={styles.deviceName}>{device.name}</Text>
-            {device.locked && <Text style={styles.lockedBadge}>LOCKED</Text>}
+            {device.locked && <Text style={styles.lockedBadge}>{t("locked")}</Text>}
           </View>
         </View>
 
@@ -313,7 +355,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({
         {onSelectAsMaster && (
           <TouchableOpacity style={styles.connectButton} onPress={onSelectAsMaster}>
             <Ionicons name="link" size={18} color="white" />
-            <Text style={styles.connectButtonText}>Connect</Text>
+            <Text style={styles.connectButtonText}>{t("connect")}</Text>
           </TouchableOpacity>
         )}
       </View>

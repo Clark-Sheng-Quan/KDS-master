@@ -233,7 +233,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
 
           {/* 设置部分 */}
           <View style={styles.settingsSection}>
-            <Text style={styles.sectionTitle}>{t("settings") || "设置"}</Text>
+            <Text style={styles.sectionTitle}>{t("status")}</Text>
 
             {/* 屏幕方向切换 */}
             <TouchableOpacity

@@ -51,94 +51,73 @@ export class TCPSocketService {
           // 保存客户端连接
           this.clients.set(clientKey, socket);
           
+          // 为每个连接添加数据缓冲区，用于处理粘包问题
+          let dataBuffer = '';
+          
           // 接收数据
           socket.on('data', (data: string | Buffer) => {
             try {
-              const message = typeof data === 'string' ? data : data.toString('utf8');
-              console.log(`[TCP] 收到来自 ${clientKey} 的数据:`, message);
+              const chunk = typeof data === 'string' ? data : data.toString('utf8');
+              dataBuffer += chunk;
+              console.log(`[TCP] 收到数据片段:`, chunk);
               
-              // 尝试解析JSON
-              const jsonData = JSON.parse(message);
+              // 尝试解析多条JSON消息（通过计算括号匹配）
+              let processedIndex = 0;
+              let braceCount = 0;
+              let inString = false;
+              let escape = false;
               
-              // 处理注册消息
-              if (jsonData.type === 'registration') {
-                console.log(`[TCP] 收到注册消息:`, jsonData);
+              for (let i = processedIndex; i < dataBuffer.length; i++) {
+                const char = dataBuffer[i];
                 
-                // 提取客户端IP地址 (移除端口部分)
-                const clientIP = socket.remoteAddress?.split(':').pop() || '';
-                
-                // 从消息中获取品类，默认为ALL
-                const category = jsonData.category || 'all';
-                
-                // 发送注册确认
-                socket.write(JSON.stringify({
-                  type: 'registration_ack',
-                  status: 'accepted',
-                  timestamp: new Date().toISOString()
-                }));
-                
-                // 如果设置了注册回调，触发回调
-                if (this.registrationCallback) {
-                  this.registrationCallback(clientIP, category as CategoryType);
+                // 处理转义字符
+                if (escape) {
+                  escape = false;
+                  continue;
                 }
                 
-                // 将此连接添加到持久连接池
-                const baseIP = clientIP;
-                this.persistentConnections.set(baseIP, socket);
-                console.log(`[TCP] 已将 ${baseIP} 添加到持久连接池`);
+                if (char === '\\') {
+                  escape = true;
+                  continue;
+                }
                 
-                return; // 处理完注册消息后返回
+                // 处理字符串
+                if (char === '"') {
+                  inString = !inString;
+                  continue;
+                }
+                
+                // 只在字符串外处理括号
+                if (!inString) {
+                  if (char === '{') {
+                    braceCount++;
+                  } else if (char === '}') {
+                    braceCount--;
+                    
+                    // 当括号完全匹配时，表示一条完整的消息
+                    if (braceCount === 0) {
+                      try {
+                        const jsonString = dataBuffer.substring(processedIndex, i + 1);
+                        const jsonData = JSON.parse(jsonString);
+                        console.log(`[TCP] 成功解析消息:`, jsonString);
+                        
+                        // 处理此 JSON 数据
+                        this.handleTcpMessage(jsonData, socket, clientKey);
+                        
+                        processedIndex = i + 1;
+                      } catch (e) {
+                        console.error(`[TCP] JSON解析失败:`, e);
+                        break;
+                      }
+                    }
+                  }
+                }
               }
               
-              // 处理订单确认消息
-              if (jsonData.type === 'order_ack') {
-                console.log(`[TCP] 收到订单确认:`, jsonData);
-                this.executeOrderCallbacks(jsonData);
-                return; // 处理完订单确认后返回
-              }
-              
-              // 处理商品完成状态消息
-              if (jsonData.type === 'order_items_completed') {
-                console.log(`[TCP] 收到商品完成状态消息:`, jsonData);
-                this.executeOrderCallbacks(jsonData);
-                return; // 处理完商品完成状态后返回
-              }
-              
-              // 处理心跳消息
-              if (jsonData.type === 'heartbeat') {
-                console.log(`[TCP] 收到心跳消息，回复确认`);
-                socket.write(JSON.stringify({
-                  type: 'heartbeat_ack',
-                  timestamp: new Date().toISOString()
-                }));
-                return;
-              }
-              
-              // 处理订单消息 - 添加更严格的检查
-              if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
-                console.log(`[TCP] 收到订单消息，订单ID: ${jsonData.data.id}`);
-                this.executeOrderCallbacks(jsonData.data);
-              
-              // 返回确认消息
-                socket.write(JSON.stringify({ 
-                  type: 'order_ack',
-                  orderId: jsonData.data.id,
-                  status: 'received', 
-                  timestamp: new Date().toISOString() 
-                }));
-                return;
-              }
-              
-              // 处理其他未知类型的消息
-              console.log(`[TCP] 收到未知类型消息:`, jsonData.type || "无类型");
-              socket.write(JSON.stringify({ 
-                status: 'received', 
-                message: 'unknown_message_type',
-                timestamp: new Date().toISOString() 
-              }));
+              // 移除已处理的数据
+              dataBuffer = dataBuffer.substring(processedIndex);
             } catch (error) {
-              console.error(`[TCP] 解析数据失败:`, error);
-              socket.write(JSON.stringify({ status: 'error', message: '无效的JSON数据' }));
+              console.error(`[TCP] 数据处理出错:`, error);
             }
           });
           
@@ -188,6 +167,139 @@ export class TCPSocketService {
         reject(error);
       }
     });
+  }
+
+  /**
+   * 处理单条TCP消息
+   */
+  private static handleTcpMessage(jsonData: any, socket: any, clientKey: string) {
+    // 处理注册消息
+    if (jsonData.type === 'registration') {
+      console.log(`[TCP] 收到注册消息:`, jsonData);
+      
+      // 提取客户端IP地址 (移除端口部分)
+      const clientIP = socket.remoteAddress?.split(':').pop() || '';
+      
+      // 从消息中获取品类，默认为ALL
+      const category = jsonData.category || 'all';
+      
+      // 发送注册确认
+      socket.write(JSON.stringify({
+        type: 'registration_ack',
+        status: 'accepted',
+        timestamp: new Date().toISOString()
+      }));
+      
+      // 如果设置了注册回调，触发回调
+      if (this.registrationCallback) {
+        this.registrationCallback(clientIP, category as CategoryType);
+      }
+      
+      // 将此连接添加到持久连接池
+      const baseIP = clientIP;
+      this.persistentConnections.set(baseIP, socket);
+      console.log(`[TCP] 已将 ${baseIP} 添加到持久连接池`);
+      return;
+    }
+    
+    // 处理订单确认消息
+    if (jsonData.type === 'order_ack') {
+      console.log(`[TCP] 收到订单确认:`, jsonData);
+      this.executeOrderCallbacks(jsonData);
+      return;
+    }
+    
+    // 处理商品完成状态消息
+    if (jsonData.type === 'order_items_completed') {
+      console.log(`[TCP] 收到商品完成状态消息:`, jsonData);
+      this.executeOrderCallbacks(jsonData);
+      return;
+    }
+    
+    // 处理心跳消息
+    if (jsonData.type === 'heartbeat') {
+      console.log(`[TCP] 收到心跳消息，回复确认`);
+      socket.write(JSON.stringify({
+        type: 'heartbeat_ack',
+        timestamp: new Date().toISOString()
+      }));
+      return;
+    }
+    
+    // 处理订单消息
+    if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
+      console.log(`[TCP] 收到订单消息，订单ID: ${jsonData.data.id}`);
+      this.executeOrderCallbacks(jsonData.data);
+    
+      // 返回确认消息
+      socket.write(JSON.stringify({ 
+        type: 'order_ack',
+        orderId: jsonData.data.id,
+        status: 'received', 
+        timestamp: new Date().toISOString() 
+      }));
+      return;
+    }
+    
+    // 处理其他未知类型的消息
+    console.log(`[TCP] 收到未知类型消息:`, jsonData.type || "无类型");
+    socket.write(JSON.stringify({ 
+      status: 'received', 
+      message: 'unknown_message_type',
+      timestamp: new Date().toISOString() 
+    }));
+  }
+
+  /**
+   * 处理来自Master的消息（Slave模式）
+   */
+  private static handleMasterMessage(jsonData: any) {
+    // 处理心跳消息
+    if (jsonData.type === 'heartbeat') {
+      console.log(`[TCP] 收到主KDS心跳，发送确认`);
+      if (this.masterConnection) {
+        this.masterConnection.write(JSON.stringify({
+          type: 'heartbeat_ack',
+          timestamp: new Date().toISOString()
+        }));
+      }
+      return;
+    }
+    
+    // 处理订单数据 - 添加更严格的检查
+    if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
+      const orderId = jsonData.data.id;
+      console.log(`[TCP] 收到订单数据，准备处理: ${orderId}`);
+      
+      // 检查是否处理过此订单
+      const processedKey = `processed_${orderId}`;
+      if (this.masterConnection && this.masterConnection[processedKey]) {
+        console.log(`[TCP] 订单 ${orderId} 已处理过，跳过`);
+        return;
+      }
+      
+      // 标记为已处理
+      if (this.masterConnection) {
+        this.masterConnection[processedKey] = true;
+      }
+      
+      // 处理订单数据
+      this.executeOrderCallbacks(jsonData.data);
+      
+      // 发送确认消息
+      if (this.masterConnection) {
+        this.masterConnection.write(JSON.stringify({
+          type: 'order_ack',
+          orderId: orderId,
+          status: 'received',
+          timestamp: new Date().toISOString()
+        }));
+      }
+      return;
+    }
+    
+    // 处理其他类型的消息
+    console.log(`[TCP] 收到来自主KDS的未知类型消息:`, jsonData.type || "无类型");
   }
   
   /**
@@ -258,57 +370,73 @@ export class TCPSocketService {
           resolve(true);
         });
         
+        // 为连接添加数据缓冲区，用于处理粘包问题
+        let masterDataBuffer = '';
+        
         // 接收数据
         this.masterConnection.on('data', (data: string | Buffer) => {
           try {
-            const message = typeof data === 'string' ? data : data.toString('utf8');
-            console.log(`[TCP] 收到来自主KDS的数据:`, message);
+            const chunk = typeof data === 'string' ? data : data.toString('utf8');
+            masterDataBuffer += chunk;
+            console.log(`[TCP] 收到来自主KDS的数据:`, chunk);
             
-            // 尝试解析JSON
-            const jsonData = JSON.parse(message);
+            // 尝试解析多条JSON消息（通过计算括号匹配）
+            let processedIndex = 0;
+            let braceCount = 0;
+            let inString = false;
+            let escape = false;
             
-            // 处理心跳消息
-            if (jsonData.type === 'heartbeat') {
-              console.log(`[TCP] 收到主KDS心跳，发送确认`);
-              this.masterConnection.write(JSON.stringify({
-                type: 'heartbeat_ack',
-                timestamp: new Date().toISOString()
-              }));
-              return;
-            }
-            
-            // 处理订单数据 - 添加更严格的检查
-            if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
-              const orderId = jsonData.data.id;
-              console.log(`[TCP] 收到订单数据，准备处理: ${orderId}`);
+            for (let i = processedIndex; i < masterDataBuffer.length; i++) {
+              const char = masterDataBuffer[i];
               
-              // 检查是否处理过此订单
-              const processedKey = `processed_${orderId}`;
-              if (this.masterConnection[processedKey]) {
-                console.log(`[TCP] 订单 ${orderId} 已处理过，跳过`);
-                return;
+              // 处理转义字符
+              if (escape) {
+                escape = false;
+                continue;
               }
               
-              // 标记为已处理
-              this.masterConnection[processedKey] = true;
+              if (char === '\\') {
+                escape = true;
+                continue;
+              }
               
-              // 处理订单数据
-              this.executeOrderCallbacks(jsonData.data);
+              // 处理字符串
+              if (char === '"') {
+                inString = !inString;
+                continue;
+              }
               
-              // 发送确认消息
-              this.masterConnection.write(JSON.stringify({
-                type: 'order_ack',
-                orderId: orderId,
-                status: 'received',
-                timestamp: new Date().toISOString()
-              }));
-              return;
+              // 只在字符串外处理括号
+              if (!inString) {
+                if (char === '{') {
+                  braceCount++;
+                } else if (char === '}') {
+                  braceCount--;
+                  
+                  // 当括号完全匹配时，表示一条完整的消息
+                  if (braceCount === 0) {
+                    try {
+                      const jsonString = masterDataBuffer.substring(processedIndex, i + 1);
+                      const jsonData = JSON.parse(jsonString);
+                      console.log(`[TCP] 成功解析来自主KDS的消息:`, jsonString);
+                      
+                      // 处理此 JSON 数据
+                      this.handleMasterMessage(jsonData);
+                      
+                      processedIndex = i + 1;
+                    } catch (e) {
+                      console.error(`[TCP] JSON解析失败:`, e);
+                      break;
+                    }
+                  }
+                }
+              }
             }
             
-            // 处理其他类型的消息
-            console.log(`[TCP] 收到未知类型消息:`, jsonData.type || "无类型");
+            // 移除已处理的数据
+            masterDataBuffer = masterDataBuffer.substring(processedIndex);
           } catch (error) {
-            console.error(`[TCP] 解析数据失败:`, error);
+            console.error(`[TCP] 数据处理出错:`, error);
           }
         });
         

@@ -477,7 +477,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Device Name</Text>
+          <Text style={styles.infoLabel}>{t("deviceName")}</Text>
           <TextInput
             style={styles.textInput}
             value={editingDeviceName}
@@ -491,7 +491,7 @@ export default function SettingsScreen() {
           style={styles.deviceDiscoveryButton}
           onPress={() => setShowDeviceDiscovery(true)}
         >
-          <Text style={styles.deviceDiscoveryButtonText}>📡 Device Discovery</Text>
+          <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
         </TouchableOpacity>
 
         {kdsRole === KDSRole.SLAVE && (
@@ -618,7 +618,7 @@ export default function SettingsScreen() {
               dropdownIconColor="#666"
             >
               <Picker.Item label={t("english")} value="en" />
-              <Picker.Item label={t("中文")} value="zh" />
+              <Picker.Item label={t("chinese")} value="zh" />
             </Picker>
           </View>
         </View>

@@ -22,11 +22,25 @@ export const sourceColors = {
 };
 
 export const categoryColors = {
-  // 最多支持5个分类颜色
-  category1: "#FFD700", // 金色
-  category2: "#7FFFD4", // 碧绿色
-  category3: "#FF69B4", // 粉红色
-  category4: "#9370DB", // 中紫色
-  category5: "#20B2AA", // 浅海洋绿
-  default: "#F9F9F9",   // 默认浅灰色
+  category1: "#FF6B35",   // 橙红
+  category2: "#3498DB",   // 深蓝
+  category3: "#E74C3C",   // 鲜红
+  category4: "#27AE60",   // 草绿
+  category5: "#F39C12",   // 橙黄
+  category6: "#9B59B6",   // 紫罗兰
+  category7: "#1ABC9C",   // 青绿
+  category8: "#E67E22",   // 焦橙
+  category9: "#34495E",   // 深灰蓝
+  category10: "#C0392B",  // 暗红
+  category11: "#16A085",  // 墨绿
+  category12: "#D35400",  // 赭橙
+  category13: "#8E44AD",  // 深紫
+  category14: "#2980B9",  // 天蓝
+  category15: "#C23B22",  // 砖红
+  category16: "#2ECC71",  // 明绿（与#27AE60区分）
+  category17: "#F1C40F",  // 金黄
+  category18: "#E84393",  // 玫红
+  category19: "#00CEC9",  // 薄荷青
+  category20: "#6C5CE7",  // 靛蓝
+  default: "#E8E8E8",     // 浅灰
 };

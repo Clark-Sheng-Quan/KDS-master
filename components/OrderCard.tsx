@@ -349,7 +349,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           style={[
             styles.itemRow,
             completedItems[`${order.id}-item-${index}`] && styles.completedItem,
-            { backgroundColor: categoryColor || "#f9f9f9" }, // 如果没有分类颜色则使用默认灰色
             // 如果没有option，则添加底部圆角
             (!item.options || item.options.length === 0) && {
               borderBottomLeftRadius: 4,
@@ -368,7 +367,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               color={colors.checkColor}
             />
           ) : (
-            <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+            <Text style={[styles.itemQuantity, { color: categoryColor }]}>x{item.quantity}</Text>
           )}
         </TouchableOpacity>
 
@@ -388,7 +387,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 activeOpacity={0.7}
                 style={[
                   styles.optionRow,
-                  { backgroundColor: categoryColor || "#f9f9f9" },
                   // 最后一个option有底部圆角
                   optIndex === item.options.length - 1 && {
                     borderBottomLeftRadius: 4,

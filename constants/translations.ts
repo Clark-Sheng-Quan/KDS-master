@@ -31,6 +31,7 @@ export const translations = {
     // 登出相关
     logoutConfirmTitle: "确认登出",
     logoutConfirmMessage: "您确定要登出系统吗？",
+    logout: "登出",
     
     // 订单来源
     kiosk: "自助点单",
@@ -43,7 +44,7 @@ export const translations = {
     // 设置界面
     language: "语言",
     chinese: "中文",
-    english: "英文",
+    english: "English",
     selectLanguage: "选择语言",
     resetSettings: "重置设置",
     systemInfo: "系统信息",
@@ -76,9 +77,18 @@ export const translations = {
     refillStockFailed: "补充库存失败",
     updateStockFailed: "更新库存失败",
     enterStockQuantity: "输入库存数量",
-    
-    // 店铺选择相关
+    threshold: "阈值",
+    products: "产品",
+    selectWarehouse: "选择仓库",
+    productCategory: "产品分类",
+    selectAll: "全选",
+    customizeCategoryColour: "自定义分类颜色",
+    selected: "已选择",
+    items: "项",
+
+    // 店铺相关
     selectShop: "选择店铺",
+    shop: "店铺",
     noShopsAvailable: "没有可用的店铺",
     shopCode: "店铺码",
     refreshList: "刷新列表",
@@ -117,6 +127,8 @@ export const translations = {
     search: "搜索",
     filter: "筛选",
     notConnected: "未连接",
+    connected: "已连接",
+    disconnected: "已断开",
     printerNotConnected: "打印机未连接",
     success: "成功",
     orderPrinted: "订单已打印",
@@ -146,18 +158,55 @@ export const translations = {
     colorSettings: "颜色设置",
     defaultColor: "默认颜色",
     
+    // 菜单相关
+    currentTime: "当前时间",
+    navigation: "导航",
+    status: "状态",
+    switchToLandscape: "切换到横屏",
+    switchToPortrait: "切换到竖屏",
+    
     // KDS Master/Slave 相关翻译
     kdsRole: "KDS角色",
-    masterKDS: "主厨显示屏",
-    subKDS: "辅助显示屏", 
+    masterKDS: "主显示屏",
+    subKDS: "副显示屏", 
     localIPAddress: "本机IP地址",
     tcpPort: "TCP端口",
-    masterKDSIPAddress: "主机IP地址",
+    masterKDSIPAddress: "主屏IP地址",
     subKDSManagement: "副屏管理",
     addSubKDS: "添加副屏设备",
     enterSubKDSIPAddress: "输入副屏IP地址",
     noSubKDS: "暂无副屏设备",
     saveSettings: "保存设置",
+    
+    // 设备发现相关
+    deviceName: "设备名称",
+    deviceDiscovery: "设备发现",
+    connect: "连接",
+    initializingDiscovery: "初始化设备发现中...",
+    discoveringDevices: "正在发现设备...",
+    noDevicesDiscovered: "未发现任何设备",
+    makesSureOtherKDSConnected: "确保其他KDS设备连接到同一网络",
+    removeDevice: "移除设备",
+    areYouSureRemoveDevice: "确定要移除设备",
+    remove: "移除",
+    editDevice: "编辑设备",
+    connectToDevice: "连接到设备",
+    areYouSureConnectTo: "确定要连接到设备",
+    setAsSlaveKDS: "确定要把该设备设置为副屏吗？",
+    connectToMasterKDS: "确定要作为副屏连接到该主屏吗？",
+    ipAddress: "IP地址",
+    port: "端口",
+    enterIPAddress: "输入IP地址",
+    enterPort: "输入端口",
+    invalidInput: "无效输入",
+    pleaseCheckAllFields: "请检查所有字段",
+    invalidPort: "无效端口",
+    portMustBePositive: "端口必须是正数",
+    deviceUpdatedSuccessfully: "设备已成功更新",
+    failedToUpdateDevice: "更新设备失败",
+    failedToUpdateLockStatus: "更新设备锁定状态失败",
+    failedToRemoveDevice: "移除设备失败",
+    locked: "已锁定",
     
     // 品类显示
     drinks: "饮料",
@@ -235,6 +284,7 @@ export const translations = {
     // Logout related
     logoutConfirmTitle: "Logout Confirmation",
     logoutConfirmMessage: "Are you sure you want to logout?",
+    logout: "Logout",
     
     // Order sources
     kiosk: "Kiosk",
@@ -246,7 +296,7 @@ export const translations = {
     
     // Settings screen
     language: "Language",
-    chinese: "Chinese",
+    chinese: "中文",
     english: "English",
     selectLanguage: "Select Language",
     resetSettings: "Reset Settings",
@@ -280,9 +330,18 @@ export const translations = {
     refillStockFailed: "Failed to refill stock",
     updateStockFailed: "Failed to update stock",
     enterStockQuantity: "Enter stock quantity",
+    threshold: "Threshold",
+    products: "Products",
+    selectWarehouse: "Select Warehouse",
+    productCategory: "Product Category",
+    selectAll: "Select All",
+    customizeCategoryColour: "Customize Category Colour",
+    selected: "Selected",
+    items: "Items",
     
-    // 店铺选择相关
+    // Shop related
     selectShop: "Select Shop",
+    shop: "Shop",
     noShopsAvailable: "No shops available",
     shopCode: "Shop Code",
     refreshList: "Refresh List",
@@ -321,6 +380,8 @@ export const translations = {
     search: "Search",
     filter: "Filter",
     notConnected: "Not Connected",
+    connected: "Connected",
+    disconnected: "Disconnected",
     printerNotConnected: "Printer not connected",
     success: "Success",
     orderPrinted: "Order printed",
@@ -331,6 +392,13 @@ export const translations = {
     selectColor: "Select Color",
     categoryColors: "Category Colors",
     resetColors: "Reset Colors",
+    
+    // Menu related
+    currentTime: "Current Time",
+    navigation: "Navigation",
+    status: "Status",
+    switchToLandscape: "Switch to Landscape",
+    switchToPortrait: "Switch to Portrait",
     
     // KDS Master/Slave related translations
     kdsRole: "KDS Role",
@@ -344,6 +412,36 @@ export const translations = {
     enterSubKDSIPAddress: "Enter Slave KDS IP Address",
     noSubKDS: "No Slave KDS",
     saveSettings: "Save Settings",
+    
+    // Device Discovery related
+    deviceName: "Device Name",
+    deviceDiscovery: "Device Discovery",
+    connect: "Connect",
+    initializingDiscovery: "Initializing discovery...",
+    discoveringDevices: "Discovering devices...",
+    noDevicesDiscovered: "No devices discovered",
+    makesSureOtherKDSConnected: "Make sure other KDS devices are connected to the same network",
+    removeDevice: "Remove Device",
+    areYouSureRemoveDevice: "Are you sure you want to remove",
+    remove: "Remove",
+    editDevice: "Edit Device",
+    connectToDevice: "Connect to Device",
+    areYouSureConnectTo: "Are you sure you want to connect to",
+    setAsSlaveKDS: "Are you sure you want to set this device as Slave KDS?",
+    connectToMasterKDS: "Are you sure you want to connect to this device as Slave KDS?",
+    ipAddress: "IP Address",
+    port: "Port",
+    enterIPAddress: "Enter IP address",
+    enterPort: "Enter port",
+    invalidInput: "Invalid Input",
+    pleaseCheckAllFields: "Please fill in all required fields",
+    invalidPort: "Invalid Port",
+    portMustBePositive: "Port must be a positive number",
+    deviceUpdatedSuccessfully: "Device updated successfully",
+    failedToUpdateDevice: "Failed to update device",
+    failedToUpdateLockStatus: "Failed to update device lock status",
+    failedToRemoveDevice: "Failed to remove device",
+    locked: "LOCKED",
     
     // Category display
     drinks: "Drinks",

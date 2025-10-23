@@ -482,14 +482,14 @@ const StockManagementScreen = () => {
     products.length > 0 &&
     products.every((item) => selectedProducts.has(item.product_id));
 
-  // 处理长按分类事件
-  const handleCategoryLongPress = (category: string) => {
-    // 不为特殊分类设置颜色
-    if (category === SOLD_OUT_CATEGORY || category === LOW_STOCK_CATEGORY) {
-      return;
+  // 快速自定义选中分类的颜色
+  const handleQuickColorCategory = () => {
+    if (selectedCategory && selectedCategory !== SOLD_OUT_CATEGORY && selectedCategory !== LOW_STOCK_CATEGORY) {
+      setCategoryForColoring(selectedCategory);
+      setShowColorPicker(true);
+    } else {
+      Alert.alert("提示", "请先选择一个分类（不包括售罄和库存告急）");
     }
-    setCategoryForColoring(category);
-    setShowColorPicker(true);
   };
 
   // 选择颜色处理
@@ -529,8 +529,6 @@ const StockManagementScreen = () => {
           item === LOW_STOCK_CATEGORY && styles.lowStockCategoryItem,
         ]}
         onPress={() => handleCategorySelect(item)}
-        onLongPress={() => handleCategoryLongPress(item)}
-        delayLongPress={500}
       >
         <Text
           style={[
@@ -828,7 +826,7 @@ const StockManagementScreen = () => {
 
         <View style={styles.thresholdContainer}>
           <Text style={styles.thresholdLabel}>
-            {t("lowStock")} {t("threshold")}:
+            {t("lowStock")}-{t("threshold")}:
           </Text>
           <TextInput
             style={styles.thresholdInput}
@@ -845,51 +843,71 @@ const StockManagementScreen = () => {
 
       {/* 操作按钮 */}
       <View style={styles.actionButtons}>
+        {/* 自定义颜色按钮 - 靠左 */}
         <TouchableOpacity
           style={[
             styles.actionButton,
-            styles.prepTimeButton,
-            selectedProducts.size !== 1 && styles.disabledButton,
+            {
+              backgroundColor: selectedCategory && selectedCategory !== SOLD_OUT_CATEGORY && selectedCategory !== LOW_STOCK_CATEGORY 
+                ? getCategoryColor(selectedCategory) 
+                : "#E8E8E8",
+            },
+            (!selectedCategory || selectedCategory === SOLD_OUT_CATEGORY || selectedCategory === LOW_STOCK_CATEGORY) && styles.disabledColorButton,
           ]}
-          onPress={handleUpdatePrepTime}
-          disabled={selectedProducts.size !== 1}
+          onPress={handleQuickColorCategory}
+          disabled={!selectedCategory || selectedCategory === SOLD_OUT_CATEGORY || selectedCategory === LOW_STOCK_CATEGORY}
         >
-          <Text style={styles.actionButtonText}>{t("updatePrepTime")}</Text>
+          <Text style={styles.colorCustomizeText}>{t("customizeCategoryColour")}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            selectedProducts.size === 0 && styles.disabledButton,
-          ]}
-          onPress={markAsSoldOut}
-          disabled={selectedProducts.size === 0}
-        >
-          <Text style={styles.actionButtonText}>{t("outOfStock")}</Text>
-        </TouchableOpacity>
+        {/* 右侧按钮容器 */}
+        <View style={styles.rightActionButtons}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              styles.prepTimeButton,
+              selectedProducts.size !== 1 && styles.disabledButton,
+            ]}
+            onPress={handleUpdatePrepTime}
+            disabled={selectedProducts.size !== 1}
+          >
+            <Text style={styles.actionButtonText}>{t("updatePrepTime")}</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            selectedProducts.size === 0 && styles.disabledButton,
-          ]}
-          onPress={handleLimitedStock}
-          disabled={selectedProducts.size === 0}
-        >
-          <Text style={styles.actionButtonText}>{t("lowStock")}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              selectedProducts.size === 0 && styles.disabledButton,
+            ]}
+            onPress={markAsSoldOut}
+            disabled={selectedProducts.size === 0}
+          >
+            <Text style={styles.actionButtonText}>{t("outOfStock")}</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.refillButton,
-            selectedProducts.size === 0 && styles.disabledButton,
-          ]}
-          onPress={handleRefill}
-          disabled={selectedProducts.size === 0}
-        >
-          <Text style={styles.actionButtonText}>{t("addStock")}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              selectedProducts.size === 0 && styles.disabledButton,
+            ]}
+            onPress={handleLimitedStock}
+            disabled={selectedProducts.size === 0}
+          >
+            <Text style={styles.actionButtonText}>{t("lowStock")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              styles.refillButton,
+              selectedProducts.size === 0 && styles.disabledButton,
+            ]}
+            onPress={handleRefill}
+            disabled={selectedProducts.size === 0}
+          >
+            <Text style={styles.actionButtonText}>{t("addStock")}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {error ? (
@@ -1006,13 +1024,19 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     backgroundColor: "#fff",
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
     elevation: 1,
+    gap: 20,
+  },
+  rightActionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
     gap: 20,
   },
   actionButton: {
@@ -1026,8 +1050,16 @@ const styles = StyleSheet.create({
   refillButton: {
     backgroundColor: colors.primary,
   },
+  disabledColorButton: {
+    opacity: 0.6,
+  },
   actionButtonText: {
     color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  colorCustomizeText: {
+    color: "#000",
     fontWeight: "bold",
     fontSize: 14,
   },
@@ -1062,6 +1094,20 @@ const styles = StyleSheet.create({
   },
   categoryList: {
     flex: 1,
+  },
+  colorCustomButton: {
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: "#4CAF50",
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+  },
+  colorCustomButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
   },
   categoryItem: {
     padding: 12,
