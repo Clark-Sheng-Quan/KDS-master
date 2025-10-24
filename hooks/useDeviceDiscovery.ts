@@ -63,7 +63,6 @@ export const useDeviceDiscovery = (): UseDeviceDiscoveryReturn => {
       setError(null);
       const discoveredDevices = await DeviceDiscoveryModule.getDiscoveredDevices();
       setDevices(discoveredDevices || []);
-      console.log('✅ Devices refreshed:', discoveredDevices?.length || 0);
     } catch (err: any) {
       const errorMsg = err.message || '获取设备列表失败';
       setError(errorMsg);

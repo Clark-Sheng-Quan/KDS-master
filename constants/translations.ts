@@ -178,6 +178,21 @@ export const translations = {
     noSubKDS: "暂无副屏设备",
     saveSettings: "保存设置",
     
+    // TCP连接相关
+    connectionRequest: "连接请求",
+    deviceRequestsConnection: "设备请求连接",
+    acceptConnection: "接受连接",
+    rejectConnection: "拒绝连接",
+    connectionPending: "连接待确认...",
+    connectionEstablished: "已连接",
+    connectionFailed: "连接失败",
+    connectionError: "连接错误",
+    heartbeatLost: "心跳丢失",
+    reconnect: "重新连接",
+    slaveDevices: "副屏设备",
+    masterDevice: "主屏设备",
+    connectionStatus: "连接状态",
+    
     // 设备发现相关
     deviceName: "设备名称",
     deviceDiscovery: "设备发现",
@@ -412,6 +427,21 @@ export const translations = {
     enterSubKDSIPAddress: "Enter Slave KDS IP Address",
     noSubKDS: "No Slave KDS",
     saveSettings: "Save Settings",
+    
+    // TCP connection related
+    connectionRequest: "Connection Request",
+    deviceRequestsConnection: "Device requests connection",
+    acceptConnection: "Accept",
+    rejectConnection: "Reject",
+    connectionPending: "Connection pending...",
+    connectionEstablished: "Connected",
+    connectionFailed: "Connection failed",
+    connectionError: "Connection error",
+    heartbeatLost: "Heartbeat lost",
+    reconnect: "Reconnect",
+    slaveDevices: "Slave Devices",
+    masterDevice: "Master Device",
+    connectionStatus: "Connection Status",
     
     // Device Discovery related
     deviceName: "Device Name",

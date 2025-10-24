@@ -516,10 +516,8 @@ export class DistributionService {
       // 保存到存储
       await AsyncStorage.setItem("sub_kds_list", JSON.stringify(this.subKdsList));
       
-      // 如果已初始化，则尝试连接
-      if (this.initialized && this.role === KDSRole.MASTER) {
-        this.connectToSubKDS(ip, category);
-      }
+      // 注意：不再自动连接，连接会通过settings.tsx中的sendConnectionRequest进行
+      // 这样可以实现应用层的握手协议
       
       return true;
     } catch (error) {

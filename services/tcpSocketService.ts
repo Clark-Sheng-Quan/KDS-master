@@ -30,6 +30,14 @@ export class TCPSocketService {
   private static registrationCallback: ((ip: string, category: CategoryType) => void) | null = null;
   // 添加订单回调函数数组
   private static orderCallbacks: ((order: any) => void)[] = [];
+  // 连接请求回调 - 当Slave收到Master连接请求时调用
+  private static connectionRequestCallback: ((masterIP: string, masterName: string) => Promise<boolean>) | null = null;
+  // 连接状态变化回调
+  private static connectionStatusCallback: ((status: 'connected' | 'disconnected' | 'pending') => void) | null = null;
+  // 子设备连接状态回调 - Master端监听Slave的连接状态
+  private static slaveConnectionStatusCallback: ((slaveIP: string, status: 'connected' | 'disconnected' | 'pending', slaveName?: string) => void) | null = null;
+  // 连接请求超时定时器 - 保存pending连接的超时定时器
+  private static connectionTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   
   /**
    * 启动TCP服务器（Master模式）
@@ -201,6 +209,33 @@ export class TCPSocketService {
       console.log(`[TCP] 已将 ${baseIP} 添加到持久连接池`);
       return;
     }
+
+    // 处理连接请求响应消息（Master收到Slave的回复）
+    if (jsonData.type === 'connection_response') {
+      console.log(`[TCP] 收到连接响应:`, jsonData);
+      const clientIP = socket.remoteAddress?.split(':').pop() || '';
+      const slaveName = jsonData.slaveName || clientIP;
+      
+      // 清除连接超时定时器
+      if (this.connectionTimeouts.has(clientIP)) {
+        clearTimeout(this.connectionTimeouts.get(clientIP)!);
+        this.connectionTimeouts.delete(clientIP);
+        console.log(`[TCP] 已清除 ${clientIP} 的连接超时定时器`);
+      }
+      
+      if (jsonData.accepted) {
+        console.log(`[TCP] Slave ${clientIP} (${slaveName}) 已接受连接`);
+        this.connectionStatusCallback?.('connected');
+        // 通知Master端该Slave设备已连接
+        this.slaveConnectionStatusCallback?.(clientIP, 'connected', slaveName);
+      } else {
+        console.log(`[TCP] Slave ${clientIP} (${slaveName}) 已拒绝连接`);
+        this.connectionStatusCallback?.('disconnected');
+        // 通知Master端该Slave设备已断开
+        this.slaveConnectionStatusCallback?.(clientIP, 'disconnected', slaveName);
+      }
+      return;
+    }
     
     // 处理订单确认消息
     if (jsonData.type === 'order_ack') {
@@ -254,6 +289,37 @@ export class TCPSocketService {
    * 处理来自Master的消息（Slave模式）
    */
   private static handleMasterMessage(jsonData: any) {
+    // 处理连接请求消息（Slave收到Master的连接请求）
+    if (jsonData.type === 'connection_request') {
+      console.log(`[TCP] 收到连接请求:`, jsonData);
+      const masterIP = jsonData.masterIP;
+      const masterName = jsonData.masterName || '主屏';
+      
+      // 调用回调，让UI弹出确认对话框
+      if (this.connectionRequestCallback) {
+        this.connectionRequestCallback(masterIP, masterName).then((accepted) => {
+          // 发送响应
+          if (this.masterConnection) {
+            this.masterConnection.write(JSON.stringify({
+              type: 'connection_response',
+              accepted: accepted,
+              slaveName: this.getSlaveName(),
+              timestamp: new Date().toISOString()
+            }));
+          }
+          
+          if (accepted) {
+            console.log(`[TCP] 已接受来自 ${masterIP} 的连接请求`);
+            this.connectionStatusCallback?.('connected');
+          } else {
+            console.log(`[TCP] 已拒绝来自 ${masterIP} 的连接请求`);
+            this.connectionStatusCallback?.('disconnected');
+          }
+        });
+      }
+      return;
+    }
+    
     // 处理心跳消息
     if (jsonData.type === 'heartbeat') {
       console.log(`[TCP] 收到主KDS心跳，发送确认`);
@@ -546,6 +612,81 @@ export class TCPSocketService {
   public static setRegistrationCallback(callback: (ip: string, category: CategoryType) => void): void {
     this.registrationCallback = callback;
   }
+
+  /**
+   * 设置连接请求回调 - Slave端接收Master连接请求时调用
+   */
+  public static setConnectionRequestCallback(callback: (masterIP: string, masterName: string) => Promise<boolean>): void {
+    this.connectionRequestCallback = callback;
+  }
+
+  /**
+   * 设置连接状态回调 - 连接状态变化时调用
+   */
+  public static setConnectionStatusCallback(callback: (status: 'connected' | 'disconnected' | 'pending') => void): void {
+    this.connectionStatusCallback = callback;
+  }
+
+  /**
+   * 设置子设备连接状态回调 - Master端监听Slave的连接状态
+   */
+  public static setSlaveConnectionStatusCallback(callback: (slaveIP: string, status: 'connected' | 'disconnected' | 'pending', slaveName?: string) => void): void {
+    this.slaveConnectionStatusCallback = callback;
+  }
+
+  /**
+   * Master发送连接请求给Slave
+   */
+  public static async sendConnectionRequest(slaveIP: string, masterIP: string, masterName: string, slaveName: string): Promise<boolean> {
+    return new Promise(async (resolve) => {
+      try {
+        console.log(`[TCP] Master发送连接请求到Slave ${slaveIP}...`);
+        console.log(`[TCP] slaveConnectionStatusCallback是否存在:`, this.slaveConnectionStatusCallback !== null);
+        
+        // 清除之前的超时定时器（如果有）
+        if (this.connectionTimeouts.has(slaveIP)) {
+          clearTimeout(this.connectionTimeouts.get(slaveIP)!);
+        }
+        
+        // 构建连接请求消息
+        const message = {
+          type: 'connection_request',
+          masterIP: masterIP,
+          masterName: masterName,
+          timestamp: new Date().toISOString()
+        };
+        
+        // 发送连接请求
+        const sent = await this.sendData(slaveIP, message);
+        
+        if (sent) {
+          console.log(`[TCP] 连接请求已发送到 ${slaveIP}`);
+          // 连接请求已发送，实际的连接状态会通过handleClientMessage中的connection_response回调更新
+          // 这里设置为pending状态
+          this.connectionStatusCallback?.('pending');
+          
+          // 设置10秒超时用于测试，如果没有收到响应则自动失败
+          const timeoutTimer = setTimeout(() => {
+            console.log(`[TCP] 连接请求到 ${slaveIP} 已超时（10秒）`);
+            this.connectionTimeouts.delete(slaveIP);
+            // 通知Master该设备连接失败
+            console.log(`[TCP] 调用slaveConnectionStatusCallback，设置为disconnected`);
+            this.slaveConnectionStatusCallback?.(slaveIP, 'disconnected', slaveName);
+          }, 10000); // 10秒用于测试
+          
+          this.connectionTimeouts.set(slaveIP, timeoutTimer);
+          console.log(`[TCP] 已设置${slaveIP}的超时定时器`);
+          resolve(true);
+        } else {
+          console.error(`[TCP] 发送连接请求到 ${slaveIP} 失败`);
+          resolve(false);
+        }
+      } catch (error) {
+        console.error(`[TCP] 发送连接请求时出错:`, error);
+        resolve(false);
+      }
+    });
+  }
   
   /**
    * 向指定IP发送数据
@@ -641,6 +782,16 @@ export class TCPSocketService {
   }
   
   /**
+   * 获取Slave设备名称
+   */
+  private static getSlaveName(): string {
+    // 这将在调用时从AsyncStorage同步获取
+    // 由于AsyncStorage是异步的，这里返回一个默认值
+    // 实际的名称应该在初始化时从AsyncStorage读取
+    return 'Slave KDS';
+  }
+  
+  /**
    * 关闭服务器和所有连接
    */
   public static shutdown(): void {
@@ -681,6 +832,12 @@ export class TCPSocketService {
       clearTimeout(timer);
     }
     this.reconnectTimers.clear();
+
+    // 清除所有连接超时定时器
+    for (const [ip, timer] of this.connectionTimeouts.entries()) {
+      clearTimeout(timer);
+    }
+    this.connectionTimeouts.clear();
     
     // 关闭服务器
     if (this.server) {

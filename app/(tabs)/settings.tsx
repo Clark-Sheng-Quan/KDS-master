@@ -11,6 +11,7 @@ import {
   Platform,
   NativeModules,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
 import { Picker } from "@react-native-picker/picker";
@@ -19,6 +20,7 @@ import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
+import { TCPSocketService } from "@/services/tcpSocketService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
 
@@ -41,7 +43,7 @@ export default function SettingsScreen() {
   const [masterIP, setMasterIP] = useState<string>("");
   const [newSubKdsIP, setNewSubKdsIP] = useState<string>("");
   const [subKdsList, setSubKdsList] = useState<
-    { ip: string; category: CategoryType }[]
+    { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' | 'pending' }[]
   >([]);
   const [assignedCategory, setAssignedCategory] = useState<CategoryType>(
     CategoryType.DRINKS
@@ -57,6 +59,10 @@ export default function SettingsScreen() {
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
+
+  // TCP 连接状态管理
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected');
+  const [slaveConnectionStatuses, setSlaveConnectionStatuses] = useState<Map<string, 'connected' | 'disconnected' | 'pending'>>(new Map());
 
   // 加载保存的设置
   useEffect(() => {
@@ -77,7 +83,16 @@ export default function SettingsScreen() {
         if (savedMasterIP) setMasterIP(savedMasterIP);
 
         const savedSubKds = await AsyncStorage.getItem("sub_kds_list");
-        if (savedSubKds) setSubKdsList(JSON.parse(savedSubKds));
+        if (savedSubKds) {
+          // 加载子KDS列表，但将所有pending状态改为disconnected
+          const parsedList = JSON.parse(savedSubKds);
+          const fixedList = parsedList.map((kds: any) => ({
+            ...kds,
+            status: kds.status === 'pending' ? 'disconnected' : kds.status
+          }));
+          setSubKdsList(fixedList);
+          console.log('[Settings] 加载subKdsList并修复pending状态:', fixedList);
+        }
 
         // 加载Compact模式每行卡片数量
         const savedCompactCardsPerRow = await AsyncStorage.getItem(
@@ -100,6 +115,53 @@ export default function SettingsScreen() {
           setEditingDeviceName(savedDeviceName);
         }
 
+        // 设置 TCP 连接请求回调 - Slave 端接收 Master 连接请求时调用
+        TCPSocketService.setConnectionRequestCallback(async (masterIP, masterName) => {
+          return new Promise((resolve) => {
+            Alert.alert(
+              t("connectionRequest"),
+              `${masterName} (${masterIP}) ${t("deviceRequestsConnection")}?`,
+              [
+                {
+                  text: t("rejectConnection"),
+                  onPress: () => resolve(false),
+                  style: 'cancel'
+                },
+                {
+                  text: t("acceptConnection"),
+                  onPress: async () => {
+                    // 保存主屏 IP
+                    await AsyncStorage.setItem("master_ip", masterIP);
+                    setMasterIP(masterIP);
+                    resolve(true);
+                  },
+                  style: 'default'
+                }
+              ]
+            );
+          });
+        });
+
+        // 设置连接状态回调 - 监听TCP连接状态变化
+        TCPSocketService.setConnectionStatusCallback((status) => {
+          console.log('[Settings] 连接状态变化:', status);
+          setConnectionStatus(status);
+        });
+
+        // 设置子设备连接状态回调 - Master端监听Slave的连接状态
+        TCPSocketService.setSlaveConnectionStatusCallback((slaveIP, status, slaveName) => {
+          console.log('[Settings] Slave连接状态变化:', slaveIP, status, slaveName);
+          setSubKdsList((prevList) => {
+            const updated = prevList.map((kds) => 
+              kds.ip === slaveIP 
+                ? { ...kds, status: status, name: slaveName || kds.name }
+                : kds
+            );
+            console.log('[Settings] 更新subKdsList:', updated);
+            return updated;
+          });
+        });
+
         setLoading(false);
       } catch (error) {
         console.error("加载设置失败:", error);
@@ -108,7 +170,12 @@ export default function SettingsScreen() {
     }
 
     loadSettings();
-  }, []);
+    
+    // 清理函数（可选）
+    return () => {
+      // 可以在这里清理回调
+    };
+  }, [t]);
 
   // 保存设置
   const saveSettings = async () => {
@@ -139,7 +206,6 @@ export default function SettingsScreen() {
           await NativeModules.DeviceDiscoveryModule.setDeviceServiceName(
             editingDeviceName
           );
-          console.log("✅ Device name updated on network");
         } catch (error) {
           console.warn("设备名称已保存，但网络更新可能延迟", error);
         }
@@ -153,84 +219,145 @@ export default function SettingsScreen() {
 
   // 处理从Device Discovery连接目标设备
   const handleConnectToDevice = async (device: NetworkDevice) => {
-    // 根据当前角色决定目标设备的角色
-    const targetRole = kdsRole === KDSRole.MASTER ? KDSRole.SLAVE : KDSRole.MASTER;
-    const targetRoleCN = targetRole === KDSRole.MASTER ? "主KDS (Master)" : "从KDS (Slave)";
-    const currentRoleCN = kdsRole === KDSRole.MASTER ? "主KDS (Master)" : "从KDS (Slave)";
+    console.log('[Settings] handleConnectToDevice被调用，设备:', device.name, device.ip);
     
-    Alert.alert(
-      "确认连接",
-      `当前角色: ${currentRoleCN}\n设备: ${device.name} (${device.ip}:${device.port})\n\n将该设备设为: ${targetRoleCN}?`,
-      [
-        { text: "取消", onPress: () => {}, style: "cancel" },
-        {
-          text: "确认",
-          onPress: async () => {
-            try {
-              // 如果当前是Master，则目标设备设为Slave，并添加到子KDS列表
-              if (kdsRole === KDSRole.MASTER) {
-                // 检查IP是否已存在
-                if (subKdsList.some((kds) => kds.ip === device.ip)) {
-                  Alert.alert("提示", "该设备已在子KDS列表中");
+    try {
+      // 如果当前是Master，则目标设备设为Slave，并添加到子KDS列表
+      if (kdsRole === KDSRole.MASTER) {
+        console.log('[Settings] Master模式，显示确认对话框');
+        
+        // 检查IP是否已存在
+        if (subKdsList.some((kds) => kds.ip === device.ip)) {
+          console.log('[Settings] 设备已存在，跳过');
+          Alert.alert("提示", "该设备已在子KDS列表中");
+          setShowDeviceDiscovery(false);
+          return;
+        }
+
+        // 显示确认对话框
+        Alert.alert(
+          t("connectToDevice"),
+          t("setAsSlaveKDS"),
+          [
+            { text: t("cancel"), onPress: () => {
+              console.log('[Settings] 用户取消连接');
+              setShowDeviceDiscovery(false);
+            }, style: 'cancel' },
+            {
+              text: t("connect"),
+              onPress: async () => {
+                console.log('[Settings] 用户确认，开始连接流程');
+                
+                try {
+                  // 获取本设备名称
+                  const deviceName = await AsyncStorage.getItem("device_name") || "Master KDS";
+                  console.log('[Settings] 本设备名称:', deviceName);
+                  
+                  // 发送连接请求到Slave
+                  console.log('[Settings] 调用TCPSocketService.sendConnectionRequest，设备IP:', device.ip);
+                  await TCPSocketService.sendConnectionRequest(device.ip, ipAddress || "0.0.0.0", deviceName, device.name);
+                  console.log('[Settings] sendConnectionRequest已完成');
+                  
+                  // 自动分配品类
+                  const categories = [
+                    CategoryType.DRINKS,
+                    CategoryType.HOT_FOOD,
+                    CategoryType.COLD_FOOD,
+                    CategoryType.DESSERT,
+                  ];
+                  const categoryIndex = subKdsList.length % categories.length;
+                  const assignedCategory = categories[categoryIndex];
+
+                  console.log('[Settings] 分配品类:', assignedCategory);
+
+                  // 添加到子KDS列表（初始状态为pending，等待Slave确认）
+                  const newSubKdsList = [
+                    ...subKdsList,
+                    { ip: device.ip, name: device.name, category: assignedCategory, status: 'pending' as const },
+                  ];
+                  console.log('[Settings] 更新subKdsList为pending状态');
+                  setSubKdsList(newSubKdsList);
+
+                  // 使用DistributionService添加子KDS
+                  console.log('[Settings] 调用DistributionService.addSubKDS');
+                  const success = await DistributionService.addSubKDS(
+                    device.ip,
+                    assignedCategory
+                  );
+
+                  if (!success) {
+                    // 如果添加失败，回滚状态
+                    console.log('[Settings] DistributionService.addSubKDS失败，回滚');
+                    setSubKdsList(subKdsList);
+                    Alert.alert("错误", "添加子KDS失败");
+                    return;
+                  }
+
+                  // 保存到AsyncStorage
+                  console.log('[Settings] 保存到AsyncStorage');
+                  await saveSubKdsListToStorage(newSubKdsList);
+                  
+                  // 关闭Device Discovery面板
+                  console.log('[Settings] 关闭Device Discovery面板');
                   setShowDeviceDiscovery(false);
-                  return;
+                  
+                  // 显示"已发送连接请求"提示
+                  Alert.alert(
+                    "已发送连接请求",
+                    `连接请求已发送到 ${device.name} (${device.ip})\n等待设备响应中，最多等待 10 秒...`,
+                    [
+                      {
+                        text: "确定",
+                        onPress: () => {},
+                        style: 'default'
+                      }
+                    ]
+                  );
+                } catch (err: any) {
+                  console.error('[Settings] 连接流程错误:', err);
+                  Alert.alert(t("failed"), `发送连接请求失败: ${err.message}`);
                 }
-
-                // 自动分配品类
-                const categories = [
-                  CategoryType.DRINKS,
-                  CategoryType.HOT_FOOD,
-                  CategoryType.COLD_FOOD,
-                  CategoryType.DESSERT,
-                ];
-                const categoryIndex = subKdsList.length % categories.length;
-                const assignedCategory = categories[categoryIndex];
-
-                // 添加到子KDS列表
-                const newSubKdsList = [
-                  ...subKdsList,
-                  { ip: device.ip, category: assignedCategory },
-                ];
-                setSubKdsList(newSubKdsList);
-
-                // 使用DistributionService添加子KDS
-                const success = await DistributionService.addSubKDS(
-                  device.ip,
-                  assignedCategory
-                );
-
-                if (!success) {
-                  // 如果添加失败，回滚状态
-                  setSubKdsList(subKdsList);
-                  Alert.alert("错误", "添加子KDS失败");
-                  return;
-                }
-
-                // 保存到AsyncStorage
-                await AsyncStorage.setItem(
-                  "sub_kds_list",
-                  JSON.stringify(newSubKdsList)
-                );
-              } else {
-                // 如果当前是Slave，则设置Master IP
+              },
+              style: 'default',
+            },
+          ]
+        );
+      } else {
+        // 如果当前是Slave，则设置Master IP
+        console.log('[Settings] Slave模式，设置Master IP');
+        
+        Alert.alert(
+          t("connectToDevice"),
+          t("connectToMasterKDS"),
+          [
+            { text: t("cancel"), onPress: () => {
+              console.log('[Settings] 用户取消连接到Master');
+              setShowDeviceDiscovery(false);
+            }, style: 'cancel' },
+            {
+              text: t("connect"),
+              onPress: async () => {
+                console.log('[Settings] 用户确认连接到Master，IP:', device.ip);
                 setMasterIP(device.ip);
                 await AsyncStorage.setItem("master_ip", device.ip);
-              }
-              
-              // 关闭Device Discovery面板
-              setShowDeviceDiscovery(false);
-              
-              Alert.alert(
-                "成功",
-                `已连接 ${device.name}\n目标设备角色: ${targetRoleCN}\n${kdsRole === KDSRole.MASTER ? "设备IP: " + device.ip : "主KDS IP: " + device.ip}`
-              );
-            } catch (error) {
-              Alert.alert("错误", "连接设备失败");
-            }
-          },
-        },
-      ]
-    );
+                
+                // 关闭Device Discovery面板
+                setShowDeviceDiscovery(false);
+                
+                Alert.alert(
+                  "成功",
+                  `已连接到Master\nMaster IP: ${device.ip}`
+                );
+              },
+              style: 'default',
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('[Settings] handleConnectToDevice错误:', error);
+      Alert.alert("错误", "连接设备失败");
+    }
   };
 
   // 添加子KDS - 自动分配品类
@@ -274,16 +401,13 @@ export default function SettingsScreen() {
         // 更新本地状态，使用原始输入的IP
         const newSubKdsList = [
           ...subKdsList,
-          { ip: inputIP, category: assignedCategory },
+          { ip: inputIP, name: inputIP, category: assignedCategory, status: 'disconnected' as const },
         ];
         setSubKdsList(newSubKdsList);
         setNewSubKdsIP(""); // 清空输入框
         
-        // 保存到AsyncStorage
-        await AsyncStorage.setItem(
-          "sub_kds_list",
-          JSON.stringify(newSubKdsList)
-        );
+        // 保存到AsyncStorage（使用新的保存函数）
+        await saveSubKdsListToStorage(newSubKdsList);
         
         Alert.alert("成功", `已添加子KDS: ${inputIP}`);
       } else {
@@ -306,11 +430,8 @@ export default function SettingsScreen() {
         const updatedList = subKdsList.filter((kds) => kds.ip !== ip);
         setSubKdsList(updatedList);
         
-        // 保存到AsyncStorage
-        await AsyncStorage.setItem(
-          "sub_kds_list",
-          JSON.stringify(updatedList)
-        );
+        // 保存到AsyncStorage（使用新的保存函数）
+        await saveSubKdsListToStorage(updatedList);
       } else {
         Alert.alert("错误", "移除子KDS失败");
       }
@@ -318,6 +439,92 @@ export default function SettingsScreen() {
       console.error("移除子KDS错误:", error);
       Alert.alert("错误", "移除子KDS时发生错误");
     }
+  };
+
+  // 处理重新连接设备
+  const handleReconnectDevice = async (kds: { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' | 'pending' }) => {
+    try {
+      console.log('[Settings] handleReconnectDevice被调用，设备:', kds.name, kds.ip);
+      
+      // 显示确认对话框
+      Alert.alert(
+        t("reconnect"),
+        `${t("confirmReconnect")} ${kds.name}?`,
+        [
+          { 
+            text: t("cancel"), 
+            onPress: () => {
+              console.log('[Settings] 用户取消重新连接');
+            }, 
+            style: 'cancel' 
+          },
+          {
+            text: t("confirm"),
+            onPress: async () => {
+              console.log('[Settings] 用户确认重新连接');
+              
+              try {
+                // 将状态设置为pending
+                console.log('[Settings] 将状态设置为pending');
+                setSubKdsList((prevList) =>
+                  prevList.map((item) =>
+                    item.ip === kds.ip ? { ...item, status: 'pending' as const } : item
+                  )
+                );
+
+                // 获取本设备名称
+                const deviceName = await AsyncStorage.getItem("device_name") || "Master KDS";
+                console.log('[Settings] 本设备名称:', deviceName);
+
+                // 发送连接请求
+                console.log('[Settings] 调用TCPSocketService.sendConnectionRequest');
+                const success = await TCPSocketService.sendConnectionRequest(
+                  kds.ip,
+                  ipAddress,
+                  deviceName,
+                  kds.name
+                );
+                console.log('[Settings] sendConnectionRequest完成，结果:', success);
+
+                if (!success) {
+                  // 如果发送失败，设置为disconnected
+                  console.log('[Settings] 发送连接请求失败，设置为disconnected');
+                  setSubKdsList((prevList) =>
+                    prevList.map((item) =>
+                      item.ip === kds.ip ? { ...item, status: 'disconnected' as const } : item
+                    )
+                  );
+                  Alert.alert("错误", "发送连接请求失败");
+                }
+              } catch (error) {
+                console.error("[Settings] 重新连接流程错误:", error);
+                setSubKdsList((prevList) =>
+                  prevList.map((item) =>
+                    item.ip === kds.ip ? { ...item, status: 'disconnected' as const } : item
+                  )
+                );
+                Alert.alert("错误", "重新连接设备时发生错误");
+              }
+            },
+            style: 'default',
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("[Settings] handleReconnectDevice错误:", error);
+      Alert.alert("错误", "重新连接设备时发生错误");
+    }
+  };
+
+  // 保存subKdsList到AsyncStorage（确保pending状态变为disconnected）
+  const saveSubKdsListToStorage = async (list: typeof subKdsList) => {
+    // 保存时将pending改为disconnected
+    const listToSave = list.map(kds => ({
+      ...kds,
+      status: kds.status === 'pending' ? 'disconnected' : kds.status
+    }));
+    await AsyncStorage.setItem("sub_kds_list", JSON.stringify(listToSave));
+    console.log('[Settings] 保存subKdsList到AsyncStorage，修复pending状态');
   };
 
   // 获取品类显示名称
@@ -394,7 +601,6 @@ export default function SettingsScreen() {
           await NativeModules.DeviceDiscoveryModule.setDeviceServiceName(
             editingDeviceName
           );
-          console.log("✅ Device name updated on network");
         } catch (error) {
           console.warn("设备名称已保存，但网络更新可能延迟", error);
         }
@@ -496,18 +702,38 @@ export default function SettingsScreen() {
 
         {kdsRole === KDSRole.SLAVE && (
           <>
-            <View style={styles.settingItem}>
-              <Text style={styles.settingLabel}>{t("masterKDSIPAddress")}</Text>
-              <TextInput
-                style={styles.input}
-                value={masterIP}
-                onChangeText={setMasterIP}
-                placeholder="e.g. 192.168.1.100"
-              />
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t("masterDevice")}</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
+                <Text style={styles.infoValue}>{masterIP || "未设置"}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
+                <View style={styles.statusBadge}>
+                  <Ionicons 
+                    name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
+                    size={16} 
+                    color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
+                  />
+                  <Text style={[
+                    styles.statusText,
+                    connectionStatus === 'connected' 
+                      ? styles.statusConnected 
+                      : styles.statusDisconnected
+                  ]}>
+                    {connectionStatus === 'connected' 
+                      ? t("connectionEstablished") 
+                      : t("disconnected")}
+                  </Text>
+                </View>
+              </View>
             </View>
 
-            <View style={[styles.settingItem, { marginBottom: 24 }]}>
-              <Text style={styles.settingLabel}>Slave KDS Category</Text>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Slave KDS {t("productCategory")}</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={kdsCategory}
@@ -545,40 +771,110 @@ export default function SettingsScreen() {
 
         {kdsRole === KDSRole.MASTER && (
           <>
-            <Text style={styles.subsectionTitle}>{t("subKDSManagement")}</Text>
-            <Text style={styles.infoText}>{t("addSubKDS")}</Text>
-
-            <View style={styles.addKdsContainer}>
-              <TextInput
-                style={[styles.textInput, { flex: 1, marginRight: 10 }]}
-                value={newSubKdsIP}
-                onChangeText={setNewSubKdsIP}
-                placeholder={t("enterSubKDSIPAddress")}
-              />
-              <TouchableOpacity style={styles.addButton} onPress={addSubKds}>
-                <Text style={styles.addButtonText}>{t("add")}</Text>
-              </TouchableOpacity>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t("slaveDevices")}</Text>
+              
+              {subKdsList.length > 0 ? (
+                subKdsList.map((kds, index) => (
+                  <View key={index} style={styles.slaveDeviceItem}>
+                    <View style={styles.slaveDeviceInfo}>
+                      <Text style={styles.slaveDeviceName}>{kds.name}</Text>
+                      <Text style={styles.slaveDeviceIP}>
+                        IP: {kds.ip}
+                      </Text>
+                      <Text style={styles.slaveDeviceCategory}>
+                        {t("productCategory")}: {getCategoryDisplayName(kds.category)}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.slaveDeviceControls}>
+                      {(kds.status === 'disconnected' || kds.status === 'pending') && (
+                        <TouchableOpacity 
+                          style={styles.reconnectButton}
+                          onPress={() => handleReconnectDevice(kds)}
+                        >
+                          <Ionicons name="refresh" size={16} color="white" />
+                          <Text style={styles.reconnectButtonText}>{t("reconnect") || "重新连接"}</Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      <View style={[
+                        styles.statusBadge,
+                        { 
+                          backgroundColor: kds.status === 'connected' 
+                            ? '#E8F5E9' 
+                            : kds.status === 'pending'
+                            ? '#FFF3E0'
+                            : '#FFEBEE'
+                        }
+                      ]}>
+                        <Ionicons 
+                          name={
+                            kds.status === 'connected' 
+                              ? 'checkmark-circle' 
+                              : kds.status === 'pending'
+                              ? 'hourglass'
+                              : 'close-circle'
+                          } 
+                          size={16} 
+                          color={
+                            kds.status === 'connected' 
+                              ? '#4CAF50' 
+                              : kds.status === 'pending'
+                              ? '#FF9800'
+                              : '#d32f2f'
+                          } 
+                        />
+                        <Text style={[
+                          styles.statusText,
+                          kds.status === 'connected' 
+                            ? styles.statusConnected 
+                            : kds.status === 'pending'
+                            ? styles.statusPending
+                            : styles.statusDisconnected
+                        ]}>
+                          {kds.status === 'connected' 
+                            ? t("connectionEstablished")
+                            : kds.status === 'pending'
+                            ? t("connectionPending")
+                            : t("disconnected")}
+                        </Text>
+                      </View>
+                      
+                      <TouchableOpacity 
+                        style={styles.deleteButton}
+                        onPress={() => removeSubKds(kds.ip)}
+                      >
+                        <Ionicons name="trash" size={16} color="white" />
+                        <Text style={styles.deleteButtonText}>{t("delete") || "删除"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noItemsText}>{t("noSubKDS")}</Text>
+              )}
             </View>
 
-            {subKdsList.length > 0 ? (
-              subKdsList.map((kds, index) => (
-                <View key={index} style={styles.subKdsItem}>
-                  <Text>
-                    {kds.ip} ({getCategoryDisplayName(kds.category)})
-                  </Text>
-                  <TouchableOpacity onPress={() => removeSubKds(kds.ip)}>
-                    <Text style={styles.removeButton}>{t("delete")}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.noItemsText}>{t("noSubKDS")}</Text>
-            )}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t("addSubKDS")}</Text>
+              <View style={styles.addKdsContainer}>
+                <TextInput
+                  style={[styles.textInput, { flex: 1, marginRight: 10 }]}
+                  value={newSubKdsIP}
+                  onChangeText={setNewSubKdsIP}
+                  placeholder={t("enterSubKDSIPAddress")}
+                />
+                <TouchableOpacity style={styles.addButton} onPress={addSubKds}>
+                  <Text style={styles.addButtonText}>{t("add")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </>
         )}
 
         <TouchableOpacity
-          style={[styles.saveButton, { maxWidth: 200, alignSelf: "center" }]}
+          style={[styles.saveButton, { marginTop: 20, maxWidth: 200, alignSelf: "center" }]}
           onPress={saveKDSRole}
         >
           <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
@@ -866,4 +1162,101 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#f5f5f5",
+    gap: 6,
+    minWidth: 140,
+    justifyContent: "center",
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  statusConnected: {
+    color: "#4CAF50",
+  },
+  statusPending: {
+    color: "#FF9800",
+  },
+  statusDisconnected: {
+    color: "#d32f2f",
+  },
+  slaveDeviceItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: "#2196F3",
+  },
+  slaveDeviceInfo: {
+    flex: 1,
+  },
+  slaveDeviceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  slaveDeviceName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  slaveDeviceIP: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+  },
+  slaveDeviceCategory: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+  },
+  slaveDeviceControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  reconnectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2196F3",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  reconnectButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 11,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d32f2f",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  deleteButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 11,
+  },
 });
+

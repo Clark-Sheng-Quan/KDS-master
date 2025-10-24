@@ -383,7 +383,7 @@ export class OrderService {
    */
   private static async fetchOrdersFromNetworkAndProcess() {
     try {
-      console.log('开始从网络获取订单...');
+      // console.log('开始从网络获取订单...');
       
       // 获取当前时间范围
       const timeRange = TimeUtils.getTimeRangeAroundNow();
@@ -392,11 +392,11 @@ export class OrderService {
       const orders = await NetworkService.fetchOrdersFromNetwork(timeRange, async () => {});
       
       if (!orders || orders.length === 0) {
-        console.log('没有获取到新订单');
+        // console.log('没有获取到新订单');
         return;
       }
       
-      console.log(`从网络获取到 ${orders.length} 个订单`);
+      // console.log(`从网络获取到 ${orders.length} 个订单`);
       
       // 处理每个订单
       let newOrdersCount = 0;

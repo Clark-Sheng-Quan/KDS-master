@@ -12,10 +12,12 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDeviceDiscovery, NetworkDevice } from '../hooks/useDeviceDiscovery';
 import { useLanguage } from '../contexts/LanguageContext';
 import { theme } from '../styles/theme';
 import { DistributionService } from '../services/distributionService';
+import { TCPSocketService } from '../services/tcpSocketService';
 
 interface DeviceDiscoveryPanelProps {
   visible: boolean;
@@ -112,44 +114,6 @@ export const DeviceDiscoveryPanel: React.FC<DeviceDiscoveryPanelProps> = ({
         },
       ]
     );
-  };
-
-  const handleConnectToDevice = (device: NetworkDevice) => {
-    const isMaster = DistributionService.isMaster();
-    
-    if (isMaster) {
-      // 如果本机是Master，确认是否把目标设置为Slave
-      Alert.alert(
-        t("connectToDevice"),
-        t("setAsSlaveKDS"),
-        [
-          { text: t("cancel"), onPress: () => {}, style: 'cancel' },
-          {
-            text: t("connect"),
-            onPress: () => {
-              onSelectAsMaster?.(device);
-            },
-            style: 'default',
-          },
-        ]
-      );
-    } else {
-      // 如果本机是Slave，确认是否连接到Master
-      Alert.alert(
-        t("connectToDevice"),
-        t("connectToMasterKDS"),
-        [
-          { text: t("cancel"), onPress: () => {}, style: 'cancel' },
-          {
-            text: t("connect"),
-            onPress: () => {
-              onSelectAsMaster?.(device);
-            },
-            style: 'default',
-          },
-        ]
-      );
-    }
   };
 
   return (
