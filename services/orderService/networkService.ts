@@ -138,7 +138,6 @@ export const fetchOrdersFromNetwork = async (
           
           // 添加总准备时间到订单
           order.total_prepare_time = totalPrepareTime;
-          console.log(`订单 #${order.order_num} 总准备时间: ${totalPrepareTime}min`);
         }
       }
       
@@ -148,7 +147,7 @@ export const fetchOrdersFromNetwork = async (
                          order.pick_method !== 'TEMP'
       );
       
-      console.log(`[请求${requestId}] 过滤后返回 ${filteredOrders.length} 个订单`);
+      // console.log(`[请求${requestId}] 过滤后返回 ${filteredOrders.length} 个订单`);
       return filteredOrders;
     }
     

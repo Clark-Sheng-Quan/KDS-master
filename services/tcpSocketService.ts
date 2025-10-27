@@ -38,6 +38,10 @@ export class TCPSocketService {
   private static slaveConnectionStatusCallback: ((slaveIP: string, status: 'connected' | 'disconnected' | 'pending', slaveName?: string) => void) | null = null;
   // 连接请求超时定时器 - 保存pending连接的超时定时器
   private static connectionTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  // 当前连接状态
+  private static currentConnectionStatus: 'connected' | 'disconnected' | 'pending' = 'disconnected';
+  // 连接警告/错误回调
+  private static connectionErrorCallback: ((message: string) => void) | null = null;
   
   /**
    * 启动TCP服务器（Master模式）
@@ -632,6 +636,20 @@ export class TCPSocketService {
    */
   public static setSlaveConnectionStatusCallback(callback: (slaveIP: string, status: 'connected' | 'disconnected' | 'pending', slaveName?: string) => void): void {
     this.slaveConnectionStatusCallback = callback;
+  }
+
+  /**
+   * 设置连接错误回调 - 显示连接相关的错误/警告消息
+   */
+  public static setConnectionErrorCallback(callback: (message: string) => void): void {
+    this.connectionErrorCallback = callback;
+  }
+
+  /**
+   * 触发连接错误回调
+   */
+  public static triggerConnectionError(message: string): void {
+    this.connectionErrorCallback?.(message);
   }
 
   /**

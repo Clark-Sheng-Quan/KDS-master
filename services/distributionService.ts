@@ -185,7 +185,8 @@ export class DistributionService {
       // 获取主KDS IP
       const masterIP = await AsyncStorage.getItem("master_ip") || "";
       if (!masterIP) {
-        console.error("未设置主KDS IP地址");
+        // 触发连接错误回调，显示横幅
+        TCPSocketService.triggerConnectionError("masterIPNotSet");
         return;
       }
       

@@ -41,6 +41,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState<boolean>(true);
   const [kdsRole, setKdsRole] = useState<KDSRole>(KDSRole.MASTER);
   const [masterIP, setMasterIP] = useState<string>("");
+  const [manualMasterIP, setManualMasterIP] = useState<string>("");
   const [newSubKdsIP, setNewSubKdsIP] = useState<string>("");
   const [subKdsList, setSubKdsList] = useState<
     { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' | 'pending' }[]
@@ -527,6 +528,17 @@ export default function SettingsScreen() {
     console.log('[Settings] 保存subKdsList到AsyncStorage，修复pending状态');
   };
 
+  const saveManualMasterIP = async () => {
+    if (!manualMasterIP.trim()) {
+      Alert.alert(t("error"), t("pleaseEnterIPAddress"));
+      return;
+    }
+    setMasterIP(manualMasterIP);
+    await AsyncStorage.setItem("master_ip", manualMasterIP);
+    Alert.alert(t("success"), `${t("masterKDSIPAddress")} ${t("saved")}: ${manualMasterIP}`);
+    setManualMasterIP(""); // Clear input field
+  };
+
   // 获取品类显示名称
   const getCategoryDisplayName = (category: CategoryType) => {
     switch (category) {
@@ -707,28 +719,79 @@ export default function SettingsScreen() {
               
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
-                <Text style={styles.infoValue}>{masterIP || "未设置"}</Text>
+                <Text style={styles.infoValue}>{masterIP || t("notSet")}</Text>
               </View>
 
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
-                <View style={styles.statusBadge}>
-                  <Ionicons 
-                    name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
-                    size={16} 
-                    color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
-                  />
-                  <Text style={[
-                    styles.statusText,
-                    connectionStatus === 'connected' 
-                      ? styles.statusConnected 
-                      : styles.statusDisconnected
-                  ]}>
-                    {connectionStatus === 'connected' 
-                      ? t("connectionEstablished") 
-                      : t("disconnected")}
-                  </Text>
+                <View style={styles.statusAndButtonContainer}>
+                  <View style={styles.statusBadge}>
+                    <Ionicons 
+                      name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
+                      size={16} 
+                      color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
+                    />
+                    <Text style={[
+                      styles.statusText,
+                      connectionStatus === 'connected' 
+                        ? styles.statusConnected 
+                        : styles.statusDisconnected
+                    ]}>
+                      {connectionStatus === 'connected' 
+                        ? t("connectionEstablished") 
+                        : t("disconnected")}
+                    </Text>
+                  </View>
+
+                  {masterIP && (
+                    <TouchableOpacity 
+                      style={styles.resetConnectionButton}
+                      onPress={() => {
+                        Alert.alert(
+                          t("confirm"),
+                          t("confirmResetMasterConnection"),
+                          [
+                            { 
+                              text: t("cancel"), 
+                              onPress: () => {
+                                console.log('[Settings] 用户取消重置Master');
+                              }, 
+                              style: 'cancel' 
+                            },
+                            {
+                              text: t("confirm"),
+                              onPress: async () => {
+                                console.log('[Settings] 重置Master KDS');
+                                setMasterIP("");
+                                await AsyncStorage.removeItem("master_ip");
+                                Alert.alert(t("success"), t("masterConnectionReset"));
+                              },
+                              style: 'destructive',
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Ionicons name="refresh-circle" size={18} color="white" />
+                      <Text style={styles.resetConnectionButtonText}>{t("resetConnection")}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t("addMasterKDSIPAddressManually")}</Text>
+              <View style={styles.addKdsContainer}>
+                <TextInput
+                  style={[styles.textInput, { flex: 1, marginRight: 10 }]}
+                  value={manualMasterIP}
+                  onChangeText={setManualMasterIP}
+                  placeholder={t("enterMasterKDSIPAddress")}
+                />
+                <TouchableOpacity style={styles.addButton} onPress={saveManualMasterIP}>
+                  <Text style={styles.addButtonText}>{t("saveMasterKDSIP")}</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -1257,6 +1320,44 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 11,
+  },
+  disconnectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d32f2f",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+    marginTop: 12,
+  },
+  disconnectButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  statusAndButtonContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    justifyContent: "flex-end",
+    flex: 1,
+  },
+  resetConnectionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d32f2f",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  resetConnectionButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 12,
   },
 });
 
