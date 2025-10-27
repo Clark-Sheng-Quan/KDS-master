@@ -539,6 +539,36 @@ export class TCPSocketService {
       }
     });
   }
+
+  /**
+   * 断开与Master KDS的连接（Slave模式）
+   */
+  public static disconnect(): void {
+    try {
+      console.log('[TCP] 断开与Master KDS的连接');
+      
+      // 关闭Master连接
+      if (this.masterConnection) {
+        this.masterConnection.destroy();
+        this.masterConnection = null;
+      }
+      
+      // 清除Master IP
+      this.masterIP = "";
+      
+      // 更新连接状态
+      this.currentConnectionStatus = 'disconnected';
+      this.connectionStatusCallback?.('disconnected');
+      
+      // 清除重连定时器
+      this.reconnectTimers.forEach((timer) => clearTimeout(timer));
+      this.reconnectTimers.clear();
+      
+      console.log('[TCP] 已成功断开连接');
+    } catch (error) {
+      console.error('[TCP] 断开连接时出错:', error);
+    }
+  }
   
   /**
    * 安排重连

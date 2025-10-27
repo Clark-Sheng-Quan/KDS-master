@@ -324,8 +324,8 @@ export default function SettingsScreen() {
           ]
         );
       } else {
-        // 如果当前是Slave，则设置Master IP
-        console.log('[Settings] Slave模式，设置Master IP');
+        // 如果当前是Slave，则连接到Master KDS
+        console.log('[Settings] Slave模式，连接到Master IP:', device.ip);
         
         Alert.alert(
           t("connectToDevice"),
@@ -340,15 +340,34 @@ export default function SettingsScreen() {
               onPress: async () => {
                 console.log('[Settings] 用户确认连接到Master，IP:', device.ip);
                 setMasterIP(device.ip);
-                await AsyncStorage.setItem("master_ip", device.ip);
                 
-                // 关闭Device Discovery面板
-                setShowDeviceDiscovery(false);
-                
-                Alert.alert(
-                  "成功",
-                  `已连接到Master\nMaster IP: ${device.ip}`
-                );
+                try {
+                  // 立即连接到Master，不需要重启
+                  console.log('[Settings] 开始连接到Master KDS');
+                  const connected = await TCPSocketService.connectToMaster(device.ip);
+                  
+                  if (connected) {
+                    console.log('[Settings] 成功连接到Master KDS');
+                    // 保存IP到本地存储
+                    await AsyncStorage.setItem("master_ip", device.ip);
+                    
+                    // 关闭Device Discovery面板
+                    setShowDeviceDiscovery(false);
+                    
+                    Alert.alert(
+                      t("success"),
+                      `${t("connectionEstablished")}\nMaster IP: ${device.ip}`
+                    );
+                  } else {
+                    console.log('[Settings] 连接到Master KDS失败');
+                    setMasterIP(""); // 重置IP
+                    Alert.alert(t("error"), t("connectionFailed"));
+                  }
+                } catch (error: any) {
+                  console.error('[Settings] 连接过程出错:', error);
+                  setMasterIP(""); // 重置IP
+                  Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
+                }
               },
               style: 'default',
             },
@@ -533,10 +552,28 @@ export default function SettingsScreen() {
       Alert.alert(t("error"), t("pleaseEnterIPAddress"));
       return;
     }
-    setMasterIP(manualMasterIP);
-    await AsyncStorage.setItem("master_ip", manualMasterIP);
-    Alert.alert(t("success"), `${t("masterKDSIPAddress")} ${t("saved")}: ${manualMasterIP}`);
-    setManualMasterIP(""); // Clear input field
+
+    try {
+      console.log('[Settings] 开始手动连接到Master IP:', manualMasterIP);
+      
+      // 立即连接到Master，不需要重启
+      const connected = await TCPSocketService.connectToMaster(manualMasterIP);
+      
+      if (connected) {
+        console.log('[Settings] 成功连接到Master KDS');
+        setMasterIP(manualMasterIP);
+        // 保存IP到本地存储
+        await AsyncStorage.setItem("master_ip", manualMasterIP);
+        Alert.alert(t("success"), `${t("masterKDSIPAddress")} ${t("saved")}: ${manualMasterIP}`);
+        setManualMasterIP(""); // Clear input field
+      } else {
+        console.log('[Settings] 连接到Master KDS失败');
+        Alert.alert(t("error"), t("connectionFailed"));
+      }
+    } catch (error: any) {
+      console.error('[Settings] 手动连接过程出错:', error);
+      Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
+    }
   };
 
   // 获取品类显示名称
@@ -601,10 +638,10 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem("kds_port", port);
       await AsyncStorage.setItem("device_name", editingDeviceName);
 
-      // 如果是子KDS，同时保存分类设置和Master IP
+      // 如果是子KDS，同时保存分类设置
       if (kdsRole === KDSRole.SLAVE) {
         await AsyncStorage.setItem("kds_category", kdsCategory);
-        await AsyncStorage.setItem("master_ip", masterIP);
+        // 注意：master_ip 不再在这里保存，而是通过 handleConnectToDevice 或 saveManualMasterIP 单独管理
       }
 
       // 通过原生模块更新设备在网络上的服务名称
@@ -639,45 +676,7 @@ export default function SettingsScreen() {
       <Text style={styles.title}>{t("settings")}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("kdsRole")}</Text>
-
-        <View style={styles.roleSelector}>
-          <TouchableOpacity
-            style={[
-              styles.roleButton,
-              kdsRole === KDSRole.MASTER && styles.roleButtonActive,
-            ]}
-            onPress={() => setKdsRole(KDSRole.MASTER)}
-          >
-            <Text
-              style={
-                kdsRole === KDSRole.MASTER
-                  ? styles.roleTextActive
-                  : styles.roleText
-              }
-            >
-              {t("masterKDS")}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.roleButton,
-              kdsRole === KDSRole.SLAVE && styles.roleButtonActive,
-            ]}
-            onPress={() => setKdsRole(KDSRole.SLAVE)}
-          >
-            <Text
-              style={
-                kdsRole === KDSRole.SLAVE
-                  ? styles.roleTextActive
-                  : styles.roleText
-              }
-            >
-              {t("subKDS")}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.sectionTitle}>{t("kdsInfo")}</Text>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>{t("localIPAddress")}</Text>
@@ -695,112 +694,64 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("deviceName")}</Text>
-          <TextInput
-            style={styles.textInput}
-            value={editingDeviceName}
-            onChangeText={setEditingDeviceName}
-            placeholder="e.g. KDS:Kitchen NO.1"
-            placeholderTextColor="#999"
-          />
-        </View>
+              <Text style={styles.infoLabel}>{t("deviceName")}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editingDeviceName}
+                onChangeText={setEditingDeviceName}
+                placeholder="e.g. KDS:Kitchen NO.1"
+                placeholderTextColor="#999"
+              />
+          </View>
 
-        <TouchableOpacity
-          style={styles.deviceDiscoveryButton}
-          onPress={() => setShowDeviceDiscovery(true)}
-        >
-          <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
-        </TouchableOpacity>
+      <View style={styles.infoRowColumn}>
+        <Text style={styles.infoLabel}>{t("kdsRole")}</Text>
+        <View style={styles.roleSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.roleButton,
+                  kdsRole === KDSRole.MASTER && styles.roleButtonActive,
+                ]}
+                onPress={() => setKdsRole(KDSRole.MASTER)}
+              >
+                <Text
+                  style={
+                    kdsRole === KDSRole.MASTER
+                      ? styles.roleTextActive
+                      : styles.roleText
+                  }
+                >
+                  {t("masterKDS")}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.roleButton,
+                  kdsRole === KDSRole.SLAVE && styles.roleButtonActive,
+                ]}
+                onPress={() => setKdsRole(KDSRole.SLAVE)}
+              >
+                <Text
+                  style={
+                    kdsRole === KDSRole.SLAVE
+                      ? styles.roleTextActive
+                      : styles.roleText
+                  }
+                >
+                  {t("subKDS")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
         {kdsRole === KDSRole.SLAVE && (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>{t("masterDevice")}</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
-                <Text style={styles.infoValue}>{masterIP || t("notSet")}</Text>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
-                <View style={styles.statusAndButtonContainer}>
-                  <View style={styles.statusBadge}>
-                    <Ionicons 
-                      name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
-                      size={16} 
-                      color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
-                    />
-                    <Text style={[
-                      styles.statusText,
-                      connectionStatus === 'connected' 
-                        ? styles.statusConnected 
-                        : styles.statusDisconnected
-                    ]}>
-                      {connectionStatus === 'connected' 
-                        ? t("connectionEstablished") 
-                        : t("disconnected")}
-                    </Text>
-                  </View>
-
-                  {masterIP && (
-                    <TouchableOpacity 
-                      style={styles.resetConnectionButton}
-                      onPress={() => {
-                        Alert.alert(
-                          t("confirm"),
-                          t("confirmResetMasterConnection"),
-                          [
-                            { 
-                              text: t("cancel"), 
-                              onPress: () => {
-                                console.log('[Settings] 用户取消重置Master');
-                              }, 
-                              style: 'cancel' 
-                            },
-                            {
-                              text: t("confirm"),
-                              onPress: async () => {
-                                console.log('[Settings] 重置Master KDS');
-                                setMasterIP("");
-                                await AsyncStorage.removeItem("master_ip");
-                                Alert.alert(t("success"), t("masterConnectionReset"));
-                              },
-                              style: 'destructive',
-                            },
-                          ]
-                        );
-                      }}
-                    >
-                      <Ionicons name="refresh-circle" size={18} color="white" />
-                      <Text style={styles.resetConnectionButtonText}>{t("resetConnection")}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>{t("addMasterKDSIPAddressManually")}</Text>
-              <View style={styles.addKdsContainer}>
-                <TextInput
-                  style={[styles.textInput, { flex: 1, marginRight: 10 }]}
-                  value={manualMasterIP}
-                  onChangeText={setManualMasterIP}
-                  placeholder={t("enterMasterKDSIPAddress")}
-                />
-                <TouchableOpacity style={styles.addButton} onPress={saveManualMasterIP}>
-                  <Text style={styles.addButtonText}>{t("saveMasterKDSIP")}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Slave KDS {t("productCategory")}</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
+            <View style={styles.categoryPickerWrapper}>
+              <Picker
                   selectedValue={kdsCategory}
-                  style={styles.textPicker}
+                  style={styles.categoryPicker}
                   onValueChange={(itemValue) =>
                     setKdsCategory(itemValue as CategoryType)
                   }
@@ -828,128 +779,243 @@ export default function SettingsScreen() {
                   />
                 </Picker>
               </View>
-            </View>
-          </>
+          </View>
         )}
 
-        {kdsRole === KDSRole.MASTER && (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>{t("slaveDevices")}</Text>
-              
-              {subKdsList.length > 0 ? (
-                subKdsList.map((kds, index) => (
-                  <View key={index} style={styles.slaveDeviceItem}>
-                    <View style={styles.slaveDeviceInfo}>
-                      <Text style={styles.slaveDeviceName}>{kds.name}</Text>
-                      <Text style={styles.slaveDeviceIP}>
-                        IP: {kds.ip}
-                      </Text>
-                      <Text style={styles.slaveDeviceCategory}>
-                        {t("productCategory")}: {getCategoryDisplayName(kds.category)}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.slaveDeviceControls}>
-                      {(kds.status === 'disconnected' || kds.status === 'pending') && (
-                        <TouchableOpacity 
-                          style={styles.reconnectButton}
-                          onPress={() => handleReconnectDevice(kds)}
-                        >
-                          <Ionicons name="refresh" size={16} color="white" />
-                          <Text style={styles.reconnectButtonText}>{t("reconnect") || "重新连接"}</Text>
-                        </TouchableOpacity>
-                      )}
-                      
-                      <View style={[
-                        styles.statusBadge,
-                        { 
-                          backgroundColor: kds.status === 'connected' 
-                            ? '#E8F5E9' 
-                            : kds.status === 'pending'
-                            ? '#FFF3E0'
-                            : '#FFEBEE'
-                        }
-                      ]}>
-                        <Ionicons 
-                          name={
-                            kds.status === 'connected' 
-                              ? 'checkmark-circle' 
-                              : kds.status === 'pending'
-                              ? 'hourglass'
-                              : 'close-circle'
-                          } 
-                          size={16} 
-                          color={
-                            kds.status === 'connected' 
-                              ? '#4CAF50' 
-                              : kds.status === 'pending'
-                              ? '#FF9800'
-                              : '#d32f2f'
-                          } 
-                        />
-                        <Text style={[
-                          styles.statusText,
-                          kds.status === 'connected' 
-                            ? styles.statusConnected 
-                            : kds.status === 'pending'
-                            ? styles.statusPending
-                            : styles.statusDisconnected
-                        ]}>
-                          {kds.status === 'connected' 
-                            ? t("connectionEstablished")
-                            : kds.status === 'pending'
-                            ? t("connectionPending")
-                            : t("disconnected")}
+        <View>
+            <TouchableOpacity
+              style={[styles.saveButton, { marginTop: 20, maxWidth: 200, alignSelf: "center" }]}
+              onPress={saveKDSRole}
+            >
+              <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
+            </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ========== Slave 模式：独立的框 ========== */}
+      {kdsRole === KDSRole.SLAVE && (
+        <>
+          {/* 第二个独立大框：POS System */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>{t("masterKDS")}</Text>
+
+            {/* Master IP 地址 */}
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
+              <Text style={styles.infoValue}>{masterIP || t("notSet")}</Text>
+            </View>
+
+            {/* 连接状态 */}
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
+              <View style={styles.statusAndButtonContainer}>
+                <View style={styles.statusBadge}>
+                  <Ionicons 
+                    name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
+                    size={16} 
+                    color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
+                  />
+                  <Text style={[
+                    styles.statusText,
+                    connectionStatus === 'connected' 
+                      ? styles.statusConnected 
+                      : styles.statusDisconnected
+                  ]}>
+                    {connectionStatus === 'connected' 
+                      ? t("connectionEstablished") 
+                      : t("disconnected")}
+                  </Text>
+                </View>
+
+                {masterIP && (
+                  <TouchableOpacity 
+                    style={styles.resetConnectionButton}
+                    onPress={() => {
+                      Alert.alert(
+                        t("confirm"),
+                        t("confirmResetMasterConnection"),
+                        [
+                          { 
+                            text: t("cancel"), 
+                            onPress: () => {
+                              console.log('[Settings] 用户取消重置Master');
+                            }, 
+                            style: 'cancel' 
+                          },
+                          {
+                            text: t("confirm"),
+                            onPress: async () => {
+                              console.log('[Settings] 重置Master连接');
+                              try {
+                                // 断开TCP连接
+                                console.log('[Settings] 断开Master连接');
+                                TCPSocketService.disconnect();
+                                
+                                // 清空Master IP
+                                setMasterIP("");
+                                await AsyncStorage.removeItem("master_ip");
+                                
+                                Alert.alert(t("success"), t("masterConnectionReset"));
+                              } catch (error: any) {
+                                console.error('[Settings] 重置连接出错:', error);
+                                Alert.alert(t("error"), `${t("failed")}: ${error.message}`);
+                              }
+                            },
+                            style: 'destructive',
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Ionicons name="refresh-circle" size={18} color="white" />
+                    <Text style={styles.resetConnectionButtonText}>{t("resetConnection")}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* 手动添加 IP */}
+            <View style={styles.addKdsContainer}>
+              <TextInput
+                style={[styles.textInput, { flex: 1, marginRight: 10 }]}
+                value={manualMasterIP}
+                onChangeText={setManualMasterIP}
+                placeholder={t("enterMasterKDSIPAddress")}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={saveManualMasterIP}>
+                <Text style={styles.addButtonText}>{t("save")}</Text>
+              </TouchableOpacity>
+            </View>
+                      {/* Device Discovery 按钮 */}
+            <TouchableOpacity
+              style={styles.deviceDiscoveryButton}
+              onPress={() => setShowDeviceDiscovery(true)}
+            >
+              <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* ========== Master 模式：独立的框 ========== */}
+      {kdsRole === KDSRole.MASTER && (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>{t("masterKDS")}</Text>
+              <View style={styles.infoRowColumn}>
+                <Text style={styles.infoLabel}>{t("subKDS")}</Text>
+                {subKdsList.length > 0 ? (
+                  subKdsList.map((kds, index) => (
+                    <View key={index} style={styles.slaveDeviceItem}>
+                      <View style={styles.slaveDeviceInfo}>
+                        <Text style={styles.slaveDeviceName}>{kds.name}</Text>
+                        <Text style={styles.slaveDeviceIP}>
+                          IP: {kds.ip}
+                        </Text>
+                        <Text style={styles.slaveDeviceCategory}>
+                          {t("kitchenCategory")}: {getCategoryDisplayName(kds.category)}
                         </Text>
                       </View>
                       
-                      <TouchableOpacity 
-                        style={styles.deleteButton}
-                        onPress={() => removeSubKds(kds.ip)}
-                      >
-                        <Ionicons name="trash" size={16} color="white" />
-                        <Text style={styles.deleteButtonText}>{t("delete") || "删除"}</Text>
-                      </TouchableOpacity>
+                      <View style={styles.slaveDeviceControls}>
+                        {(kds.status === 'disconnected' || kds.status === 'pending') && (
+                          <TouchableOpacity 
+                            style={styles.reconnectButton}
+                            onPress={() => handleReconnectDevice(kds)}
+                          >
+                            <Ionicons name="refresh" size={16} color="white" />
+                            <Text style={styles.reconnectButtonText}>{t("reconnect") || "重新连接"}</Text>
+                          </TouchableOpacity>
+                        )}
+                        
+                        <View style={[
+                          styles.statusBadge,
+                          { 
+                            backgroundColor: kds.status === 'connected' 
+                              ? '#E8F5E9' 
+                              : kds.status === 'pending'
+                              ? '#FFF3E0'
+                              : '#FFEBEE'
+                          }
+                        ]}>
+                          <Ionicons 
+                            name={
+                              kds.status === 'connected' 
+                                ? 'checkmark-circle' 
+                                : kds.status === 'pending'
+                                ? 'hourglass'
+                                : 'close-circle'
+                            } 
+                            size={16} 
+                            color={
+                              kds.status === 'connected' 
+                                ? '#4CAF50' 
+                                : kds.status === 'pending'
+                                ? '#FF9800'
+                                : '#d32f2f'
+                            } 
+                          />
+                          <Text style={[
+                            styles.statusText,
+                            kds.status === 'connected' 
+                              ? styles.statusConnected 
+                              : kds.status === 'pending'
+                              ? styles.statusPending
+                              : styles.statusDisconnected
+                          ]}>
+                            {kds.status === 'connected' 
+                              ? t("connectionEstablished")
+                              : kds.status === 'pending'
+                              ? t("connectionPending")
+                              : t("disconnected")}
+                          </Text>
+                        </View>
+                        
+                        <TouchableOpacity 
+                          style={styles.deleteButton}
+                          onPress={() => removeSubKds(kds.ip)}
+                        >
+                          <Ionicons name="trash" size={16} color="white" />
+                          <Text style={styles.deleteButtonText}>{t("delete") || "删除"}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.noItemsText}>{t("noSubKDS")}</Text>
-              )}
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>{t("addSubKDS")}</Text>
-              <View style={styles.addKdsContainer}>
-                <TextInput
-                  style={[styles.textInput, { flex: 1, marginRight: 10 }]}
-                  value={newSubKdsIP}
-                  onChangeText={setNewSubKdsIP}
-                  placeholder={t("enterSubKDSIPAddress")}
-                />
-                <TouchableOpacity style={styles.addButton} onPress={addSubKds}>
-                  <Text style={styles.addButtonText}>{t("add")}</Text>
-                </TouchableOpacity>
+                  ))
+                ) : (
+                  <Text style={styles.noItemsText}>{t("noSubKDS")}</Text>
+                )}
               </View>
+              <View>
+            <Text style={styles.infoLabel}>{t("addSubKDS")}</Text>
+            <View style={styles.addKdsContainer}>
+              <TextInput
+                style={[styles.textInput, { flex: 1, marginRight: 10 }]}
+                value={newSubKdsIP}
+                onChangeText={setNewSubKdsIP}
+                placeholder={t("enterSubKDSIPAddress")}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={addSubKds}>
+                <Text style={styles.addButtonText}>{t("add")}</Text>
+              </TouchableOpacity>
             </View>
-          </>
-        )}
-
-        <TouchableOpacity
-          style={[styles.saveButton, { marginTop: 20, maxWidth: 200, alignSelf: "center" }]}
-          onPress={saveKDSRole}
-        >
-          <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
-        </TouchableOpacity>
-      </View>
+          </View>    
+                        
+            <TouchableOpacity
+              style={styles.deviceDiscoveryButton}
+              onPress={() => setShowDeviceDiscovery(true)}
+            >
+              <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       {/* 显示设置卡片 */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
 
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>{t("cardsPerRow")}:</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>{t("cardsPerRow")}:</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={compactCardsPerRow}
@@ -965,8 +1031,8 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>{t("language")}:</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>{t("language")}:</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={language}
@@ -1100,6 +1166,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
+    marginTop: 16,
+  },
+  infoRowColumn: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: 16,
   },
   infoLabel: {
     fontSize: 16,
@@ -1151,7 +1226,7 @@ const styles = StyleSheet.create({
   addKdsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 20,
   },
   addButton: {
     backgroundColor: "#4CAF50",
@@ -1358,6 +1433,33 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 12,
+  },
+  categoryPickerWrapper: {
+    marginLeft: 12,
+    borderWidth: 2,
+    borderColor: "#007AFF",
+    borderRadius: 8,
+    overflow: "hidden",
+    width: 180,
+    backgroundColor: "#fff",
+  },
+  categoryPicker: {
+    width: "100%",
+    height: 55,
+    color: "#333",
+  },
+  saveSettingsButton: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  saveSettingsButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

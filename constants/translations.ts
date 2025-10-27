@@ -80,7 +80,7 @@ export const translations = {
     threshold: "阈值",
     products: "产品",
     selectWarehouse: "选择仓库",
-    productCategory: "产品分类",
+    kitchenCategory: "厨房分类",
     selectAll: "全选",
     customizeCategoryColour: "自定义分类颜色",
     selected: "已选择",
@@ -167,7 +167,7 @@ export const translations = {
     
     // KDS Master/Slave 相关翻译
     kdsRole: "系统类型",
-    masterKDS: "POS系统",
+    masterKDS: "POS",
     subKDS: "厨房显示屏", 
     localIPAddress: "本机IP地址",
     tcpPort: "TCP端口",
@@ -178,8 +178,7 @@ export const translations = {
     noSubKDS: "暂无厨房显示屏设备",
     saveSettings: "保存设置",
     addMasterKDSIPAddressManually: "手动添加POS系统IP地址",
-    enterMasterKDSIPAddress: "输入POS系统IP地址",
-    saveMasterKDSIP: "保存",
+    enterMasterKDSIPAddress: "手动输入POS系统IP地址",
     
     // TCP连接相关
     connectionRequest: "连接请求",
@@ -358,7 +357,7 @@ export const translations = {
     threshold: "Threshold",
     products: "Products",
     selectWarehouse: "Select Warehouse",
-    productCategory: "Product Category",
+    kitchenCategory: "Kitchen Category",
     selectAll: "Select All",
     customizeCategoryColour: "Customize Category Colour",
     selected: "Selected",
@@ -427,7 +426,7 @@ export const translations = {
     
     // KDS Master/Slave related translations
     kdsRole: "System Type",
-    masterKDS: "POS System",
+    masterKDS: "POS",
     subKDS: "Kitchen",
     localIPAddress: "Local IP Address",
     tcpPort: "TCP Port",
@@ -438,8 +437,7 @@ export const translations = {
     noSubKDS: "No Kitchen Devices",
     saveSettings: "Save Settings",
     addMasterKDSIPAddressManually: "Add POS System IP Address Manually",
-    enterMasterKDSIPAddress: "Enter POS System IP Address",
-    saveMasterKDSIP: "Save",
+    enterMasterKDSIPAddress: "Enter POS System IP Address Maually",
     
     // TCP connection related
     connectionRequest: "Connection Request",
