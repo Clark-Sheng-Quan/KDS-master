@@ -47,7 +47,6 @@ export const useDeviceDiscovery = (): UseDeviceDiscoveryReturn => {
       setError(null);
       await DeviceDiscoveryModule.initializeDeviceDiscovery();
       setInitialized(true);
-      console.log('✅ Device discovery initialized');
     } catch (err: any) {
       const errorMsg = err.message || '初始化设备发现失败';
       setError(errorMsg);

@@ -167,8 +167,10 @@ export const translations = {
     
     // KDS Master/Slave 相关翻译
     kdsRole: "系统类型",
+    deviceInfo: "设备信息",
     masterKDS: "POS",
-    subKDS: "厨房显示屏", 
+    subKDS: "厨房显示屏",
+    deviceConnection: "设备连接", 
     localIPAddress: "本机IP地址",
     tcpPort: "TCP端口",
     masterKDSIPAddress: "POS系统IP地址",
@@ -426,8 +428,10 @@ export const translations = {
     
     // KDS Master/Slave related translations
     kdsRole: "System Type",
+    deviceInfo: "Device Info",
     masterKDS: "POS",
     subKDS: "Kitchen",
+    deviceConnection: "Device Connection",
     localIPAddress: "Local IP Address",
     tcpPort: "TCP Port",
     masterKDSIPAddress: "POS System IP Address",

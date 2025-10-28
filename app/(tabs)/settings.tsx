@@ -676,7 +676,7 @@ export default function SettingsScreen() {
       <Text style={styles.title}>{t("settings")}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("kdsInfo")}</Text>
+        <Text style={styles.sectionTitle}>{t("deviceInfo")}</Text>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>{t("localIPAddress")}</Text>
@@ -797,7 +797,7 @@ export default function SettingsScreen() {
         <>
           {/* 第二个独立大框：POS System */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{t("masterKDS")}</Text>
+            <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
 
             {/* Master IP 地址 */}
             <View style={styles.infoRow}>
@@ -901,7 +901,7 @@ export default function SettingsScreen() {
       {kdsRole === KDSRole.MASTER && (
         <>
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{t("masterKDS")}</Text>
+            <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
               <View style={styles.infoRowColumn}>
                 <Text style={styles.infoLabel}>{t("subKDS")}</Text>
                 {subKdsList.length > 0 ? (
