@@ -182,6 +182,14 @@ export class DistributionService {
     try {
       console.log("初始化子KDS...");
       
+      // 启动TCP服务器以便可接收来自主KDS的连接请求/测试消息
+      try {
+        await TCPSocketService.startServer();
+        console.log("子KDS本地TCP服务器已启动");
+      } catch (e) {
+        console.warn("子KDS启动本地TCP服务器失败(可继续作为客户端连接主KDS):", e);
+      }
+
       // 获取主KDS IP
       const masterIP = await AsyncStorage.getItem("master_ip") || "";
       if (!masterIP) {
@@ -193,12 +201,8 @@ export class DistributionService {
       this.masterIP = masterIP;
       console.log(`主KDS IP: ${this.masterIP}`);
       
-      // 如果是本地测试环境，统一使用127.0.0.1
-      const actualMasterIP = (masterIP === '127.0.0.100' || masterIP.startsWith('192.168.')) ? '127.0.0.1' : masterIP;
-      console.log(`实际连接的主KDS IP: ${actualMasterIP}`);
-      
       // 连接到主KDS
-      const connected = await TCPSocketService.connectToMaster(actualMasterIP);
+      const connected = await TCPSocketService.connectToMaster(masterIP);
       
       if (connected) {
         console.log("成功连接到主KDS");
@@ -237,13 +241,8 @@ export class DistributionService {
         timestamp: new Date().toISOString()
       };
       
-      // 如果是本地测试环境，统一使用127.0.0.1进行连接，但保留原始IP用于显示
-      const actualIP = (ip === '127.0.0.100' || ip.startsWith('192.168.')) ? '127.0.0.1' : ip;
-      if (actualIP !== ip) {
-        console.log(`实际连接目标IP: ${actualIP} (原始IP: ${ip})`);
-      }
-      
-      const connected = await TCPSocketService.sendData(actualIP, testMessage);
+      // 直接使用真实IP连接子KDS
+      const connected = await TCPSocketService.sendData(ip, testMessage);
       
       // 更新连接状态，但保留原始IP
       const updatedList = this.subKdsList.map(kds => 
