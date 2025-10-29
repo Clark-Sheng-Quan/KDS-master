@@ -229,6 +229,7 @@ export const translations = {
     failedToUpdateLockStatus: "更新设备锁定状态失败",
     failedToRemoveDevice: "移除设备失败",
     locked: "已锁定",
+    posSystemNotConnected: "POS系统未连接",
     
     // 品类显示
     drinks: "饮料",
@@ -245,7 +246,6 @@ export const translations = {
     recallOrder: "重新召回",
     saved: "已保存",
     notSet: "未设置",
-    posSystemNotConnected: "POS系统未连接",
     masterIPNotSet: "未设置POS系统IP地址",
     
     // Dashboard相关
@@ -490,6 +490,7 @@ export const translations = {
     failedToUpdateLockStatus: "Failed to update device lock status",
     failedToRemoveDevice: "Failed to remove device",
     locked: "LOCKED",
+    posSystemNotConnected: "POS System not connected",
     
     // Category display
     drinks: "Drinks",
@@ -506,7 +507,6 @@ export const translations = {
     recallOrder: "Recall Order",
     saved: "Saved",
     notSet: "Not Set",
-    posSystemNotConnected: "POS System not connected",
     masterIPNotSet: "POS System IP address not set",
     
     // 准备时间相关

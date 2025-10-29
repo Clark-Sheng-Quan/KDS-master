@@ -42,6 +42,10 @@ export class TCPSocketService {
   private static currentConnectionStatus: 'connected' | 'disconnected' | 'pending' = 'disconnected';
   // 连接警告/错误回调
   private static connectionErrorCallback: ((message: string) => void) | null = null;
+  // 心跳超时定时器 - 用于检测Slave端是否持续收到心跳
+  private static heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
+  // 心跳超时时间（如果45秒未收到心跳则认为连接断开）
+  private static readonly HEARTBEAT_TIMEOUT = 30000;
   
   private static sanitizeIP(rawIP?: string | null): string {
     if (!rawIP) {
@@ -93,6 +97,133 @@ export class TCPSocketService {
   }
 
   /**
+   * 重置Slave端的心跳超时定时器
+   * 每次收到心跳时调用，确保连接状态为 connected
+   */
+  private static resetHeartbeatTimeout(): void {
+    // 清除旧的超时定时器
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout);
+    }
+
+    // 更新连接状态为 connected
+    if (this.currentConnectionStatus !== 'connected') {
+      this.currentConnectionStatus = 'connected';
+      this.connectionStatusCallback?.('connected');
+    }
+
+    // 设置新的超时定时器
+    this.heartbeatTimeout = setTimeout(() => {
+      console.warn(`[TCP] Slave未在${this.HEARTBEAT_TIMEOUT}ms内收到心跳，标记为断开连接`);
+      this.currentConnectionStatus = 'disconnected';
+      this.connectionStatusCallback?.('disconnected');
+    }, this.HEARTBEAT_TIMEOUT);
+  }
+
+  /**
+   * 通用JSON流解析器 - 处理TCP粘包问题
+   * @param buffer 数据缓冲区
+   * @param onMessage 处理单条JSON消息的回调
+   * @returns 更新后的缓冲区
+   */
+  private static parseJsonStream(
+    buffer: string,
+    onMessage: (jsonData: any) => void
+  ): string {
+    let processedIndex = 0;
+    let braceCount = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < buffer.length; i++) {
+      const char = buffer[i];
+
+      if (escape) {
+        escape = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === '{') {
+          braceCount++;
+        } else if (char === '}') {
+          braceCount--;
+
+          if (braceCount === 0) {
+            try {
+              const jsonString = buffer.substring(processedIndex, i + 1);
+              const jsonData = JSON.parse(jsonString);
+
+              // 只处理非空对象
+              if (Object.keys(jsonData).length > 0) {
+                onMessage(jsonData);
+              }
+
+              processedIndex = i + 1;
+            } catch (e) {
+              console.error(`[TCP] JSON解析失败:`, e);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return buffer.substring(processedIndex);
+  }
+
+  /**
+   * 构造带时间戳的JSON消息
+   */
+  private static createMessage(type: string, data?: any): string {
+    return JSON.stringify({
+      type,
+      ...data,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * 清理持久连接
+   */
+  private static cleanupPersistentConnection(ip: string, reason: string): void {
+    const normalizedIP = this.sanitizeIP(ip);
+    if (this.persistentConnections.has(normalizedIP)) {
+      this.persistentConnections.delete(normalizedIP);
+      console.log(`[TCP] 已从持久连接池移除 ${normalizedIP} (${reason})`);
+    }
+  }
+
+  /**
+   * 设置socket事件处理器（error和close）
+   */
+  private static setupSocketErrorHandlers(socket: any, identifier: string): void {
+    socket.on('error', (error: Error) => {
+      console.error(`[TCP] ${identifier} 连接错误:`, error);
+      const ip = this.getSocketIP(socket);
+      this.cleanupPersistentConnection(ip, 'error');
+      this.handleSlaveConnectionLoss(ip, 'error');
+    });
+
+    socket.on('close', () => {
+      console.log(`[TCP] ${identifier} 连接关闭`);
+      const ip = this.getSocketIP(socket);
+      this.cleanupPersistentConnection(ip, 'close');
+      this.handleSlaveConnectionLoss(ip, 'close');
+    });
+  }
+
+  /**
    * 启动TCP服务器（Master模式）
    */
   public static startServer(): Promise<boolean> {
@@ -123,99 +254,24 @@ export class TCPSocketService {
               
               // 过滤掉空白字符的数据
               if (chunk.trim() === '') {
-                return; // 忽略纯空白数据
+                return;
               }
               
               dataBuffer += chunk;
-              
-              // 尝试解析多条JSON消息（通过计算括号匹配）
-              let processedIndex = 0;
-              let braceCount = 0;
-              let inString = false;
-              let escape = false;
-              
-              for (let i = processedIndex; i < dataBuffer.length; i++) {
-                const char = dataBuffer[i];
-                
-                // 处理转义字符
-                if (escape) {
-                  escape = false;
-                  continue;
-                }
-                
-                if (char === '\\') {
-                  escape = true;
-                  continue;
-                }
-                
-                // 处理字符串
-                if (char === '"') {
-                  inString = !inString;
-                  continue;
-                }
-                
-                // 只在字符串外处理括号
-                if (!inString) {
-                  if (char === '{') {
-                    braceCount++;
-                  } else if (char === '}') {
-                    braceCount--;
-                    
-                    // 当括号完全匹配时，表示一条完整的消息
-                    if (braceCount === 0) {
-                      try {
-                        const jsonString = dataBuffer.substring(processedIndex, i + 1);
-                        const jsonData = JSON.parse(jsonString);
-                        
-                        // 处理此 JSON 数据
-                        this.handleTcpMessage(jsonData, socket, clientKey);
-                        
-                        processedIndex = i + 1;
-                      } catch (e) {
-                        console.error(`[TCP] JSON解析失败:`, e, dataBuffer.substring(processedIndex, i + 1));
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-              
-              // 移除已处理的数据
-              dataBuffer = dataBuffer.substring(processedIndex);
+              dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
+                this.handleTcpMessage(jsonData, socket, clientKey);
+              });
             } catch (error) {
               console.error(`[TCP] 数据处理出错:`, error);
             }
           });
           
-          // 错误处理
-          socket.on('error', (error: Error) => {
-            console.error(`[TCP] 客户端 ${clientKey} 连接错误:`, error);
-            this.clients.delete(clientKey);
-            
-            // 从持久连接池中移除
-            const baseIP = this.getSocketIP(socket);
-            if (this.persistentConnections.has(baseIP)) {
-              this.persistentConnections.delete(baseIP);
-              console.log(`[TCP] 已从持久连接池移除 ${baseIP}`);
-            }
-
-            this.handleSlaveConnectionLoss(baseIP, 'error');
-          });
+          // 设置错误和关闭处理
+          this.setupSocketErrorHandlers(socket, `客户端 ${clientKey}`);
           
-          // 连接关闭
-          socket.on('close', () => {
-            console.log(`[TCP] 客户端 ${clientKey} 连接关闭`);
-            this.clients.delete(clientKey);
-            
-            // 从持久连接池中移除
-            const baseIP = this.getSocketIP(socket);
-            if (this.persistentConnections.has(baseIP)) {
-              this.persistentConnections.delete(baseIP);
-              console.log(`[TCP] 已从持久连接池移除 ${baseIP}`);
-            }
-
-            this.handleSlaveConnectionLoss(baseIP, 'close');
-          });
+          // 额外处理：从clients Map中移除
+          socket.on('error', () => this.clients.delete(clientKey));
+          socket.on('close', () => this.clients.delete(clientKey));
         });
         
         // 服务器错误处理
@@ -265,11 +321,9 @@ export class TCPSocketService {
 
             // 回复连接请求结果
             try {
-              socket.write(JSON.stringify({
-                type: 'connection_response',
+              socket.write(this.createMessage('connection_response', {
                 accepted,
-                slaveName: this.getSlaveName(),
-                timestamp: new Date().toISOString()
+                slaveName: this.getSlaveName()
               }));
             } catch (e) {
               console.error('[TCP] 发送连接响应失败:', e);
@@ -278,11 +332,9 @@ export class TCPSocketService {
         } else {
           console.warn('[TCP] 未设置 connectionRequestCallback，默认拒绝');
           try {
-            socket.write(JSON.stringify({
-              type: 'connection_response',
+            socket.write(this.createMessage('connection_response', {
               accepted: false,
-              slaveName: this.getSlaveName(),
-              timestamp: new Date().toISOString()
+              slaveName: this.getSlaveName()
             }));
           } catch (e) {
             console.error('[TCP] 发送连接响应失败:', e);
@@ -304,10 +356,8 @@ export class TCPSocketService {
       const category = jsonData.category || 'all';
       
       // 发送注册确认
-      socket.write(JSON.stringify({
-        type: 'registration_ack',
-        status: 'accepted',
-        timestamp: new Date().toISOString()
+      socket.write(this.createMessage('registration', {
+        status: 'accepted'
       }));
       
       // 如果设置了注册回调，触发回调
@@ -365,13 +415,22 @@ export class TCPSocketService {
       return;
     }
     
-    // 处理心跳消息
+    // 处理心跳确认消息（Master收到Slave的heartbeat_ack）
+    if (jsonData.type === 'heartbeat_ack') {
+      const slaveIP = this.getSocketIP(socket);
+      console.log(`[TCP] 收到来自Slave ${slaveIP} 的心跳确认`);
+      // 更新该Slave的连接状态为 connected
+      this.slaveConnectionStatusCallback?.(slaveIP, 'connected');
+      return;
+    }
+    
+    // 处理心跳消息（Slave作为server收到Master的heartbeat）
     if (jsonData.type === 'heartbeat') {
-      console.log(`[TCP] 收到心跳消息，回复确认`);
-      socket.write(JSON.stringify({
-        type: 'heartbeat',
-        timestamp: new Date().toISOString()
-      }));
+      const masterIP = this.getSocketIP(socket);
+      console.log(`[TCP] (服务器模式) 收到来自 ${masterIP} 的心跳，回复确认`);
+      socket.write(this.createMessage('heartbeat_ack'));
+      // Slave作为服务器时，也需要重置心跳超时
+      this.resetHeartbeatTimeout();
       return;
     }
     
@@ -381,11 +440,9 @@ export class TCPSocketService {
       this.executeOrderCallbacks(jsonData.data);
     
       // 返回确认消息
-      socket.write(JSON.stringify({ 
-        type: 'order_ack',
+      socket.write(this.createMessage('order_ack', {
         orderId: jsonData.data.id,
-        status: 'received', 
-        timestamp: new Date().toISOString() 
+        status: 'received'
       }));
       return;
     }
@@ -396,12 +453,14 @@ export class TCPSocketService {
       return;
     }
     
+    // 对于 unknown_message_type，不要回复，避免循环
+    if (jsonData.type === 'unknown_message_type') {
+      console.warn(`[TCP] 收到未知消息类型的响应，忽略以避免循环`);
+      return;
+    }
+    
     console.warn(`[TCP] 收到未知类型消息:`, jsonData.type || "无类型", jsonData);
-    socket.write(JSON.stringify({ 
-      status: 'received', 
-      message: 'unknown_message_type',
-      timestamp: new Date().toISOString() 
-    }));
+    // 不再回复 unknown_message_type，避免消息循环
   }
 
   /**
@@ -419,11 +478,9 @@ export class TCPSocketService {
         this.connectionRequestCallback(masterIP, masterName).then((accepted) => {
           // 发送响应
           if (this.masterConnection) {
-            this.masterConnection.write(JSON.stringify({
-              type: 'connection_response',
+            this.masterConnection.write(this.createMessage('connection_response', {
               accepted: accepted,
-              slaveName: this.getSlaveName(),
-              timestamp: new Date().toISOString()
+              slaveName: this.getSlaveName()
             }));
           }
           
@@ -442,11 +499,12 @@ export class TCPSocketService {
     // 处理心跳消息
     if (jsonData.type === 'heartbeat') {
       console.log(`[TCP] 收到主KDS心跳，发送确认`);
+      
+      // 重置心跳超时定时器，更新连接状态为 connected
+      this.resetHeartbeatTimeout();
+      
       if (this.masterConnection) {
-        this.masterConnection.write(JSON.stringify({
-          type: 'heartbeat',
-          timestamp: new Date().toISOString()
-        }));
+        this.masterConnection.write(this.createMessage('heartbeat_ack'));
       }
       return;
     }
@@ -473,17 +531,20 @@ export class TCPSocketService {
       
       // 发送确认消息
       if (this.masterConnection) {
-        this.masterConnection.write(JSON.stringify({
-          type: 'order_ack',
+        this.masterConnection.write(this.createMessage('order_ack', {
           orderId: orderId,
-          status: 'received',
-          timestamp: new Date().toISOString()
+          status: 'received'
         }));
       }
       return;
     }
     
     // 处理其他类型的消息
+    // 对于 unknown_message_type，不要记录日志，避免循环
+    if (jsonData.type === 'unknown_message_type') {
+      return;
+    }
+    
     console.log(`[TCP] 收到来自主KDS的未知类型消息:`, jsonData.type || "无类型");
   }
   
@@ -498,16 +559,13 @@ export class TCPSocketService {
         
         for (const [ip, connection] of this.persistentConnections.entries()) {
           try {
-            connection.write(JSON.stringify({
-              type: 'heartbeat',
-              timestamp: new Date().toISOString()
-            }));
+            connection.write(this.createMessage('heartbeat'));
           } catch (error) {
             console.error(`[TCP] 发送心跳到 ${ip} 失败:`, error);
           }
         }
       }
-    }, 30000); // 30秒
+    }, 15000); // 30秒
   }
   
   /**
@@ -543,6 +601,14 @@ export class TCPSocketService {
           // 重置重连计数器
           this.reconnectAttempts.set(masterIP, 0);
           
+          // 设置初始连接状态为pending，等待收到heartbeat后才变为connected
+          this.currentConnectionStatus = 'pending';
+          this.connectionStatusCallback?.('pending');
+          console.log(`[TCP] 连接状态设置为 pending，等待接收心跳...`);
+          
+          // 启动心跳超时检测（60秒内未收到心跳则断开）
+          this.resetHeartbeatTimeout();
+          
           // 发送注册消息
           const registrationMessage = {
             type: 'registration',
@@ -565,67 +631,13 @@ export class TCPSocketService {
             
             // 过滤掉空白字符的数据
             if (chunk.trim() === '') {
-              return; // 忽略纯空白数据
+              return;
             }
             
             masterDataBuffer += chunk;
-            
-            // 尝试解析多条JSON消息（通过计算括号匹配）
-            let processedIndex = 0;
-            let braceCount = 0;
-            let inString = false;
-            let escape = false;
-            
-            for (let i = processedIndex; i < masterDataBuffer.length; i++) {
-              const char = masterDataBuffer[i];
-              
-              // 处理转义字符
-              if (escape) {
-                escape = false;
-                continue;
-              }
-              
-              if (char === '\\') {
-                escape = true;
-                continue;
-              }
-              
-              // 处理字符串
-              if (char === '"') {
-                inString = !inString;
-                continue;
-              }
-              
-              // 只在字符串外处理括号
-              if (!inString) {
-                if (char === '{') {
-                  braceCount++;
-                } else if (char === '}') {
-                  braceCount--;
-                  
-                  // 当括号完全匹配时，表示一条完整的消息
-                  if (braceCount === 0) {
-                    try {
-                      const jsonString = masterDataBuffer.substring(processedIndex, i + 1);
-                      const jsonData = JSON.parse(jsonString);
-                      
-                      // 只处理有效的消息（不是空对象）
-                      if (Object.keys(jsonData).length > 0) {
-                        this.handleMasterMessage(jsonData);
-                      }
-                      
-                      processedIndex = i + 1;
-                    } catch (e) {
-                      console.error(`[TCP] JSON解析失败:`, e);
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-            
-            // 移除已处理的数据
-            masterDataBuffer = masterDataBuffer.substring(processedIndex);
+            masterDataBuffer = this.parseJsonStream(masterDataBuffer, (jsonData) => {
+              this.handleMasterMessage(jsonData);
+            });
           } catch (error) {
             console.error(`[TCP] 数据处理出错:`, error);
           }
@@ -635,6 +647,16 @@ export class TCPSocketService {
         this.masterConnection.on('error', (error: Error) => {
           console.error('[TCP] 连接主KDS错误:', error);
           this.masterConnection = null;
+          
+          // 清除心跳超时定时器
+          if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+            this.heartbeatTimeout = null;
+          }
+          
+          // 更新连接状态
+          this.currentConnectionStatus = 'disconnected';
+          this.connectionStatusCallback?.('disconnected');
           
           // 启动重连
           this.scheduleReconnect(masterIP);
@@ -646,6 +668,16 @@ export class TCPSocketService {
         this.masterConnection.on('close', () => {
           console.log('[TCP] 与主KDS的连接已关闭');
           this.masterConnection = null;
+          
+          // 清除心跳超时定时器
+          if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+            this.heartbeatTimeout = null;
+          }
+          
+          // 更新连接状态
+          this.currentConnectionStatus = 'disconnected';
+          this.connectionStatusCallback?.('disconnected');
           
           // 启动重连
           this.scheduleReconnect(masterIP);
@@ -684,6 +716,12 @@ export class TCPSocketService {
       // 清除重连定时器
       this.reconnectTimers.forEach((timer) => clearTimeout(timer));
       this.reconnectTimers.clear();
+      
+      // 清除心跳超时定时器
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout);
+        this.heartbeatTimeout = null;
+      }
       
       console.log('[TCP] 已成功断开连接');
     } catch (error) {
@@ -835,15 +873,15 @@ export class TCPSocketService {
           // 这里设置为pending状态
           this.currentConnectionStatus = 'pending';
           this.connectionStatusCallback?.('pending');
-          
-          // 设置10秒超时用于测试，如果没有收到响应则自动失败
+
+          // 设置60秒超时用于测试，如果没有收到响应则自动失败
           const timeoutTimer = setTimeout(() => {
-            console.log(`[TCP] 连接请求到 ${targetSlaveIP} 已超时（10秒）`);
+            console.log(`[TCP] 连接请求到 ${targetSlaveIP} 已超时（60秒）`);
             this.connectionTimeouts.delete(targetSlaveIP);
             // 通知Master该设备连接失败
             console.log(`[TCP] 调用slaveConnectionStatusCallback，设置为disconnected`);
             this.slaveConnectionStatusCallback?.(targetSlaveIP, 'disconnected', slaveName);
-          }, 10000); // 10秒用于测试
+          }, 60000); // 60秒用于测试
           
           this.connectionTimeouts.set(targetSlaveIP, timeoutTimer);
           console.log(`[TCP] 已设置${targetSlaveIP}的超时定时器`);
@@ -900,19 +938,8 @@ export class TCPSocketService {
           this.persistentConnections.set(targetIP, socket);
           console.log(`[TCP] 已将 ${targetIP} 添加到持久连接池`);
           
-          // 设置错误处理
-          socket.on('error', (err) => {
-            console.error(`[TCP] 持久连接到 ${targetIP} 错误:`, err);
-            this.persistentConnections.delete(targetIP);
-            this.handleSlaveConnectionLoss(targetIP, 'error');
-          });
-          
-          // 设置关闭处理
-          socket.on('close', () => {
-            console.log(`[TCP] 持久连接到 ${targetIP} 已关闭`);
-            this.persistentConnections.delete(targetIP);
-            this.handleSlaveConnectionLoss(targetIP, 'close');
-          });
+          // 设置错误和关闭处理
+          this.setupSocketErrorHandlers(socket, `持久连接到 ${targetIP}`);
           
           resolve(true);
         });
@@ -925,60 +952,13 @@ export class TCPSocketService {
             
             // 过滤掉空白字符的数据
             if (chunk.trim() === '') {
-              return; // 忽略纯空白数据
+              return;
             }
             
             dataBuffer += chunk;
-
-            let processedIndex = 0;
-            let braceCount = 0;
-            let inString = false;
-            let escape = false;
-
-            for (let i = processedIndex; i < dataBuffer.length; i++) {
-              const char = dataBuffer[i];
-
-              if (escape) {
-                escape = false;
-                continue;
-              }
-
-              if (char === '\\') {
-                escape = true;
-                continue;
-              }
-
-              if (char === '"') {
-                inString = !inString;
-                continue;
-              }
-
-              if (!inString) {
-                if (char === '{') {
-                  braceCount++;
-                } else if (char === '}') {
-                  braceCount--;
-
-                  if (braceCount === 0) {
-                    const jsonString = dataBuffer.substring(processedIndex, i + 1);
-                    processedIndex = i + 1;
-
-                    try {
-                      const json = JSON.parse(jsonString);
-                      // 只处理有效的消息（不是空对象）
-                      if (Object.keys(json).length > 0) {
-                        this.handleTcpMessage(json, socket, `${targetIP}:${socket.remotePort ?? ''}`);
-                      }
-                    } catch (err) {
-                      console.error('[TCP] 解析客户端响应失败:', err, jsonString);
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-
-            dataBuffer = dataBuffer.substring(processedIndex);
+            dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
+              this.handleTcpMessage(jsonData, socket, `${targetIP}:${socket.remotePort ?? ''}`);
+            });
           } catch (err) {
             console.error('[TCP] 处理客户端数据失败:', err);
           }
@@ -1027,31 +1007,30 @@ export class TCPSocketService {
    * 关闭服务器和所有连接
    */
   public static shutdown(): void {
-    // 关闭所有客户端连接
-    for (const [clientKey, client] of this.clients.entries()) {
-      try {
-        client.destroy();
-        console.log(`[TCP] 关闭与 ${clientKey} 的连接`);
-      } catch (error) {
-        console.error(`[TCP] 关闭与 ${clientKey} 的连接失败:`, error);
+    // 辅助函数：关闭Map中的所有连接
+    const closeConnections = (connections: Map<string, any>, label: string) => {
+      for (const [key, conn] of connections.entries()) {
+        try {
+          conn.destroy();
+          console.log(`[TCP] 关闭${label} ${key} 的连接`);
+        } catch (error) {
+          console.error(`[TCP] 关闭${label} ${key} 的连接失败:`, error);
+        }
       }
-    }
-    
-    // 清空客户端列表
-    this.clients.clear();
-    
-    // 关闭所有持久连接
-    for (const [ip, connection] of this.persistentConnections.entries()) {
-      try {
-        connection.destroy();
-        console.log(`[TCP] 关闭与 ${ip} 的持久连接`);
-      } catch (error) {
-        console.error(`[TCP] 关闭与 ${ip} 的持久连接失败:`, error);
+      connections.clear();
+    };
+
+    // 辅助函数：清除Map中的所有定时器
+    const clearTimers = (timers: Map<string, ReturnType<typeof setTimeout>>) => {
+      for (const timer of timers.values()) {
+        clearTimeout(timer);
       }
-    }
-    
-    // 清空持久连接池
-    this.persistentConnections.clear();
+      timers.clear();
+    };
+
+    // 关闭所有客户端和持久连接
+    closeConnections(this.clients, '客户端');
+    closeConnections(this.persistentConnections, '持久连接');
     
     // 关闭与主KDS的连接
     if (this.masterConnection) {
@@ -1059,17 +1038,9 @@ export class TCPSocketService {
       this.masterConnection = null;
     }
     
-    // 清除所有重连定时器
-    for (const [ip, timer] of this.reconnectTimers.entries()) {
-      clearTimeout(timer);
-    }
-    this.reconnectTimers.clear();
-
-    // 清除所有连接超时定时器
-    for (const [ip, timer] of this.connectionTimeouts.entries()) {
-      clearTimeout(timer);
-    }
-    this.connectionTimeouts.clear();
+    // 清除所有定时器
+    clearTimers(this.reconnectTimers);
+    clearTimers(this.connectionTimeouts);
     
     // 关闭服务器
     if (this.server) {

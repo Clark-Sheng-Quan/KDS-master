@@ -24,6 +24,15 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
   const { t } = useLanguage();
   const [isDismissed, setIsDismissed] = useState(false);
   const [heightAnim] = useState(new Animated.Value(0));
+  const [previousStatus, setPreviousStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected');
+
+  // 当连接状态从 connected 变为 disconnected 时，重置 isDismissed
+  useEffect(() => {
+    if (previousStatus === 'connected' && connectionStatus === 'disconnected') {
+      setIsDismissed(false);
+    }
+    setPreviousStatus(connectionStatus || 'disconnected');
+  }, [connectionStatus]);
 
   // 处理显示/隐藏
   useEffect(() => {
