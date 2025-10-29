@@ -229,7 +229,7 @@ export const translations = {
     failedToUpdateLockStatus: "更新设备锁定状态失败",
     failedToRemoveDevice: "移除设备失败",
     locked: "已锁定",
-    posSystemNotConnected: "POS系统未连接",
+    posNotConnected: "POS系统未连接",
     
     // 品类显示
     drinks: "饮料",
@@ -457,7 +457,7 @@ export const translations = {
     resetConnection: "Reset Connection",
     confirmResetMasterConnection: "Are you sure you want to reset the POS System connection?",
     masterConnectionReset: "POS System connection reset",
-    slaveDevices: "Kitchen Devices",
+    slaveDevices: "Kitchen Display Devices",
     masterDevice: "POS System",
     connectionStatus: "Connection Status",
     
@@ -490,7 +490,7 @@ export const translations = {
     failedToUpdateLockStatus: "Failed to update device lock status",
     failedToRemoveDevice: "Failed to remove device",
     locked: "LOCKED",
-    posSystemNotConnected: "POS System not connected",
+    posNotConnected: "POS System not connected",
     
     // Category display
     drinks: "Drinks",

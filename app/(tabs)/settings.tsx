@@ -606,7 +606,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
         */}
-        <Text style={styles.infoValue}>Slave KDS (接收POS订单)</Text>
+        <Text style={styles.infoValue}>{t("slaveDevices")}</Text>
           </View>
 
         {kdsRole === KDSRole.SLAVE && (

@@ -105,7 +105,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
             style={styles.icon}
           />
           <Text style={styles.message} numberOfLines={2}>
-            {t('posSystemNotConnected')}
+            {t('posNotConnected')}
           </Text>
           <TouchableOpacity
             onPress={handleDismiss}

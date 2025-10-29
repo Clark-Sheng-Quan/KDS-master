@@ -31,18 +31,18 @@ export default function RootLayout() {
   const shouldShowBanner = kdsRole === 'slave';
 
   return (
-    <View style={{ flex: 1 }}>
-      {shouldShowBanner && (
-        <ConnectionBanner
-          connectionStatus={connectionStatus}
-          autoHideDuration={30000}
-          onDismiss={() => {
-            // Optional: handle dismiss if needed
-          }}
-        />
-      )}
-      <CategoryColorProvider>
-        <LanguageProvider>
+    <CategoryColorProvider>
+      <LanguageProvider>
+        <View style={{ flex: 1 }}>
+          {shouldShowBanner && (
+            <ConnectionBanner
+              connectionStatus={connectionStatus}
+              autoHideDuration={30000}
+              onDismiss={() => {
+                // Optional: handle dismiss if needed
+              }}
+            />
+          )}
           <OrderProvider>
             <PreOrderProvider>
               <Stack screenOptions={{ headerShown: false }}>
@@ -52,8 +52,8 @@ export default function RootLayout() {
               </Stack>
             </PreOrderProvider>
           </OrderProvider>
-        </LanguageProvider>
-      </CategoryColorProvider>
-    </View>
+        </View>
+      </LanguageProvider>
+    </CategoryColorProvider>
   );
 }

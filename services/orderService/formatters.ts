@@ -11,63 +11,86 @@ import { FormattedOrder } from '../types';
  */
 export const convertToSydneyTime = (utcTimeString: string): string => {
   try {
-    console.log('开始转换时间，输入:', utcTimeString);
+    console.log('[Time] Converting time, input:', utcTimeString);
 
-    // 解析 UTC 时间
-    const utcDate = DateTime.fromFormat(utcTimeString, 'yyyy-MM-dd HH:mm:ss', { zone: 'utc' });
+    let utcDate: DateTime;
+    const trimmedString = utcTimeString.trim();
+    
+    // Check if string contains timezone offset (e.g., "+0000", "-0800")
+    const timezoneOffsetMatch = trimmedString.match(/^(.+)\s+([+-]\d{4})$/);
+    
+    if (timezoneOffsetMatch) {
+      // Format: "2025-10-29 03:59:45 +0000"
+      // Parse with timezone offset using ISO format
+      const dateTimePart = timezoneOffsetMatch[1]; // "2025-10-29 03:59:45"
+      const offsetPart = timezoneOffsetMatch[2];    // "+0000"
+      
+      console.log('[Time] Detected timezone offset:', offsetPart);
+      
+      // Convert to ISO format that Luxon can parse: "2025-10-29T03:59:45+00:00"
+      const isoString = dateTimePart.replace(' ', 'T') + offsetPart.slice(0, 3) + ':' + offsetPart.slice(3);
+      console.log('[Time] Converted to ISO format:', isoString);
+      
+      utcDate = DateTime.fromISO(isoString);
+    } else {
+      // Format: "2025-10-29 00:00:00" (no timezone offset, assume UTC)
+      console.log('[Time] No timezone offset detected, parsing as UTC');
+      utcDate = DateTime.fromFormat(trimmedString, 'yyyy-MM-dd HH:mm:ss', { zone: 'utc' });
+    }
 
     if (!utcDate.isValid) {
-      console.error('UTC时间解析失败:', utcDate.invalidExplanation);
+      console.error('[Time] Time parsing failed:', utcDate.invalidExplanation);
+      console.error('[Time] Attempted to parse:', trimmedString);
       return utcTimeString;
     }
 
-    // 转为悉尼时间
+    // Convert to Sydney time
     const sydneyDate = utcDate.setZone('Australia/Sydney');
     const formattedSydneyTime = sydneyDate.toFormat('yyyy-MM-dd HH:mm:ss');
     
-    console.log('最终格式化的悉尼时间:', formattedSydneyTime);
+    console.log('[Time] Final Sydney time:', formattedSydneyTime);
     return formattedSydneyTime;
   } catch (error) {
-    console.error('时区转换错误:', error);
+    console.error('[Time] Timezone conversion error:', error);
     return utcTimeString;
   }
 };
 
 /**
- * 格式化 TCP 订单数据
+ * Format TCP order data
  */
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
-    // 确保有订单ID
+    // Ensure order has ID
     const orderId = orderData.order_num || orderData.orderId || orderData._id || String(Date.now());
     
-    // 提取并格式化订单项
+    // Extract and format order items
     const items = Array.isArray(orderData.products) ? orderData.products : [];
     
     const formattedOrder: FormattedOrder = {
       id: orderId,
       _id: orderId,
       orderTime: orderData.time || new Date().toISOString(),
-      pickupMethod: orderData.pickupMethod || orderData.pick_method || "未知",
+      pickupMethod: orderData.pickupMethod || orderData.pick_method || "Unknown",
       pickupTime: orderData.pickupTime || orderData.pick_time || new Date().toISOString(),
       order_num: orderData.order_num?.toString() || orderId,
       products: items.map((item: any) => ({
         id: item.id || `tcp-item`,
-        name: item.name || "未知商品",
+        name: item.name || "Unknown Item",
         quantity: item.quantity || 1,
         price: item.price || 0,
         options: Array.isArray(item.options) ? item.options : [],
-        category: item.category || "default", // 确保包含分类信息
-        prepare_time: item.prepare_time || 0, // 添加准备时间
+        category: item.category || "default", // Ensure category info is included
+        prepare_time: item.prepare_time || 0, // Add prepare time
       })),
-      source: 'tcp', // 标记来源为TCP
-      total_prepare_time: orderData.total_prepare_time || 0, // 添加总准备时间
+      source: 'tcp', // Mark source as TCP
+      total_prepare_time: orderData.total_prepare_time || 0, // Add total prepare time
     };
     
     return formattedOrder;
   } catch (error) {
-    console.error('格式化TCP订单失败:', error);
-    // 返回一个基本订单对象
+    console.error('[Format] Failed to format TCP order:', error);
+    // Return basic order object
     return {
       id: String(Date.now()),
       _id: String(Date.now()),
@@ -87,23 +110,23 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
  */
 export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> => {
   try {
-    // 直接格式化产品项
+    // Format product items directly
     const formattedItems = order.products.map((product: any, index: number) => {
-      // 处理category，取数组的第一个元素
+      // Process category, take first element from array
       let productCategory = "default";
-      console.log("product.category is ============ : ", product.category);
-      // 检查产品分类信息
+      console.log("[Format] product.category is:", product.category);
+      // Check product category info
       if (product.category.length > 0) {
         productCategory = product.category[0];
       }
       
-      console.log("产品:", product.name, "分类:", productCategory);
+      console.log("[Format] Product:", product.name, "Category:", productCategory);
       
-      // 处理选项
+      // Process options
       let options = [];
       if (Array.isArray(product.option)) {
         options = product.option.map((opt: any) => ({
-          name: opt.name || '选项',
+          name: opt.name || 'Option' || '选项',
           value: String(opt.qty || 1),
           price: opt.price_adjust || 0
         }));
@@ -111,35 +134,35 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       
       return {
         id: product._id || `item-${index}-${Date.now()}`,
-        name: product.name || '未知商品',
+        name: product.name || 'Unknown Item' || '未知商品',
         quantity: product.qty || 1,
         price: product.price || 0,
         options: options,
-        category: productCategory, // 使用确定的分类
-        prepare_time: product.prepare_time || 0, // 保留准备时间字段，但不显示
+        category: productCategory, // Use determined category
+        prepare_time: product.prepare_time || 0, // Keep prepare time field but don't display
       };
     });
 
-    // 转换pickupTime为悉尼时区
+    // Convert pickupTime to Sydney timezone
     const sydneyPickupTime = convertToSydneyTime(order.pick_time);
     const sydneyOrderTime = convertToSydneyTime(order.time);
     
     return {
       id: order.order_num.toString(),
       _id: order._id || order.order_num.toString(),
-      orderTime: sydneyOrderTime, // 使用转换后的悉尼时间
+      orderTime: sydneyOrderTime, // Use converted Sydney time
       pickupMethod: order.pick_method,
-      pickupTime: sydneyPickupTime, // 使用转换后的悉尼时间
+      pickupTime: sydneyPickupTime, // Use converted Sydney time
       order_num: order.order_num.toString(),
       status: order.status, 
       products: formattedItems,
       source: order.source,
-      total_prepare_time: order.total_prepare_time || 0, // 添加总准备时间
+      total_prepare_time: order.total_prepare_time || 0, // Add total prepare time
     };
   } catch (error) {
-    console.error('格式化网络订单失败:', error, order);
+    console.error('[Format] Failed to format network order:', error, order);
     
-    // 返回基本订单对象而不是抛出错误
+    // Return basic order object instead of throwing error
     return {
       id: (order.order_num || Date.now()).toString(),
       _id: order._id || (order.order_num || Date.now()).toString(),
@@ -161,23 +184,23 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
 export const formatOrders = async (ordersData: any): Promise<FormattedOrder[]> => {
   const formattedOrders: FormattedOrder[] = [];
   
-  console.log('开始格式化订单，原始数据包含', ordersData.orders.length, '个订单');
+  console.log('[Format] Starting to format orders, raw data contains', ordersData.orders.length, 'orders');
   
-  // 确保我们有订单数组
+  // Ensure we have orders array
   if (!ordersData || !ordersData.orders || !Array.isArray(ordersData.orders)) {
-    console.warn('formatOrders: 无效的订单数据格式', ordersData);
+    console.warn('[Format] formatOrders: Invalid order data format', ordersData);
     return [];
   }
   
   for (const order of ordersData.orders) {
     try {
-      // 使用已有的formatNetworkOrder方法
+      // Use existing formatNetworkOrder method
       const formattedOrder = await formatNetworkOrder(order);
-      formattedOrder.source = 'history'; // 标记来源为历史
+      formattedOrder.source = 'history'; // Mark source as history
       formattedOrders.push(formattedOrder);
     } catch (error) {
-      console.error('格式化单个订单失败:', error);
-      // 继续处理下一个订单
+      console.error('[Format] Failed to format single order:', error);
+      // Continue processing next order
     }
   }
   
