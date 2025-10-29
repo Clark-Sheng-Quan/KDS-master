@@ -10,7 +10,7 @@ import { ConnectionBanner } from "../components/ConnectionBanner";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function RootLayout() {
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [kdsRole, setKdsRole] = useState<string>('');
 
   useEffect(() => {

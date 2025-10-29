@@ -90,21 +90,29 @@ export class DistributionService {
       }
       
       // 根据角色执行不同的初始化
+      // MASTER模式已禁用 - 此KDS只作为Slave运行
+      /*
       if (this.role === KDSRole.MASTER) {
         await this.initializeMaster();
       } else {
         await this.initializeSlave();
       }
+      */
+      
+      // 强制使用Slave模式
+      console.log('[DistributionService] 强制使用Slave模式（只接收POS订单）');
+      await this.initializeSlave();
       
       this.initialized = true;
-      console.log(`KDS初始化完成，当前角色: ${this.role}`);
+      console.log(`KDS初始化完成，当前角色: Slave（接收POS订单）`);
     } catch (error) {
       console.error("分发服务初始化失败:", error);
       throw error;
     }
   }
   
-  // 初始化主KDS
+  // 初始化主KDS（已禁用）
+  /*
   private static async initializeMaster(): Promise<void> {
     try {
       // 1. 启动TCP服务器
@@ -176,54 +184,35 @@ export class DistributionService {
       throw error;
     }
   }
+  */
   
   // 初始化子KDS
   private static async initializeSlave(): Promise<void> {
     try {
       console.log("初始化子KDS...");
       
-      // 启动TCP服务器以便可接收来自主KDS的连接请求/测试消息
+      // 启动TCP服务器以接收来自POS的连接
       try {
         await TCPSocketService.startServer();
-        console.log("子KDS本地TCP服务器已启动");
+        console.log("子KDS TCP服务器已启动，等待POS连接");
       } catch (e) {
-        console.warn("子KDS启动本地TCP服务器失败(可继续作为客户端连接主KDS):", e);
+        console.warn("子KDS启动TCP服务器失败:", e);
       }
 
-      // 获取主KDS IP
-      const masterIP = await AsyncStorage.getItem("master_ip") || "";
-      if (!masterIP) {
-        // 触发连接错误回调，显示横幅
-        TCPSocketService.triggerConnectionError("masterIPNotSet");
-        return;
-      }
-      
-      this.masterIP = masterIP;
-      console.log(`主KDS IP: ${this.masterIP}`);
-      
-      // 连接到主KDS
-      const connected = await TCPSocketService.connectToMaster(masterIP);
-      
-      if (connected) {
-        console.log("成功连接到主KDS");
+      // 设置回调，处理从POS接收的订单
+      TCPSocketService.setOrderCallback((order) => {
+        console.log(`收到来自POS的订单: ${order.id || order.data?.id}`);
         
-        // 设置回调，处理从主KDS接收的订单
-        TCPSocketService.setOrderCallback((order) => {
-          console.log(`收到来自主KDS的订单: ${order.id}`);
-          
-          // 添加到本地订单列表
-          OrderService.addTCPOrder(order);
-          
-          console.log(`订单 ${order.id} 已添加到本地列表，商品数量: ${order.products.length}`);
-          
-          // 打印订单中的商品
-          order.products.forEach((product: any, index: number) => {
-            console.log(`商品 ${index + 1}: ${product.name} (${product.category}) x${product.quantity}`);
-          });
-        });
-      } else {
-        console.error("无法连接到主KDS");
-      }
+        // 如果数据包含data字段，使用它
+        const orderData = order.data || order;
+        
+        // 添加到本地订单列表
+        OrderService.addTCPOrder(orderData);
+        
+        console.log(`订单已添加到本地列表`);
+      });
+      
+      console.log("子KDS初始化完成，等待POS连接...");
     } catch (error) {
       console.error("初始化子KDS失败:", error);
     }

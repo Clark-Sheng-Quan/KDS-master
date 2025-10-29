@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ConnectionBannerProps {
-  connectionStatus?: 'connected' | 'disconnected' | 'pending';
+  connectionStatus?: 'connected' | 'disconnected';
   onDismiss?: () => void;
   autoHideDuration?: number; // 毫秒，默认 30000ms (30秒)
 }
@@ -24,7 +24,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
   const { t } = useLanguage();
   const [isDismissed, setIsDismissed] = useState(false);
   const [heightAnim] = useState(new Animated.Value(0));
-  const [previousStatus, setPreviousStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected');
+  const [previousStatus, setPreviousStatus] = useState<'connected' | 'disconnected'>('disconnected');
 
   // 当连接状态从 connected 变为 disconnected 时，重置 isDismissed
   useEffect(() => {
@@ -36,7 +36,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
 
   // 处理显示/隐藏
   useEffect(() => {
-    const shouldShowBanner = (connectionStatus === 'disconnected' || connectionStatus === 'pending') && !isDismissed;
+    const shouldShowBanner = connectionStatus === 'disconnected' && !isDismissed;
 
     if (shouldShowBanner) {
       // 显示横幅
@@ -80,7 +80,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
     });
   };
 
-  const shouldShow = (connectionStatus === 'disconnected' || connectionStatus === 'pending') && !isDismissed;
+  const shouldShow = connectionStatus === 'disconnected' && !isDismissed;
 
   return (
     <Animated.View

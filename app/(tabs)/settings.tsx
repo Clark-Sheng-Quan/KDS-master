@@ -39,13 +39,15 @@ export default function SettingsScreen() {
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("4322"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
-  const [kdsRole, setKdsRole] = useState<KDSRole>(KDSRole.MASTER);
+  const [kdsRole, setKdsRole] = useState<KDSRole>(KDSRole.SLAVE); // 强制默认为Slave模式
   const [masterIP, setMasterIP] = useState<string>("");
   const [manualMasterIP, setManualMasterIP] = useState<string>("");
+  /* Master模式功能已禁用
   const [newSubKdsIP, setNewSubKdsIP] = useState<string>("");
   const [subKdsList, setSubKdsList] = useState<
-    { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' | 'pending' }[]
+    { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' }[]
   >([]);
+  */
   const [assignedCategory, setAssignedCategory] = useState<CategoryType>(
     CategoryType.DRINKS
   );
@@ -62,8 +64,10 @@ export default function SettingsScreen() {
   );
 
   // TCP 连接状态管理
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected');
-  const [slaveConnectionStatuses, setSlaveConnectionStatuses] = useState<Map<string, 'connected' | 'disconnected' | 'pending'>>(new Map());
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  /* Master模式功能已禁用
+  const [slaveConnectionStatuses, setSlaveConnectionStatuses] = useState<Map<string, 'connected' | 'disconnected'>>(new Map());
+  */
 
   // 加载保存的设置
   useEffect(() => {
@@ -80,20 +84,17 @@ export default function SettingsScreen() {
         const savedPort = await AsyncStorage.getItem("kds_port");
         if (savedPort) setPort(savedPort);
 
+        /* Master模式功能已禁用
         const savedMasterIP = await AsyncStorage.getItem("master_ip");
         if (savedMasterIP) setMasterIP(savedMasterIP);
 
         const savedSubKds = await AsyncStorage.getItem("sub_kds_list");
         if (savedSubKds) {
-          // 加载子KDS列表，但将所有pending状态改为disconnected
           const parsedList = JSON.parse(savedSubKds);
-          const fixedList = parsedList.map((kds: any) => ({
-            ...kds,
-            status: kds.status === 'pending' ? 'disconnected' : kds.status
-          }));
-          setSubKdsList(fixedList);
-          console.log('[Settings] 加载subKdsList并修复pending状态:', fixedList);
+          setSubKdsList(parsedList);
+          console.log('[Settings] 加载subKdsList:', parsedList);
         }
+        */
 
         // 加载Compact模式每行卡片数量
         const savedCompactCardsPerRow = await AsyncStorage.getItem(
@@ -116,52 +117,34 @@ export default function SettingsScreen() {
           setEditingDeviceName(savedDeviceName);
         }
 
-        // 设置 TCP 连接请求回调 - Slave 端接收 Master 连接请求时调用
-        TCPSocketService.setConnectionRequestCallback(async (masterIP, masterName) => {
-          return new Promise((resolve) => {
-            Alert.alert(
-              t("connectionRequest"),
-              `${masterName} (${masterIP}) ${t("deviceRequestsConnection")}?`,
-              [
-                {
-                  text: t("rejectConnection"),
-                  onPress: () => resolve(false),
-                  style: 'cancel'
-                },
-                {
-                  text: t("acceptConnection"),
-                  onPress: async () => {
-                    // 保存主屏 IP
-                    await AsyncStorage.setItem("master_ip", masterIP);
-                    setMasterIP(masterIP);
-                    resolve(true);
-                  },
-                  style: 'default'
-                }
-              ]
-            );
-          });
-        });
-
-        // 设置连接状态回调 - 监听TCP连接状态变化
+        // 设置连接状态回调 - 监听TCP连接状态变化（Slave端）
         TCPSocketService.setConnectionStatusCallback((status) => {
           console.log('[Settings] 连接状态变化:', status);
           setConnectionStatus(status);
         });
 
-        // 设置子设备连接状态回调 - Master端监听Slave的连接状态
-        TCPSocketService.setSlaveConnectionStatusCallback((slaveIP, status, slaveName) => {
-          console.log('[Settings] Slave连接状态变化:', slaveIP, status, slaveName);
-          setSubKdsList((prevList) => {
-            const updated = prevList.map((kds) => 
-              kds.ip === slaveIP 
-                ? { ...kds, status: status, name: slaveName || kds.name }
-                : kds
-            );
-            console.log('[Settings] 更新subKdsList:', updated);
-            return updated;
+        /* Master模式功能已禁用 - Slave连接状态回调
+        // 只在Master模式下设置子设备连接状态回调
+        const currentRole = savedRole || kdsRole;
+        if (currentRole === 'master') {
+          // 设置子设备连接状态回调 - Master端监听Slave的连接状态
+          TCPSocketService.setSlaveConnectionStatusCallback((slaveIP, status, slaveName) => {
+            console.log('[Settings] Slave连接状态变化:', slaveIP, status, slaveName);
+            setSubKdsList((prevList) => {
+              const updated = prevList.map((kds) => 
+                kds.ip === slaveIP 
+                  ? { ...kds, status: status, name: slaveName || kds.name }
+                  : kds
+              );
+              console.log('[Settings] 更新subKdsList:', updated);
+              return updated;
+            });
           });
-        });
+          console.log('[Settings] 已设置Master模式的Slave连接状态回调');
+        } else {
+          console.log('[Settings] Slave模式，不设置子设备连接状态回调');
+        }
+        */
 
         setLoading(false);
       } catch (error) {
@@ -183,8 +166,10 @@ export default function SettingsScreen() {
     try {
       await AsyncStorage.setItem("kds_role", kdsRole);
       await AsyncStorage.setItem("kds_port", port);
+      /* Master模式功能已禁用
       await AsyncStorage.setItem("master_ip", masterIP);
       await AsyncStorage.setItem("sub_kds_list", JSON.stringify(subKdsList));
+      */
 
       // 保存Compact模式每行卡片数量
       await AsyncStorage.setItem(
@@ -223,6 +208,7 @@ export default function SettingsScreen() {
     console.log('[Settings] handleConnectToDevice被调用，设备:', device.name, device.ip);
     
     try {
+      /* Master模式功能已禁用
       // 如果当前是Master，则目标设备设为Slave，并添加到子KDS列表
       if (kdsRole === KDSRole.MASTER) {
         console.log('[Settings] Master模式，显示确认对话框');
@@ -235,119 +221,47 @@ export default function SettingsScreen() {
           return;
         }
 
-        // 显示确认对话框
+        // Master模式：提示Slave设备需要主动连接
         Alert.alert(
           t("connectToDevice"),
-          t("setAsSlaveKDS"),
+          `请在Slave设备 ${device.name} (${device.ip}) 上选择连接到本Master设备。\n\nMaster会自动接受连接。`,
           [
-            { text: t("cancel"), onPress: () => {
-              console.log('[Settings] 用户取消连接');
-              setShowDeviceDiscovery(false);
-            }, style: 'cancel' },
             {
-              text: t("connect"),
-              onPress: async () => {
-                console.log('[Settings] 用户确认，开始连接流程');
-                
-                try {
-                  // 获取本设备名称
-                  const deviceName = await AsyncStorage.getItem("device_name") || "Master KDS";
-                  console.log('[Settings] 本设备名称:', deviceName);
-                  
-                  // 发送连接请求到Slave
-                  console.log('[Settings] 调用TCPSocketService.sendConnectionRequest，设备IP:', device.ip);
-                  await TCPSocketService.sendConnectionRequest(device.ip, ipAddress || "0.0.0.0", deviceName, device.name);
-                  console.log('[Settings] sendConnectionRequest已完成');
-                  
-                  // 自动分配品类
-                  const categories = [
-                    CategoryType.DRINKS,
-                    CategoryType.HOT_FOOD,
-                    CategoryType.COLD_FOOD,
-                    CategoryType.DESSERT,
-                  ];
-                  const categoryIndex = subKdsList.length % categories.length;
-                  const assignedCategory = categories[categoryIndex];
-
-                  console.log('[Settings] 分配品类:', assignedCategory);
-
-                  // 添加到子KDS列表（初始状态为pending，等待Slave确认）
-                  const newSubKdsList = [
-                    ...subKdsList,
-                    { ip: device.ip, name: device.name, category: assignedCategory, status: 'pending' as const },
-                  ];
-                  console.log('[Settings] 更新subKdsList为pending状态');
-                  setSubKdsList(newSubKdsList);
-
-                  // 使用DistributionService添加子KDS
-                  console.log('[Settings] 调用DistributionService.addSubKDS');
-                  const success = await DistributionService.addSubKDS(
-                    device.ip,
-                    assignedCategory
-                  );
-
-                  if (!success) {
-                    // 如果添加失败，回滚状态
-                    console.log('[Settings] DistributionService.addSubKDS失败，回滚');
-                    setSubKdsList(subKdsList);
-                    Alert.alert("错误", "添加子KDS失败");
-                    return;
-                  }
-
-                  // 保存到AsyncStorage
-                  console.log('[Settings] 保存到AsyncStorage');
-                  await saveSubKdsListToStorage(newSubKdsList);
-                  
-                  // 关闭Device Discovery面板
-                  console.log('[Settings] 关闭Device Discovery面板');
-                  setShowDeviceDiscovery(false);
-                  
-                  // 显示"已发送连接请求"提示
-                  Alert.alert(
-                    "已发送连接请求",
-                    `连接请求已发送到 ${device.name} (${device.ip})\n等待设备响应中，最多等待 10 秒...`,
-                    [
-                      {
-                        text: "确定",
-                        onPress: () => {},
-                        style: 'default'
-                      }
-                    ]
-                  );
-                } catch (err: any) {
-                  console.error('[Settings] 连接流程错误:', err);
-                  Alert.alert(t("failed"), `发送连接请求失败: ${err.message}`);
-                }
+              text: "确定",
+              onPress: () => {
+                console.log('[Settings] 用户了解，等待Slave主动连接');
+                setShowDeviceDiscovery(false);
               },
               style: 'default',
             },
           ]
         );
       } else {
-        // 如果当前是Slave，则连接到Master KDS
-        console.log('[Settings] Slave模式，连接到Master IP:', device.ip);
+      */
+        // 如果当前是Slave，则连接到Master KDS (在当前方案中，POS作为客户端连接到KDS)
+        console.log('[Settings] Slave模式，连接到POS IP:', device.ip);
         
         Alert.alert(
           t("connectToDevice"),
           t("connectToMasterKDS"),
           [
             { text: t("cancel"), onPress: () => {
-              console.log('[Settings] 用户取消连接到Master');
+              console.log('[Settings] 用户取消连接到POS');
               setShowDeviceDiscovery(false);
             }, style: 'cancel' },
             {
               text: t("connect"),
               onPress: async () => {
-                console.log('[Settings] 用户确认连接到Master，IP:', device.ip);
+                console.log('[Settings] 用户确认连接到POS，IP:', device.ip);
                 setMasterIP(device.ip);
                 
                 try {
-                  // 立即连接到Master，不需要重启
-                  console.log('[Settings] 开始连接到Master KDS');
+                  // 立即连接到POS/Master，不需要重启
+                  console.log('[Settings] 开始连接到POS系统');
                   const connected = await TCPSocketService.connectToMaster(device.ip);
                   
                   if (connected) {
-                    console.log('[Settings] 成功连接到Master KDS');
+                    console.log('[Settings] 成功建立TCP连接到POS系统，等待心跳确认');
                     // 保存IP到本地存储
                     await AsyncStorage.setItem("master_ip", device.ip);
                     
@@ -356,10 +270,10 @@ export default function SettingsScreen() {
                     
                     Alert.alert(
                       t("success"),
-                      `${t("connectionEstablished")}\nMaster IP: ${device.ip}`
+                      `${t("connectionEstablished")}\nPOS IP: ${device.ip}\n\n等待接收心跳以确认连接状态...`
                     );
                   } else {
-                    console.log('[Settings] 连接到Master KDS失败');
+                    console.log('[Settings] 连接到POS系统失败');
                     setMasterIP(""); // 重置IP
                     Alert.alert(t("error"), t("connectionFailed"));
                   }
@@ -373,13 +287,14 @@ export default function SettingsScreen() {
             },
           ]
         );
-      }
+      /* } */ // Master模式块结束
     } catch (error) {
       console.error('[Settings] handleConnectToDevice错误:', error);
       Alert.alert("错误", "连接设备失败");
     }
   };
 
+  /* Master模式功能已禁用 - 添加和删除子KDS
   // 添加子KDS - 自动分配品类
   const addSubKds = async () => {
     if (!newSubKdsIP.trim()) {
@@ -461,70 +376,20 @@ export default function SettingsScreen() {
     }
   };
 
-  // 处理重新连接设备
-  const handleReconnectDevice = async (kds: { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' | 'pending' }) => {
+  // 处理重新连接设备（在新方案中，Master不主动连接Slave）
+  const handleReconnectDevice = async (kds: { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' }) => {
     try {
       console.log('[Settings] handleReconnectDevice被调用，设备:', kds.name, kds.ip);
       
-      // 显示确认对话框
+      // 新方案：Master不主动连接，提示用户在Slave端操作
       Alert.alert(
-        t("reconnect"),
-        `${t("confirmReconnect")} ${kds.name}?`,
+        "重新连接提示",
+        `要重新连接到 ${kds.name} (${kds.ip})，请在该Slave设备上重新连接到本Master设备。\n\nMaster会自动接受连接。`,
         [
-          { 
-            text: t("cancel"), 
-            onPress: () => {
-              console.log('[Settings] 用户取消重新连接');
-            }, 
-            style: 'cancel' 
-          },
           {
-            text: t("confirm"),
-            onPress: async () => {
-              console.log('[Settings] 用户确认重新连接');
-              
-              try {
-                // 将状态设置为pending
-                console.log('[Settings] 将状态设置为pending');
-                setSubKdsList((prevList) =>
-                  prevList.map((item) =>
-                    item.ip === kds.ip ? { ...item, status: 'pending' as const } : item
-                  )
-                );
-
-                // 获取本设备名称
-                const deviceName = await AsyncStorage.getItem("device_name") || "Master KDS";
-                console.log('[Settings] 本设备名称:', deviceName);
-
-                // 发送连接请求
-                console.log('[Settings] 调用TCPSocketService.sendConnectionRequest');
-                const success = await TCPSocketService.sendConnectionRequest(
-                  kds.ip,
-                  ipAddress,
-                  deviceName,
-                  kds.name
-                );
-                console.log('[Settings] sendConnectionRequest完成，结果:', success);
-
-                if (!success) {
-                  // 如果发送失败，设置为disconnected
-                  console.log('[Settings] 发送连接请求失败，设置为disconnected');
-                  setSubKdsList((prevList) =>
-                    prevList.map((item) =>
-                      item.ip === kds.ip ? { ...item, status: 'disconnected' as const } : item
-                    )
-                  );
-                  Alert.alert("错误", "发送连接请求失败");
-                }
-              } catch (error) {
-                console.error("[Settings] 重新连接流程错误:", error);
-                setSubKdsList((prevList) =>
-                  prevList.map((item) =>
-                    item.ip === kds.ip ? { ...item, status: 'disconnected' as const } : item
-                  )
-                );
-                Alert.alert("错误", "重新连接设备时发生错误");
-              }
+            text: "确定",
+            onPress: () => {
+              console.log('[Settings] 用户了解重连流程');
             },
             style: 'default',
           },
@@ -536,16 +401,12 @@ export default function SettingsScreen() {
     }
   };
 
-  // 保存subKdsList到AsyncStorage（确保pending状态变为disconnected）
+  // 保存subKdsList到AsyncStorage
   const saveSubKdsListToStorage = async (list: typeof subKdsList) => {
-    // 保存时将pending改为disconnected
-    const listToSave = list.map(kds => ({
-      ...kds,
-      status: kds.status === 'pending' ? 'disconnected' : kds.status
-    }));
-    await AsyncStorage.setItem("sub_kds_list", JSON.stringify(listToSave));
-    console.log('[Settings] 保存subKdsList到AsyncStorage，修复pending状态');
+    await AsyncStorage.setItem("sub_kds_list", JSON.stringify(list));
+    console.log('[Settings] 保存subKdsList到AsyncStorage');
   };
+  */
 
   const saveManualMasterIP = async () => {
     if (!manualMasterIP.trim()) {
@@ -706,6 +567,7 @@ export default function SettingsScreen() {
 
       <View style={styles.infoRowColumn}>
         <Text style={styles.infoLabel}>{t("kdsRole")}</Text>
+        {/* Master模式功能已禁用 - 强制使用Slave模式
         <View style={styles.roleSelector}>
               <TouchableOpacity
                 style={[
@@ -743,6 +605,8 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+        */}
+        <Text style={styles.infoValue}>Slave KDS (接收POS订单)</Text>
           </View>
 
         {kdsRole === KDSRole.SLAVE && (
@@ -897,7 +761,7 @@ export default function SettingsScreen() {
         </>
       )}
 
-      {/* ========== Master 模式：独立的框 ========== */}
+      {/* ========== Master 模式功能已禁用 ==========
       {kdsRole === KDSRole.MASTER && (
         <>
           <View style={styles.card}>
@@ -918,7 +782,7 @@ export default function SettingsScreen() {
                       </View>
                       
                       <View style={styles.slaveDeviceControls}>
-                        {(kds.status === 'disconnected' || kds.status === 'pending') && (
+                        {kds.status === 'disconnected' && (
                           <TouchableOpacity 
                             style={styles.reconnectButton}
                             onPress={() => handleReconnectDevice(kds)}
@@ -933,8 +797,6 @@ export default function SettingsScreen() {
                           { 
                             backgroundColor: kds.status === 'connected' 
                               ? '#E8F5E9' 
-                              : kds.status === 'pending'
-                              ? '#FFF3E0'
                               : '#FFEBEE'
                           }
                         ]}>
@@ -942,16 +804,12 @@ export default function SettingsScreen() {
                             name={
                               kds.status === 'connected' 
                                 ? 'checkmark-circle' 
-                                : kds.status === 'pending'
-                                ? 'hourglass'
                                 : 'close-circle'
                             } 
                             size={16} 
                             color={
                               kds.status === 'connected' 
                                 ? '#4CAF50' 
-                                : kds.status === 'pending'
-                                ? '#FF9800'
                                 : '#d32f2f'
                             } 
                           />
@@ -959,14 +817,10 @@ export default function SettingsScreen() {
                             styles.statusText,
                             kds.status === 'connected' 
                               ? styles.statusConnected 
-                              : kds.status === 'pending'
-                              ? styles.statusPending
                               : styles.statusDisconnected
                           ]}>
                             {kds.status === 'connected' 
                               ? t("connectionEstablished")
-                              : kds.status === 'pending'
-                              ? t("connectionPending")
                               : t("disconnected")}
                           </Text>
                         </View>
@@ -1009,6 +863,7 @@ export default function SettingsScreen() {
           </View>
         </>
       )}
+      */}
 
       {/* 显示设置卡片 */}
       <View style={styles.card}>
@@ -1317,9 +1172,6 @@ const styles = StyleSheet.create({
   },
   statusConnected: {
     color: "#4CAF50",
-  },
-  statusPending: {
-    color: "#FF9800",
   },
   statusDisconnected: {
     color: "#d32f2f",
