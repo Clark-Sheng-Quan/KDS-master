@@ -77,7 +77,7 @@ export class TCPSocketService {
 
   private static handleSlaveConnectionLoss(ip: string, reason: string): void {
     const normalized = this.sanitizeIP(ip);
-    if (!normalized || normalized === this.masterIP) {
+    if (!normalized) {
       return;
     }
 
@@ -88,9 +88,22 @@ export class TCPSocketService {
       }
     }
 
-    console.log(`[TCP] Client ${normalized} connection lost (${reason})`);
+    console.log(`[TCP] POS client ${normalized} connection lost (${reason})`);
     
-    // Only trigger callback if set (only set in Master mode)
+    // Clear masterIP if this was the POS connection
+    if (this.masterIP === normalized) {
+      console.log(`[TCP] Clearing masterIP (was ${this.masterIP})`);
+      this.masterIP = "";
+      
+      // Update connection status to disconnected (POS is now disconnected)
+      if (this.currentConnectionStatus !== 'disconnected') {
+        this.currentConnectionStatus = 'disconnected';
+        this.connectionStatusCallback?.('disconnected');
+        console.log(`[TCP] POS connection status updated to: disconnected`);
+      }
+    }
+    
+    // Trigger slave connection callback only if set (only set in Master mode, which is disabled)
     if (this.slaveConnectionStatusCallback) {
       this.slaveConnectionStatusCallback(normalized, 'disconnected');
     }
@@ -178,7 +191,7 @@ export class TCPSocketService {
 
               processedIndex = i + 1;
             } catch (e) {
-              console.error(`[TCP] JSON解析失败:`, e);
+              console.error(`[TCP] JSON Parse Fail:`, e);
               break;
             }
           }
@@ -198,6 +211,81 @@ export class TCPSocketService {
       ...data,
       timestamp: new Date().toISOString()
     });
+  }
+
+  /**
+   * 将JSON消息转换为标准TCP协议格式（带Content-Length header）
+   * 格式: Content-Length: {length}\r\n\r\n{json}
+   */
+  private static formatTcpMessage(message: string): string {
+    // React Native环境下计算UTF-8字节长度（兼容方式，不使用Node.js Buffer）
+    const contentLength = new TextEncoder().encode(message).length;
+    return `Content-Length: ${contentLength}\r\n\r\n${message}`;
+  }
+
+  /**
+   * 解析标准TCP协议消息（带Content-Length header）
+   * @param buffer 数据缓冲区
+   * @param onMessage 处理单条JSON消息的回调
+   * @returns 更新后的缓冲区
+   */
+  private static parseStandardTcpStream(
+    buffer: string,
+    onMessage: (jsonData: any) => void
+  ): string {
+    let remaining = buffer;
+
+    while (true) {
+      // Look for header separator \r\n\r\n
+      const headerEndIndex = remaining.indexOf('\r\n\r\n');
+      
+      if (headerEndIndex === -1) {
+        // No complete header yet, wait for more data
+        break;
+      }
+
+      // Extract header
+      const headerString = remaining.substring(0, headerEndIndex);
+      
+      // Parse Content-Length
+      const contentLengthMatch = headerString.match(/Content-Length:\s*(\d+)/i);
+      
+      if (!contentLengthMatch) {
+        console.error('[TCP] Invalid header format, no Content-Length found');
+        // Skip this malformed message
+        remaining = remaining.substring(headerEndIndex + 4);
+        continue;
+      }
+
+      const contentLength = parseInt(contentLengthMatch[1], 10);
+      const messageStart = headerEndIndex + 4; // Skip \r\n\r\n
+      const messageEnd = messageStart + contentLength;
+
+      // Check if we have the complete message body
+      if (remaining.length < messageEnd) {
+        // Incomplete message, wait for more data
+        break;
+      }
+
+      // Extract message body
+      const messageBody = remaining.substring(messageStart, messageEnd);
+      
+      try {
+        const jsonData = JSON.parse(messageBody);
+        
+        // Only process non-empty objects
+        if (Object.keys(jsonData).length > 0) {
+          onMessage(jsonData);
+        }
+      } catch (e) {
+        console.error('[TCP] JSON Parse Fail:', e, 'Body:', messageBody);
+      }
+
+      // Move to next message
+      remaining = remaining.substring(messageEnd);
+    }
+
+    return remaining;
   }
 
   /**
@@ -231,7 +319,7 @@ export class TCPSocketService {
   }
 
   /**
-   * 启动TCP服务器（Master模式）
+   * 启动TCP服务器
    */
   public static startServer(): Promise<boolean> {
     return new Promise((resolve, reject) => {
@@ -261,34 +349,49 @@ export class TCPSocketService {
               
               // Debug: Print received raw data
               console.log(`[TCP] Received raw data from ${clientKey}:`, chunk);
-              console.log(`[TCP] Data length: ${chunk.length}, first 100 chars:`, chunk.substring(0, 100));
+              console.log(`[TCP] Data length: ${chunk.length}, first 100 Data:`, chunk.substring(0, 100));
               
               // 过滤掉空白字符的数据
               if (chunk.trim() === '') {
                 return;
               }
               
-              // 立即发送响应确认收到数据
-              const response = JSON.stringify({
-                status: 'success',
-                type: 'ack',
-                message: 'Data received successfully',
-                receivedLength: chunk.length,
-                timestamp: new Date().toISOString()
-              });
-              socket.write(response);
-              console.log(`[TCP] Sent ACK response to ${clientKey}:`, response);
+              // 检测并忽略HTTP请求（curl等工具发送的）
+              if (chunk.trimStart().startsWith('POST') || 
+                  chunk.trimStart().startsWith('GET') || 
+                  chunk.trimStart().startsWith('PUT') || 
+                  chunk.trimStart().startsWith('DELETE') ||
+                  chunk.includes('HTTP/1.')) {
+                console.warn(`[TCP] Detected HTTP request, ignoring. Please use pure TCP socket instead of HTTP tools like curl.`);
+                console.warn(`[TCP] Expected: Raw JSON or Content-Length format, not HTTP protocol.`);
+                return;
+              }
               
-              // 尝试解析JSON（如果不是JSON也不会报错）
+              // 尝试解析接收到的消息（兼容普通JSON和标准格式）
               dataBuffer += chunk;
-              try {
-                dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
-                  this.handleTcpMessage(jsonData, socket, clientKey);
-                });
-              } catch (parseError) {
-                console.log(`[TCP] Data is not JSON format, ignoring parse error`);
-                // 清空buffer避免累积
-                dataBuffer = '';
+              
+              // 智能检测：如果数据以"Content-Length:"开头，使用标准解析器
+              // 否则直接使用JSON流解析器（兼容测试脚本发送的普通JSON）
+              if (dataBuffer.trimStart().startsWith('Content-Length:')) {
+                console.log(`[TCP] Detected standard format message with Content-Length header`);
+                try {
+                  dataBuffer = this.parseStandardTcpStream(dataBuffer, (jsonData) => {
+                    this.handleTcpMessage(jsonData, socket, clientKey);
+                  });
+                } catch (parseError) {
+                  console.error(`[TCP] Error parsing standard TCP message:`, parseError);
+                  dataBuffer = '';
+                }
+              } else {
+                console.log(`[TCP] Detected plain JSON format (test mode compatible)`);
+                try {
+                  dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
+                    this.handleTcpMessage(jsonData, socket, clientKey);
+                  });
+                } catch (parseError) {
+                  console.error(`[TCP] Error parsing JSON stream:`, parseError);
+                  dataBuffer = '';
+                }
               }
             } catch (error) {
               console.error(`[TCP] Error processing data:`, error);
@@ -296,7 +399,7 @@ export class TCPSocketService {
           });
           
           // 设置错误和关闭处理
-          this.setupSocketErrorHandlers(socket, `客户端 ${clientKey}`);
+          this.setupSocketErrorHandlers(socket, `Client ${clientKey}`);
           
           // 额外处理：从clients Map中移除
           socket.on('error', () => this.clients.delete(clientKey));
@@ -305,7 +408,7 @@ export class TCPSocketService {
         
         // 服务器错误处理
         this.server.on('error', (error: Error) => {
-          console.error('[TCP] 服务器错误:', error);
+          console.error('[TCP] Server error:', error);
           reject(error);
         });
         
@@ -318,32 +421,37 @@ export class TCPSocketService {
         // 启动心跳检测
         this.startHeartbeat();
       } catch (error) {
-        console.error('[TCP] 启动服务器失败:', error);
+        console.error('[TCP] Start server failed:', error);
         reject(error);
       }
     });
   }
 
   /**
-   * Handle single TCP message (Master server receives messages from Slave)
+   * Handle single TCP message (KDS server receives messages from POS/Client)
    */
   private static handleTcpMessage(jsonData: any, socket: any, clientKey: string) {
-    // Handle registration message (Slave actively connects and registers)
+    // Handle registration message (POS client actively connects and registers)
     if (jsonData.type === 'registration') {
-      console.log(`[TCP] Received Slave registration:`, jsonData);
+      console.log(`[TCP] Received POS client registration:`, jsonData);
       
       // Extract client IP address
       const clientIP = this.getSocketIP(socket);
       
+      // Save POS IP as masterIP (for server mode, POS acts as the "master" data source)
+      this.masterIP = clientIP;
+      console.log(`[TCP] Saved POS IP as masterIP: ${clientIP}`);
+      
       // Get category from message, default to ALL
       const category = jsonData.category || 'all';
       
-      // Send registration confirmation
-      socket.write(this.createMessage('registration', {
+      // Send registration confirmation (standard format)
+      const regResponse = this.createMessage('registration', {
         status: 'accepted'
-      }));
+      });
+      socket.write(this.formatTcpMessage(regResponse));
       
-      // Trigger registration callback if set
+      // Trigger registration callback if set (currently not used in Slave-only mode)
       if (this.registrationCallback) {
         this.registrationCallback(clientIP, category as CategoryType);
       }
@@ -351,7 +459,14 @@ export class TCPSocketService {
       // Add connection to persistent connection pool
       const baseIP = clientIP;
       this.persistentConnections.set(baseIP, socket);
-      console.log(`[TCP] Added Slave ${baseIP} to persistent connection pool`);
+      console.log(`[TCP] Added POS client ${baseIP} to persistent connection pool`);
+      
+      // Update connection status to connected (POS is now connected)
+      if (this.currentConnectionStatus !== 'connected') {
+        this.currentConnectionStatus = 'connected';
+        this.connectionStatusCallback?.('connected');
+        console.log(`[TCP] POS connection status updated to: connected`);
+      }
       return;
     }
     
@@ -381,8 +496,16 @@ export class TCPSocketService {
     // Handle heartbeat message (POS/Client sends heartbeat to KDS)
     if (jsonData.type === 'heartbeat') {
       const clientIP = this.getSocketIP(socket);
-      console.log(`[TCP] Received heartbeat from client ${clientIP}, sending ACK`);
-      socket.write(this.createMessage('heartbeat_ack'));
+      console.log(`[TCP] Received heartbeat from POS client ${clientIP}, sending ACK`);
+      const heartbeatAck = this.createMessage('heartbeat_ack');
+      socket.write(this.formatTcpMessage(heartbeatAck));
+      
+      // Update connection status to connected
+      if (this.currentConnectionStatus !== 'connected') {
+        this.currentConnectionStatus = 'connected';
+        this.connectionStatusCallback?.('connected');
+        console.log(`[TCP] POS connection status updated to: connected`);
+      }
       return;
     }
     
@@ -391,11 +514,12 @@ export class TCPSocketService {
       console.log(`[TCP] Received order message, Order ID: ${jsonData.data.id}`);
       this.executeOrderCallbacks(jsonData.data);
     
-      // Send acknowledgment
-      socket.write(this.createMessage('order_ack', {
+      // Send acknowledgment (standard format)
+      const orderAck = this.createMessage('order_ack', {
         orderId: jsonData.data.id,
         status: 'received'
-      }));
+      });
+      socket.write(this.formatTcpMessage(orderAck));
       return;
     }
     
@@ -427,7 +551,8 @@ export class TCPSocketService {
       this.resetHeartbeatTimeout();
       
       if (this.masterConnection) {
-        this.masterConnection.write(this.createMessage('heartbeat_ack'));
+        const heartbeatAck = this.createMessage('heartbeat_ack');
+        this.masterConnection.write(this.formatTcpMessage(heartbeatAck));
       }
       return;
     }
@@ -452,12 +577,13 @@ export class TCPSocketService {
       // Process order data
       this.executeOrderCallbacks(jsonData.data);
       
-      // Send acknowledgment
+      // Send acknowledgment (standard format)
       if (this.masterConnection) {
-        this.masterConnection.write(this.createMessage('order_ack', {
+        const orderAck = this.createMessage('order_ack', {
           orderId: orderId,
           status: 'received'
-        }));
+        });
+        this.masterConnection.write(this.formatTcpMessage(orderAck));
       }
       return;
     }
@@ -468,7 +594,7 @@ export class TCPSocketService {
       return;
     }
     
-    console.log(`[TCP] Received unknown message type from Master:`, jsonData.type || "no type");
+    console.log(`[TCP] Received unknown message type from Client:`, jsonData.type || "no type");
   }
   
   /**
@@ -482,7 +608,8 @@ export class TCPSocketService {
         
         for (const [ip, connection] of this.persistentConnections.entries()) {
           try {
-            connection.write(this.createMessage('heartbeat'));
+            const heartbeat = this.createMessage('heartbeat');
+            connection.write(this.formatTcpMessage(heartbeat));
           } catch (error) {
             console.error(`[TCP] Failed to send heartbeat to ${ip}:`, error);
           }
@@ -530,15 +657,16 @@ export class TCPSocketService {
           // Start heartbeat timeout detection (disconnect and reconnect if no heartbeat within 30s)
           this.resetHeartbeatTimeout();
           
-          // Send registration message
+          // Send registration message (standard format)
           const registrationMessage = {
             type: 'registration',
-            role: 'slave',
+            role: 'kds',
             category: category, // Use category from AsyncStorage
             timestamp: new Date().toISOString()
           };
           
-          this.masterConnection.write(JSON.stringify(registrationMessage));
+          const formattedRegistration = this.formatTcpMessage(JSON.stringify(registrationMessage));
+          this.masterConnection.write(formattedRegistration);
           resolve(true);
         });
         
@@ -556,9 +684,22 @@ export class TCPSocketService {
             }
             
             masterDataBuffer += chunk;
-            masterDataBuffer = this.parseJsonStream(masterDataBuffer, (jsonData) => {
-              this.handleMasterMessage(jsonData);
-            });
+            // Use standard TCP protocol parser first, fallback to JSON stream if needed
+            try {
+              masterDataBuffer = this.parseStandardTcpStream(masterDataBuffer, (jsonData) => {
+                this.handleMasterMessage(jsonData);
+              });
+            } catch (parseError) {
+              console.error('[TCP] Error parsing standard format, trying JSON stream fallback');
+              try {
+                masterDataBuffer = this.parseJsonStream(masterDataBuffer, (jsonData) => {
+                  this.handleMasterMessage(jsonData);
+                });
+              } catch (fallbackError) {
+                console.error('[TCP] Both parsers failed, clearing buffer');
+                masterDataBuffer = '';
+              }
+            }
           } catch (error) {
             console.error(`[TCP] Error processing data:`, error);
           }
@@ -769,7 +910,8 @@ export class TCPSocketService {
         if (this.persistentConnections.has(targetIP)) {
           const socket = this.persistentConnections.get(targetIP);
           if (socket && !socket.destroyed) {
-            socket.write(JSON.stringify(data));
+            const formattedData = this.formatTcpMessage(JSON.stringify(data));
+            socket.write(formattedData);
             console.log(`[TCP] Data sent successfully via persistent connection to ${targetIP}`);
             resolve(true);
             return;
@@ -788,8 +930,9 @@ export class TCPSocketService {
           port: TCP_PORT,
           tls: false
         }, () => {
-          // Send data
-          socket.write(JSON.stringify(data));
+          // Send data (standard format)
+          const formattedData = this.formatTcpMessage(JSON.stringify(data));
+          socket.write(formattedData);
           console.log(`[TCP] Persistent connection to ${targetIP}:${TCP_PORT} successful`);
           
           // Add to persistent connection pool
@@ -814,9 +957,21 @@ export class TCPSocketService {
             }
             
             dataBuffer += chunk;
-            dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
-              this.handleTcpMessage(jsonData, socket, `${targetIP}:${socket.remotePort ?? ''}`);
-            });
+            // Use standard TCP protocol parser first, fallback to JSON stream
+            try {
+              dataBuffer = this.parseStandardTcpStream(dataBuffer, (jsonData) => {
+                this.handleTcpMessage(jsonData, socket, `${targetIP}:${socket.remotePort ?? ''}`);
+              });
+            } catch (parseError) {
+              try {
+                dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
+                  this.handleTcpMessage(jsonData, socket, `${targetIP}:${socket.remotePort ?? ''}`);
+                });
+              } catch (fallbackError) {
+                console.error('[TCP] Failed to parse client data:', fallbackError);
+                dataBuffer = '';
+              }
+            }
           } catch (err) {
             console.error('[TCP] Failed to process client data:', err);
           }
@@ -832,10 +987,12 @@ export class TCPSocketService {
    * Broadcast data to all connected clients
    */
   public static broadcastData(data: any): void {
-    // Broadcast to all regular clients
+    // Broadcast to all regular clients (standard format)
+    const formattedData = this.formatTcpMessage(JSON.stringify(data));
+    
     for (const [clientKey, client] of this.clients.entries()) {
       try {
-        client.write(JSON.stringify(data));
+        client.write(formattedData);
       } catch (error) {
         console.error(`[TCP] Failed to broadcast data to ${clientKey}:`, error);
       }
@@ -844,7 +1001,7 @@ export class TCPSocketService {
     // Broadcast to all persistent connections
     for (const [ip, connection] of this.persistentConnections.entries()) {
       try {
-        connection.write(JSON.stringify(data));
+        connection.write(formattedData);
       } catch (error) {
         console.error(`[TCP] Failed to broadcast data to persistent connection ${ip}:`, error);
       }
@@ -944,5 +1101,12 @@ export class TCPSocketService {
 
     const connection = this.persistentConnections.get(normalized);
     return !!connection && !connection.destroyed;
+  }
+
+  /**
+   * Get the current POS/Master IP address
+   */
+  public static getMasterIP(): string {
+    return this.masterIP;
   }
 } 

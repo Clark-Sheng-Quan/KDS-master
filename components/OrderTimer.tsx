@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,12 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   const { t } = useLanguage();
   const [elapsedTime, setElapsedTime] = useState(0); // 存储已经过去的时间（秒）
   const [isPrinting, setIsPrinting] = useState(false);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+
+  // 保持 onTimeUpdate 引用最新
+  useEffect(() => {
+    onTimeUpdateRef.current = onTimeUpdate;
+  }, [onTimeUpdate]);
 
   useEffect(() => {
     // 计算初始时间差
@@ -115,11 +121,11 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
 
   // 当 elapsedTime 变化时，通知父组件
   useEffect(() => {
-    if (onTimeUpdate) {
+    if (onTimeUpdateRef.current) {
       const formattedTime = formatTime(elapsedTime);
-      onTimeUpdate(elapsedTime, statusInfo.color, formattedTime);
+      onTimeUpdateRef.current(elapsedTime, statusInfo.color, formattedTime);
     }
-  }, [elapsedTime, statusInfo.color, onTimeUpdate]);
+  }, [elapsedTime, statusInfo.color]); // 移除 onTimeUpdate 依赖
 
   // 计算并格式化剩余准备时间
   const getRemainingPrepTime = () => {

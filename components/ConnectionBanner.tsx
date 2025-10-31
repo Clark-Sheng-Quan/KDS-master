@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,14 +24,14 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
   const { t } = useLanguage();
   const [isDismissed, setIsDismissed] = useState(false);
   const [heightAnim] = useState(new Animated.Value(0));
-  const [previousStatus, setPreviousStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  const previousStatusRef = useRef<'connected' | 'disconnected'>('disconnected');
 
   // 当连接状态从 connected 变为 disconnected 时，重置 isDismissed
   useEffect(() => {
-    if (previousStatus === 'connected' && connectionStatus === 'disconnected') {
+    if (previousStatusRef.current === 'connected' && connectionStatus === 'disconnected') {
       setIsDismissed(false);
     }
-    setPreviousStatus(connectionStatus || 'disconnected');
+    previousStatusRef.current = connectionStatus || 'disconnected';
   }, [connectionStatus]);
 
   // 处理显示/隐藏

@@ -61,46 +61,90 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
  */
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
-    // Ensure order has ID
-    const orderId = orderData.order_num || orderData.orderId || orderData._id || String(Date.now());
+    console.log('[Format] Formatting TCP order:', orderData);
+    
+    // Ensure order has ID (support multiple field names)
+    const orderId = orderData.order_num?.toString() || 
+                    orderData.orderId?.toString() || 
+                    orderData._id?.toString() || 
+                    String(Date.now());
     
     // Extract and format order items
     const items = Array.isArray(orderData.products) ? orderData.products : [];
     
+    const formattedItems = items.map((product: any, index: number) => {
+      // Process category - handle both array and string formats
+      let productCategory = "default";
+      
+      if (Array.isArray(product.category) && product.category.length > 0) {
+        // Category is array (like backend format)
+        productCategory = product.category[0];
+      } else if (typeof product.category === 'string') {
+        // Category is string
+        productCategory = product.category;
+      }
+      
+      console.log("[Format] TCP Product:", product.name, "Category:", productCategory);
+      
+      // Process options/option (support both field names)
+      let options: any[] = [];
+      const optionsArray = product.options || product.option || [];
+      
+      if (Array.isArray(optionsArray)) {
+        options = optionsArray.map((opt: any) => ({
+          name: opt.name || 'Option',
+          value: String(opt.qty || opt.value || 1),
+          price: opt.price_adjust || opt.price || 0
+        }));
+      }
+      
+      return {
+        id: product._id || product.id || `item-${index}-${Date.now()}`,
+        name: product.name || 'Unknown Item',
+        quantity: product.qty || product.quantity || 1,
+        price: product.price || 0,
+        options: options,
+        category: productCategory,
+        prepare_time: product.prepare_time || 0,
+      };
+    });
+
+    // Convert times to Sydney timezone
+    const sydneyPickupTime = convertToSydneyTime(
+      orderData.pick_time || orderData.pickupTime || new Date().toISOString()
+    );
+    const sydneyOrderTime = convertToSydneyTime(
+      orderData.time || orderData.orderTime || new Date().toISOString()
+    );
+    
     const formattedOrder: FormattedOrder = {
       id: orderId,
-      _id: orderId,
-      orderTime: orderData.time || new Date().toISOString(),
-      pickupMethod: orderData.pickupMethod || orderData.pick_method || "Unknown",
-      pickupTime: orderData.pickupTime || orderData.pick_time || new Date().toISOString(),
-      order_num: orderData.order_num?.toString() || orderId,
-      products: items.map((item: any) => ({
-        id: item.id || `tcp-item`,
-        name: item.name || "Unknown Item",
-        quantity: item.quantity || 1,
-        price: item.price || 0,
-        options: Array.isArray(item.options) ? item.options : [],
-        category: item.category || "default", // Ensure category info is included
-        prepare_time: item.prepare_time || 0, // Add prepare time
-      })),
-      source: 'tcp', // Mark source as TCP
-      total_prepare_time: orderData.total_prepare_time || 0, // Add total prepare time
+      _id: orderData._id || orderId,
+      orderTime: sydneyOrderTime, // Use converted Sydney time
+      pickupMethod: orderData.pick_method || orderData.pickupMethod || "Unknown",
+      pickupTime: sydneyPickupTime, // Use converted Sydney time
+      order_num: orderId,
+      status: orderData.status,
+      products: formattedItems,
+      source: orderData.source || 'tcp', // Mark source as TCP
+      total_prepare_time: orderData.total_prepare_time || 0,
     };
     
+    console.log('[Format] Formatted TCP order:', formattedOrder);
     return formattedOrder;
   } catch (error) {
-    console.error('[Format] Failed to format TCP order:', error);
+    console.error('[Format] Failed to format TCP order:', error, orderData);
     // Return basic order object
     return {
       id: String(Date.now()),
       _id: String(Date.now()),
-      orderTime:String(Date.now()),
-      pickupMethod: "格式化错误",
+      orderTime: new Date().toISOString(),
+      pickupMethod: "formatting_error",
       pickupTime: new Date().toISOString(),
       order_num: String(Date.now()),
       products: [],
       source: 'tcp',
-      total_prepare_time: 0, // 添加总准备时间
+      total_prepare_time: 0,
     };
   }
 };
@@ -167,10 +211,10 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       id: (order.order_num || Date.now()).toString(),
       _id: order._id || (order.order_num || Date.now()).toString(),
       orderTime: order.time || new Date().toISOString(),
-      pickupMethod: order.pick_method || '未知',
+      pickupMethod: order.pick_method || 'unknown',
       pickupTime: order.pick_time || new Date().toISOString(),
       order_num: (order.order_num || Date.now()).toString(),
-      status: order.status || '未知',
+      status: order.status || 'unknown',
       products: [],
       source: 'network',
       total_prepare_time: 0, // 添加总准备时间

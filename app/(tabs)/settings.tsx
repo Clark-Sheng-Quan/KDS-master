@@ -121,6 +121,11 @@ export default function SettingsScreen() {
         TCPSocketService.setConnectionStatusCallback((status) => {
           console.log('[Settings] 连接状态变化:', status);
           setConnectionStatus(status);
+          
+          // 同步 masterIP from TCPSocketService
+          const currentMasterIP = TCPSocketService.getMasterIP();
+          console.log('[Settings] 同步 masterIP:', currentMasterIP);
+          setMasterIP(currentMasterIP);
         });
 
         /* Master模式功能已禁用 - Slave连接状态回调
@@ -159,7 +164,7 @@ export default function SettingsScreen() {
     return () => {
       // 可以在这里清理回调
     };
-  }, [t]);
+  }, []); // 只在组件挂载时执行一次
 
   // 保存设置
   const saveSettings = async () => {
@@ -1045,31 +1050,7 @@ const styles = StyleSheet.create({
     color: "#666",
     marginBottom: 4,
   },
-  roleSelector: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  roleButton: {
-    flex: 1,
-    paddingVertical: 12,
-    marginHorizontal: 5,
-    borderRadius: 6,
-    backgroundColor: "#f0f0f0",
-    alignItems: "center",
-  },
-  roleButtonActive: {
-    backgroundColor: "#007AFF",
-  },
-  roleText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  roleTextActive: {
-    fontSize: 16,
-    color: "white",
-    fontWeight: "bold",
-  },
+  /* Master 模式相关样式已删除: roleSelector, roleButton, roleButtonActive, roleText, roleTextActive */
   textInput: {
     padding: 8,
     borderWidth: 1,
@@ -1093,22 +1074,7 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
   },
-  subKdsItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  removeButton: {
-    color: "red",
-  },
-  noItemsText: {
-    fontSize: 16,
-    color: "#999",
-    marginTop: 8,
-  },
+  /* Master 模式相关样式已删除 - subKdsItem, removeButton, noItemsText */
   section: {
     backgroundColor: "white",
     borderRadius: 8,
@@ -1176,94 +1142,12 @@ const styles = StyleSheet.create({
   statusDisconnected: {
     color: "#d32f2f",
   },
-  slaveDeviceItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: "#2196F3",
-  },
-  slaveDeviceInfo: {
-    flex: 1,
-  },
-  slaveDeviceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  slaveDeviceName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-  },
-  slaveDeviceIP: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  slaveDeviceCategory: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  slaveDeviceControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 8,
-  },
-  reconnectButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#2196F3",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
-  },
-  reconnectButtonText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 11,
-  },
-  deleteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#d32f2f",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
-  },
-  deleteButtonText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 11,
-  },
-  disconnectButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#d32f2f",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
-    marginTop: 12,
-  },
-  disconnectButtonText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  /* Master 模式相关样式已删除:
+   * slaveDeviceItem, slaveDeviceInfo, slaveDeviceHeader, slaveDeviceName, 
+   * slaveDeviceIP, slaveDeviceCategory, slaveDeviceControls, 
+   * reconnectButton, reconnectButtonText, deleteButton, deleteButtonText, 
+   * disconnectButton, disconnectButtonText 
+   */
   statusAndButtonContainer: {
     flexDirection: "row",
     alignItems: "center",
