@@ -16,7 +16,6 @@ import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CategoryType } from "@/services/distributionService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
@@ -24,10 +23,13 @@ import { TCPSocketService } from "@/services/tcpSocketService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
 
-// KDS角色类型
-enum KDSRole {
-  MASTER = "master",
-  SLAVE = "slave",
+// 本地定义 CategoryType（Master-Slave 功能已移除，仅用于设置界面）
+enum CategoryType {
+  ALL = "all",
+  DRINKS = "Drinks",
+  HOT_FOOD = "hot_food",
+  COLD_FOOD = "cold_food",
+  DESSERT = "dessert"
 }
 
 // 设置相关的常量
@@ -39,21 +41,8 @@ export default function SettingsScreen() {
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("4322"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
-  const [kdsRole, setKdsRole] = useState<KDSRole>(KDSRole.SLAVE); // 强制默认为Slave模式
   const [masterIP, setMasterIP] = useState<string>("");
   const [manualMasterIP, setManualMasterIP] = useState<string>("");
-  /* Master模式功能已禁用
-  const [newSubKdsIP, setNewSubKdsIP] = useState<string>("");
-  const [subKdsList, setSubKdsList] = useState<
-    { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' }[]
-  >([]);
-  */
-  const [assignedCategory, setAssignedCategory] = useState<CategoryType>(
-    CategoryType.DRINKS
-  );
-  const [kdsCategory, setKdsCategory] = useState<CategoryType>(
-    CategoryType.ALL
-  );
   const [showDeviceDiscovery, setShowDeviceDiscovery] = useState(false);
   const [deviceName, setDeviceName] = useState<string>("KDS:Device");
   const [editingDeviceName, setEditingDeviceName] = useState<string>("KDS:Device");
@@ -63,11 +52,11 @@ export default function SettingsScreen() {
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
 
+  // KDS分类设置（仅用于UI显示，Master-Slave功能已移除）
+  const [kdsCategory, setKdsCategory] = useState<CategoryType>(CategoryType.ALL);
+
   // TCP 连接状态管理
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
-  /* Master模式功能已禁用
-  const [slaveConnectionStatuses, setSlaveConnectionStatuses] = useState<Map<string, 'connected' | 'disconnected'>>(new Map());
-  */
 
   // 加载保存的设置
   useEffect(() => {
@@ -77,24 +66,8 @@ export default function SettingsScreen() {
         const ip = await Network.getIpAddressAsync();
         setIpAddress(ip || "未知IP地址");
 
-        // 加载保存的设置
-        const savedRole = await AsyncStorage.getItem("kds_role");
-        if (savedRole) setKdsRole(savedRole as KDSRole);
-
         const savedPort = await AsyncStorage.getItem("kds_port");
         if (savedPort) setPort(savedPort);
-
-        /* Master模式功能已禁用
-        const savedMasterIP = await AsyncStorage.getItem("master_ip");
-        if (savedMasterIP) setMasterIP(savedMasterIP);
-
-        const savedSubKds = await AsyncStorage.getItem("sub_kds_list");
-        if (savedSubKds) {
-          const parsedList = JSON.parse(savedSubKds);
-          setSubKdsList(parsedList);
-          console.log('[Settings] 加载subKdsList:', parsedList);
-        }
-        */
 
         // 加载Compact模式每行卡片数量
         const savedCompactCardsPerRow = await AsyncStorage.getItem(
@@ -169,12 +142,7 @@ export default function SettingsScreen() {
   // 保存设置
   const saveSettings = async () => {
     try {
-      await AsyncStorage.setItem("kds_role", kdsRole);
       await AsyncStorage.setItem("kds_port", port);
-      /* Master模式功能已禁用
-      await AsyncStorage.setItem("master_ip", masterIP);
-      await AsyncStorage.setItem("sub_kds_list", JSON.stringify(subKdsList));
-      */
 
       // 保存Compact模式每行卡片数量
       await AsyncStorage.setItem(
@@ -182,10 +150,8 @@ export default function SettingsScreen() {
         compactCardsPerRow
       );
 
-      // 如果是子KDS，同时保存分类设置
-      if (kdsRole === KDSRole.SLAVE) {
-        await AsyncStorage.setItem("kds_category", kdsCategory);
-      }
+      // 保存分类设置
+      await AsyncStorage.setItem("kds_category", kdsCategory);
 
       // 保存设备名称
       await AsyncStorage.setItem("device_name", editingDeviceName);
@@ -497,18 +463,14 @@ export default function SettingsScreen() {
     ]);
   };
 
-  // 保存KDS角色设置
+  // 保存KDS设置
   const saveKDSRole = async () => {
     try {
-      await AsyncStorage.setItem("kds_role", kdsRole);
       await AsyncStorage.setItem("kds_port", port);
       await AsyncStorage.setItem("device_name", editingDeviceName);
 
-      // 如果是子KDS，同时保存分类设置
-      if (kdsRole === KDSRole.SLAVE) {
-        await AsyncStorage.setItem("kds_category", kdsCategory);
-        // 注意：master_ip 不再在这里保存，而是通过 handleConnectToDevice 或 saveManualMasterIP 单独管理
-      }
+      // 保存分类设置
+      await AsyncStorage.setItem("kds_category", kdsCategory);
 
       // 通过原生模块更新设备在网络上的服务名称
       if (Platform.OS === "android" && NativeModules.DeviceDiscoveryModule) {
@@ -523,7 +485,7 @@ export default function SettingsScreen() {
 
       Alert.alert(t("success"), t("settingsSavedRestart"));
     } catch (error) {
-      console.error("保存KDS角色失败:", error);
+      console.error("保存KDS设置失败:", error);
       Alert.alert(t("error"), t("saveSettingsFailed"));
     }
   };
@@ -614,44 +576,40 @@ export default function SettingsScreen() {
         <Text style={styles.infoValue}>{t("slaveDevices")}</Text>
           </View>
 
-        {kdsRole === KDSRole.SLAVE && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
-            <View style={styles.categoryPickerWrapper}>
-              <Picker
-                  selectedValue={kdsCategory}
-                  style={styles.categoryPicker}
-                  onValueChange={(itemValue) =>
-                    setKdsCategory(itemValue as CategoryType)
-                  }
-                  dropdownIconColor="#666"
-                >
-                  <Picker.Item
-                    label={getCategoryDisplayName(CategoryType.ALL)}
-                    value={CategoryType.ALL}
-                  />
-                  <Picker.Item
-                    label={getCategoryDisplayName(CategoryType.DRINKS)}
-                    value={CategoryType.DRINKS}
-                  />
-                  <Picker.Item
-                    label={getCategoryDisplayName(CategoryType.HOT_FOOD)}
-                    value={CategoryType.HOT_FOOD}
-                  />
-                  <Picker.Item
-                    label={getCategoryDisplayName(CategoryType.COLD_FOOD)}
-                    value={CategoryType.COLD_FOOD}
-                  />
-                  <Picker.Item
-                    label={getCategoryDisplayName(CategoryType.DESSERT)}
-                    value={CategoryType.DESSERT}
-                  />
-                </Picker>
-              </View>
-          </View>
-        )}
-
-        <View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
+          <View style={styles.categoryPickerWrapper}>
+            <Picker
+                selectedValue={kdsCategory}
+                style={styles.categoryPicker}
+                onValueChange={(itemValue) =>
+                  setKdsCategory(itemValue as CategoryType)
+                }
+                dropdownIconColor="#666"
+              >
+                <Picker.Item
+                  label={getCategoryDisplayName(CategoryType.ALL)}
+                  value={CategoryType.ALL}
+                />
+                <Picker.Item
+                  label={getCategoryDisplayName(CategoryType.DRINKS)}
+                  value={CategoryType.DRINKS}
+                />
+                <Picker.Item
+                  label={getCategoryDisplayName(CategoryType.HOT_FOOD)}
+                  value={CategoryType.HOT_FOOD}
+                />
+                <Picker.Item
+                  label={getCategoryDisplayName(CategoryType.COLD_FOOD)}
+                  value={CategoryType.COLD_FOOD}
+                />
+                <Picker.Item
+                  label={getCategoryDisplayName(CategoryType.DESSERT)}
+                  value={CategoryType.DESSERT}
+                />
+              </Picker>
+            </View>
+        </View>        <View>
             <TouchableOpacity
               style={[styles.saveButton, { marginTop: 20, maxWidth: 200, alignSelf: "center" }]}
               onPress={saveKDSRole}
@@ -661,12 +619,9 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ========== Slave 模式：独立的框 ========== */}
-      {kdsRole === KDSRole.SLAVE && (
-        <>
-          {/* 第二个独立大框：POS System */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
+      {/* ========== 设备连接 - POS System ========== */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
 
             {/* Master IP 地址 */}
             <View style={styles.infoRow}>
@@ -763,119 +718,13 @@ export default function SettingsScreen() {
               <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
             </TouchableOpacity>
           </View>
-        </>
-      )}
-
-      {/* ========== Master 模式功能已禁用 ==========
-      {kdsRole === KDSRole.MASTER && (
-        <>
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
-              <View style={styles.infoRowColumn}>
-                <Text style={styles.infoLabel}>{t("subKDS")}</Text>
-                {subKdsList.length > 0 ? (
-                  subKdsList.map((kds, index) => (
-                    <View key={index} style={styles.slaveDeviceItem}>
-                      <View style={styles.slaveDeviceInfo}>
-                        <Text style={styles.slaveDeviceName}>{kds.name}</Text>
-                        <Text style={styles.slaveDeviceIP}>
-                          IP: {kds.ip}
-                        </Text>
-                        <Text style={styles.slaveDeviceCategory}>
-                          {t("kitchenCategory")}: {getCategoryDisplayName(kds.category)}
-                        </Text>
-                      </View>
-                      
-                      <View style={styles.slaveDeviceControls}>
-                        {kds.status === 'disconnected' && (
-                          <TouchableOpacity 
-                            style={styles.reconnectButton}
-                            onPress={() => handleReconnectDevice(kds)}
-                          >
-                            <Ionicons name="refresh" size={16} color="white" />
-                            <Text style={styles.reconnectButtonText}>{t("reconnect") || "重新连接"}</Text>
-                          </TouchableOpacity>
-                        )}
-                        
-                        <View style={[
-                          styles.statusBadge,
-                          { 
-                            backgroundColor: kds.status === 'connected' 
-                              ? '#E8F5E9' 
-                              : '#FFEBEE'
-                          }
-                        ]}>
-                          <Ionicons 
-                            name={
-                              kds.status === 'connected' 
-                                ? 'checkmark-circle' 
-                                : 'close-circle'
-                            } 
-                            size={16} 
-                            color={
-                              kds.status === 'connected' 
-                                ? '#4CAF50' 
-                                : '#d32f2f'
-                            } 
-                          />
-                          <Text style={[
-                            styles.statusText,
-                            kds.status === 'connected' 
-                              ? styles.statusConnected 
-                              : styles.statusDisconnected
-                          ]}>
-                            {kds.status === 'connected' 
-                              ? t("connectionEstablished")
-                              : t("disconnected")}
-                          </Text>
-                        </View>
-                        
-                        <TouchableOpacity 
-                          style={styles.deleteButton}
-                          onPress={() => removeSubKds(kds.ip)}
-                        >
-                          <Ionicons name="trash" size={16} color="white" />
-                          <Text style={styles.deleteButtonText}>{t("delete") || "删除"}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.noItemsText}>{t("noSubKDS")}</Text>
-                )}
-              </View>
-              <View>
-            <Text style={styles.infoLabel}>{t("addSubKDS")}</Text>
-            <View style={styles.addKdsContainer}>
-              <TextInput
-                style={[styles.textInput, { flex: 1, marginRight: 10 }]}
-                value={newSubKdsIP}
-                onChangeText={setNewSubKdsIP}
-                placeholder={t("enterSubKDSIPAddress")}
-              />
-              <TouchableOpacity style={styles.addButton} onPress={addSubKds}>
-                <Text style={styles.addButtonText}>{t("add")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>    
-                        
-            <TouchableOpacity
-              style={styles.deviceDiscoveryButton}
-              onPress={() => setShowDeviceDiscovery(true)}
-            >
-              <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-      */}
 
       {/* 显示设置卡片 */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("cardsPerRow")}:</Text>
+          <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={compactCardsPerRow}
@@ -892,7 +741,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("language")}:</Text>
+          <Text style={styles.infoLabel}>{t("language")}</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={language}

@@ -1,5 +1,4 @@
 import TcpSocket from 'react-native-tcp-socket';
-import { CategoryType } from './distributionService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatTCPOrder } from './orderService/formatters';
 
@@ -27,14 +26,10 @@ export class TCPSocketService {
   
   // 回调函数
   private static orderCallback: ((order: any) => void) | null = null;
-  // 新增：子KDS注册回调
-  private static registrationCallback: ((ip: string, category: CategoryType) => void) | null = null;
   // 添加订单回调函数数组
   private static orderCallbacks: ((order: any) => void)[] = [];
   // 连接状态变化回调
   private static connectionStatusCallback: ((status: 'connected' | 'disconnected') => void) | null = null;
-  // 子设备连接状态回调 - Master端监听Slave的连接状态
-  private static slaveConnectionStatusCallback: ((slaveIP: string, status: 'connected' | 'disconnected', slaveName?: string) => void) | null = null;
   // 当前连接状态
   private static currentConnectionStatus: 'connected' | 'disconnected' = 'disconnected';
   // 连接警告/错误回调
@@ -102,11 +97,6 @@ export class TCPSocketService {
         this.connectionStatusCallback?.('disconnected');
         console.log(`[TCP] POS connection status updated to: disconnected`);
       }
-    }
-    
-    // Trigger slave connection callback only if set (only set in Master mode, which is disabled)
-    if (this.slaveConnectionStatusCallback) {
-      this.slaveConnectionStatusCallback(normalized, 'disconnected');
     }
   }
 
@@ -343,59 +333,128 @@ export class TCPSocketService {
           // 为每个连接添加数据缓冲区，用于处理粘包问题
           let dataBuffer = '';
           
+          // 标记这个连接是否是 HTTP 请求（等待 body）
+          let isHttpRequest = false;
+          
           // 接收数据
           socket.on('data', (data: string | Buffer) => {
             try {
               const chunk = typeof data === 'string' ? data : data.toString('utf8');
               
               // Debug: Print received raw data
-              console.log(`[TCP] Received raw data from ${clientKey}:`, chunk);
-              console.log(`[TCP] Data length: ${chunk.length}, first 100 Data:`, chunk.substring(0, 100));
+              console.log(`[HTTP] Received raw data from ${clientKey}:`, chunk);
+              console.log(`[HTTP] Data length: ${chunk.length}, first 100 chars:`, chunk.substring(0, 100));
               
               // 过滤掉空白字符的数据
               if (chunk.trim() === '') {
                 return;
               }
               
-              // 检测并忽略HTTP请求（curl等工具发送的）
+              // 检测 HTTP 请求
               if (chunk.trimStart().startsWith('POST') || 
                   chunk.trimStart().startsWith('GET') || 
                   chunk.trimStart().startsWith('PUT') || 
                   chunk.trimStart().startsWith('DELETE') ||
                   chunk.includes('HTTP/1.')) {
-                console.warn(`[TCP] Detected HTTP request, ignoring. Please use pure TCP socket instead of HTTP tools like curl.`);
-                console.warn(`[TCP] Expected: Raw JSON or Content-Length format, not HTTP protocol.`);
+                console.log(`[HTTP] ========== HTTP REQUEST DETECTED ==========`);
+                console.log(`[HTTP] Client: ${clientKey}`);
+                console.log(`[HTTP] Request length: ${chunk.length}`);
+                
+                // 检查是否有 Expect: 100-continue header
+                if (chunk.includes('Expect: 100-continue')) {
+                  console.log(`[HTTP] Detected Expect: 100-continue, sending 100 Continue response`);
+                  // 标记这是一个 HTTP 请求
+                  isHttpRequest = true;
+                  // 发送 100 Continue 响应，告诉客户端继续发送 body
+                  socket.write('HTTP/1.1 100 Continue\r\n\r\n');
+                  console.log(`[HTTP] Waiting for request body...`);
+                  return;
+                }
+                
+                try {
+                  // 提取 HTTP 请求体中的 JSON 数据
+                  const bodyStart = chunk.indexOf('\r\n\r\n');
+                  
+                  if (bodyStart !== -1) {
+                    const jsonBody = chunk.substring(bodyStart + 4).trim();
+                    console.log(`[HTTP] Extracted body length: ${jsonBody.length}`);
+                    
+                    if (jsonBody) {
+                      console.log(`[HTTP] Parsing JSON...`);
+                      
+                      // 解析 JSON 数据
+                      const jsonData = JSON.parse(jsonBody);
+                      console.log(`[HTTP] JSON parsed successfully, type:`, jsonData.type || jsonData.orderType);
+                      
+                      // 处理 HTTP 请求并发送响应
+                      this.handleHttpRequest(jsonData, socket, clientKey);
+                    } else {
+                      console.warn(`[HTTP] Request body is empty, waiting for more data`);
+                      dataBuffer += chunk;
+                      return;
+                    }
+                  } else {
+                    console.warn(`[HTTP] No header/body separator found, buffering data`);
+                    dataBuffer += chunk;
+                    return;
+                  }
+                } catch (parseError: any) {
+                  console.error(`[HTTP] Failed to parse JSON:`, parseError);
+                  const errorResponse = 
+                    'HTTP/1.1 400 Bad Request\r\n' +
+                    'Content-Type: application/json\r\n' +
+                    'Connection: close\r\n' +
+                    '\r\n' +
+                    `{"status":"error","message":"Invalid JSON: ${parseError.message}"}\n`;
+                  socket.write(errorResponse);
+                  setTimeout(() => socket.destroy(), 100);
+                }
+                
+                console.log(`[HTTP] ========== HTTP REQUEST PROCESSING COMPLETE ==========`);
                 return;
               }
               
-              // 尝试解析接收到的消息（兼容普通JSON和标准格式）
-              dataBuffer += chunk;
-              
-              // 智能检测：如果数据以"Content-Length:"开头，使用标准解析器
-              // 否则直接使用JSON流解析器（兼容测试脚本发送的普通JSON）
-              if (dataBuffer.trimStart().startsWith('Content-Length:')) {
-                console.log(`[TCP] Detected standard format message with Content-Length header`);
+              // 如果是 HTTP body 数据（在 100-continue 之后到达）
+              if (isHttpRequest && chunk.trim().startsWith('{')) {
+                console.log(`[HTTP] Received HTTP request body after 100-continue`);
+                console.log(`[HTTP] Body length: ${chunk.length}`);
+                
                 try {
-                  dataBuffer = this.parseStandardTcpStream(dataBuffer, (jsonData) => {
-                    this.handleTcpMessage(jsonData, socket, clientKey);
-                  });
-                } catch (parseError) {
-                  console.error(`[TCP] Error parsing standard TCP message:`, parseError);
-                  dataBuffer = '';
+                  const jsonData = JSON.parse(chunk.trim());
+                  console.log(`[HTTP] JSON parsed successfully, type:`, jsonData.type || jsonData.orderType);
+                  
+                  // 处理 HTTP 请求并发送响应
+                  this.handleHttpRequest(jsonData, socket, clientKey);
+                  
+                  // 重置标记
+                  isHttpRequest = false;
+                } catch (parseError: any) {
+                  console.error(`[HTTP] Failed to parse JSON body:`, parseError);
+                  const errorResponse = 
+                    'HTTP/1.1 400 Bad Request\r\n' +
+                    'Content-Type: application/json\r\n' +
+                    'Connection: close\r\n' +
+                    '\r\n' +
+                    `{"status":"error","message":"Invalid JSON: ${parseError.message}"}\n`;
+                  socket.write(errorResponse);
+                  setTimeout(() => socket.destroy(), 100);
                 }
-              } else {
-                console.log(`[TCP] Detected plain JSON format (test mode compatible)`);
-                try {
-                  dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
-                    this.handleTcpMessage(jsonData, socket, clientKey);
-                  });
-                } catch (parseError) {
-                  console.error(`[TCP] Error parsing JSON stream:`, parseError);
-                  dataBuffer = '';
-                }
+                return;
               }
+              
+              // 其他格式的数据（不支持）
+              console.warn(`[HTTP] Unsupported data format, expected HTTP request`);
+              const errorResponse = 
+                'HTTP/1.1 400 Bad Request\r\n' +
+                'Content-Type: application/json\r\n' +
+                'Connection: close\r\n' +
+                '\r\n' +
+                '{"status":"error","message":"Only HTTP requests are supported"}\n';
+              socket.write(errorResponse);
+              setTimeout(() => socket.destroy(), 100);
+              
             } catch (error) {
-              console.error(`[TCP] Error processing data:`, error);
+              console.error(`[HTTP] Error processing data:`, error);
             }
           });
           
@@ -429,137 +488,89 @@ export class TCPSocketService {
   }
 
   /**
-   * Handle single TCP message (KDS server receives messages from POS/Client)
+   * Handle single HTTP request and send HTTP response
    */
-  private static handleTcpMessage(jsonData: any, socket: any, clientKey: string) {
-    // 检测POS订单格式（没有type字段，但有orderType和orderitems字段）
-    if (!jsonData.type && jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
-      console.log(`[TCP] Detected POS order format (no type field), Order ID: ${jsonData.id}`);
-      console.log(`[TCP] Order has ${jsonData.orderitems.length} items`);
-      
-      // 转换POS订单格式为FormattedOrder格式（orderitems → products）
-      const formattedOrder = formatTCPOrder(jsonData);
-      console.log(`[TCP] Formatted POS order, has ${formattedOrder.products.length} products`);
-      
-      // 处理格式化后的订单数据
-      this.executeOrderCallbacks(formattedOrder);
-      
-      // 发送ACK确认（可选）
-      const orderAck = this.createMessage('order_ack', {
-        orderId: jsonData.id,
-        status: 'received'
-      });
-      socket.write(this.formatTcpMessage(orderAck));
-      return; // 重要：返回，不继续处理其他消息类型
-    }
+  private static handleHttpRequest(jsonData: any, socket: any, clientKey: string): void {
+    console.log(`[HTTP] Processing request, type:`, jsonData.type || jsonData.orderType);
     
-    // Handle registration message (POS client actively connects and registers)
+    // 准备响应数据
+    const responseData = {
+      status: '200',
+      message: 'Message processed',
+      type: jsonData.type || jsonData.orderType || 'unknown'
+    };
+    
+    // 立即发送 HTTP 响应（在执行回调之前）
+    const httpResponse = 
+      'HTTP/1.1 200 OK\r\n' +
+      'Content-Type: application/json\r\n' +
+      'Connection: close\r\n' +
+      '\r\n' +
+      JSON.stringify(responseData) + '\n';
+    
+    console.log(`[HTTP] Sending HTTP 200 response:`, responseData);
+    socket.write(httpResponse);
+    console.log(`[HTTP] HTTP 200 response sent successfully`);
+    
+    // 然后处理不同类型的消息
     if (jsonData.type === 'registration') {
-      console.log(`[TCP] Received POS client registration:`, jsonData);
-      
-      // Extract client IP address
+      // 处理 registration
       const clientIP = this.getSocketIP(socket);
-      
-      // Save POS IP as masterIP (for server mode, POS acts as the "master" data source)
       this.masterIP = clientIP;
-      console.log(`[TCP] Saved POS IP as masterIP: ${clientIP}`);
+      console.log(`[HTTP] Saved POS IP as masterIP: ${clientIP}`);
       
-      // Get category from message, default to ALL
-      const category = jsonData.category || 'all';
+      // 添加到持久连接池（虽然 HTTP 是短连接，但保存 IP）
+      this.persistentConnections.set(clientIP, socket);
+      console.log(`[HTTP] Registered POS client ${clientIP}`);
       
-      // Send registration confirmation (standard format)
-      const regResponse = this.createMessage('registration', {
-        status: 'accepted'
-      });
-      socket.write(this.formatTcpMessage(regResponse));
-      
-      // Trigger registration callback if set (currently not used in Slave-only mode)
-      if (this.registrationCallback) {
-        this.registrationCallback(clientIP, category as CategoryType);
-      }
-      
-      // Add connection to persistent connection pool
-      const baseIP = clientIP;
-      this.persistentConnections.set(baseIP, socket);
-      console.log(`[TCP] Added POS client ${baseIP} to persistent connection pool`);
-      
-      // Update connection status to connected (POS is now connected)
+      // 更新连接状态
       if (this.currentConnectionStatus !== 'connected') {
         this.currentConnectionStatus = 'connected';
         this.connectionStatusCallback?.('connected');
-        console.log(`[TCP] POS connection status updated to: connected`);
+        console.log(`[HTTP] POS connection status updated to: connected`);
       }
-      return;
-    }
-    
-    // Handle order acknowledgment
-    if (jsonData.type === 'order_ack') {
-      console.log(`[TCP] Received order ACK:`, jsonData);
-      this.executeOrderCallbacks(jsonData);
-      return;
-    }
-    
-    // Handle order items completed status
-    if (jsonData.type === 'order_items_completed') {
-      console.log(`[TCP] Received order items completed status:`, jsonData);
-      this.executeOrderCallbacks(jsonData);
-      return;
-    }
-    
-    // Handle heartbeat acknowledgment (Master receives heartbeat_ack from Slave)
-    if (jsonData.type === 'heartbeat_ack') {
-      const slaveIP = this.getSocketIP(socket);
-      console.log(`[TCP] Received heartbeat ACK from Slave ${slaveIP}`);
-      // Update Slave connection status to connected
-      this.slaveConnectionStatusCallback?.(slaveIP, 'connected');
-      return;
-    }
-    
-    // Handle heartbeat message (POS/Client sends heartbeat to KDS)
-    if (jsonData.type === 'heartbeat') {
-      const clientIP = this.getSocketIP(socket);
-      console.log(`[TCP] Received heartbeat from POS client ${clientIP}, sending ACK`);
-      const heartbeatAck = this.createMessage('heartbeat_ack');
-      socket.write(this.formatTcpMessage(heartbeatAck));
+    } else if (jsonData.type === 'heartbeat') {
+      // 处理心跳
+      console.log(`[HTTP] Received heartbeat from POS client`);
       
-      // Update connection status to connected
+      // 更新连接状态
       if (this.currentConnectionStatus !== 'connected') {
         this.currentConnectionStatus = 'connected';
         this.connectionStatusCallback?.('connected');
-        console.log(`[TCP] POS connection status updated to: connected`);
+        console.log(`[HTTP] POS connection status updated to: connected`);
       }
-      return;
+    } else if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
+      // 处理订单消息
+      console.log(`[HTTP] Received order message, Order ID: ${jsonData.data.id}`);
+      
+      try {
+        this.executeOrderCallbacks(jsonData.data);
+        console.log(`[HTTP] Order callbacks executed successfully`);
+      } catch (error) {
+        console.error(`[HTTP] Error executing order callbacks:`, error);
+      }
+    } else if (!jsonData.type && jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
+      // 处理 POS 订单格式
+      console.log(`[HTTP] Received POS order, Order ID: ${jsonData.id}`);
+      console.log(`[HTTP] Order has ${jsonData.orderitems.length} items`);
+      
+      // 转换格式并处理
+      const formattedOrder = formatTCPOrder(jsonData);
+      console.log(`[HTTP] Formatted POS order, has ${formattedOrder.products.length} products`);
+      this.executeOrderCallbacks(formattedOrder);
+    } else {
+      // 其他未知消息类型
+      console.warn(`[HTTP] Unknown message type:`, jsonData.type || 'no type');
     }
     
-    // Handle order message
-    if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
-      console.log(`[TCP] Received order message, Order ID: ${jsonData.data.id}`);
-      this.executeOrderCallbacks(jsonData.data);
-    
-      // Send acknowledgment (standard format)
-      const orderAck = this.createMessage('order_ack', {
-        orderId: jsonData.data.id,
-        status: 'received'
-      });
-      socket.write(this.formatTcpMessage(orderAck));
-      return;
-    }
-    
-    // Handle other unknown message types
-    // Ignore empty objects or messages without valid type field
-    if (Object.keys(jsonData).length === 0 || (!jsonData.type && !jsonData.data)) {
-      return;
-    }
-    
-    // Don't reply to unknown_message_type to avoid loops
-    if (jsonData.type === 'unknown_message_type') {
-      console.warn(`[TCP] Received unknown_message_type response, ignoring to avoid loop`);
-      return;
-    }
-    
-    console.warn(`[TCP] Received unknown message type:`, jsonData.type || "no type", jsonData);
-    // Don't reply with unknown_message_type to avoid message loops
+    // 短暂延迟后关闭连接（HTTP 短连接）
+    setTimeout(() => {
+      socket.destroy();
+      console.log(`[HTTP] Connection closed`);
+    }, 100);
   }
+
+
 
   /**
    * Handle messages from Master (Slave mode)
@@ -579,24 +590,12 @@ export class TCPSocketService {
       return;
     }
     
-    // Handle order data - with stricter validation
+    // Handle order data
     if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
       const orderId = jsonData.data.id;
       console.log(`[TCP] Received order data, processing: ${orderId}`);
       
-      // Check if order has been processed
-      const processedKey = `processed_${orderId}`;
-      if (this.masterConnection && this.masterConnection[processedKey]) {
-        console.log(`[TCP] Order ${orderId} already processed, skipping`);
-        return;
-      }
-      
-      // Mark as processed
-      if (this.masterConnection) {
-        this.masterConnection[processedKey] = true;
-      }
-      
-      // Process order data
+      // Process order data (including updates - duplicate ID means order update)
       this.executeOrderCallbacks(jsonData.data);
       
       // Send acknowledgment (standard format)
@@ -658,9 +657,9 @@ export class TCPSocketService {
         // Reset reconnect counter
         this.reconnectAttempts.set(masterIP, 0);
         
-        // Get sub-KDS category setting
+        // Get sub-KDS category setting (optional, for future use)
         const categoryStr = await AsyncStorage.getItem("kds_category");
-        const category = categoryStr || 'Drinks'; // Default to Drinks
+        const category = categoryStr || 'all';
         
         // Create new connection
         this.masterConnection = TcpSocket.createConnection({
@@ -674,21 +673,16 @@ export class TCPSocketService {
           this.reconnectAttempts.set(masterIP, 0);
           
           // After TCP connection established, wait for first heartbeat before setting status to connected
-          console.log(`[TCP] TCP connection established, waiting for heartbeat confirmation...`);
+          console.log(`[TCP] TCP connection established to POS/Master, waiting for heartbeat confirmation...`);
           
           // Start heartbeat timeout detection (disconnect and reconnect if no heartbeat within 30s)
           this.resetHeartbeatTimeout();
           
-          // Send registration message (standard format)
-          const registrationMessage = {
-            type: 'registration',
-            role: 'kds',
-            category: category, // Use category from AsyncStorage
-            timestamp: new Date().toISOString()
-          };
+          // KDS as client: Do not send registration message
+          // In current architecture, POS connects to KDS and sends registration
+          // KDS only receives and acknowledges registration
+          console.log(`[TCP] KDS client mode: Connected to POS/Master, waiting for data...`);
           
-          const formattedRegistration = this.formatTcpMessage(JSON.stringify(registrationMessage));
-          this.masterConnection.write(formattedRegistration);
           resolve(true);
         });
         
@@ -886,24 +880,10 @@ export class TCPSocketService {
   }
   
   /**
-   * 设置子KDS注册回调函数
-   */
-  public static setRegistrationCallback(callback: (ip: string, category: CategoryType) => void): void {
-    this.registrationCallback = callback;
-  }
-
-  /**
    * 设置连接状态回调 - 连接状态变化时调用
    */
   public static setConnectionStatusCallback(callback: (status: 'connected' | 'disconnected') => void): void {
     this.connectionStatusCallback = callback;
-  }
-
-  /**
-   * 设置子设备连接状态回调 - Master端监听Slave的连接状态
-   */
-  public static setSlaveConnectionStatusCallback(callback: (slaveIP: string, status: 'connected' | 'disconnected', slaveName?: string) => void): void {
-    this.slaveConnectionStatusCallback = callback;
   }
 
   /**
@@ -969,37 +949,9 @@ export class TCPSocketService {
           resolve(true);
         });
 
-        // Handle response data from peer (e.g., connection_response)
-        let dataBuffer = '';
-        socket.on('data', (raw: string | Buffer) => {
-          try {
-            const chunk = typeof raw === 'string' ? raw : raw.toString('utf8');
-            
-            // Filter out whitespace-only data
-            if (chunk.trim() === '') {
-              return;
-            }
-            
-            dataBuffer += chunk;
-            // Use standard TCP protocol parser first, fallback to JSON stream
-            try {
-              dataBuffer = this.parseStandardTcpStream(dataBuffer, (jsonData) => {
-                this.handleTcpMessage(jsonData, socket, `${targetIP}:${socket.remotePort ?? ''}`);
-              });
-            } catch (parseError) {
-              try {
-                dataBuffer = this.parseJsonStream(dataBuffer, (jsonData) => {
-                  this.handleTcpMessage(jsonData, socket, `${targetIP}:${socket.remotePort ?? ''}`);
-                });
-              } catch (fallbackError) {
-                console.error('[TCP] Failed to parse client data:', fallbackError);
-                dataBuffer = '';
-              }
-            }
-          } catch (err) {
-            console.error('[TCP] Failed to process client data:', err);
-          }
-        });
+        // Note: In HTTP-only mode, we don't expect responses from POS
+        // POS sends HTTP requests, KDS sends HTTP responses
+        // This socket is for outgoing data only (not commonly used in HTTP mode)
       } catch (error) {
         console.error(`[TCP] Failed to send data to ${targetIP}:`, error);
         resolve(false);

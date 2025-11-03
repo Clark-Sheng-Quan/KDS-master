@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { FormattedOrder } from "../services/types";
 import { OrderService } from "../services/orderService";
-import { DistributionService, KDSRole } from "../services/distributionService";
+import { DistributionService} from "../services/distributionService";
 import { TCPSocketService } from "../services/tcpSocketService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Network from "expo-network";
