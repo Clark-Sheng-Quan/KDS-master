@@ -130,10 +130,10 @@ export class OrderService {
       }
       
       // 如果是主KDS，分发订单到子KDS
-      if (DistributionService.isMaster()) {
-        await DistributionService.processAndDistributeOrder({...order});
-        console.log(`网络订单 ${order.id} 已传递给分发服务`);
-      }
+      // if (DistributionService.isMaster()) {
+      //   await DistributionService.processAndDistributeOrder({...order});
+      //   console.log(`网络订单 ${order.id} 已传递给分发服务`);
+      // }
     } catch (error) {
       console.error('添加网络订单失败:', error);
     }
@@ -153,26 +153,46 @@ export class OrderService {
       // 确保订单来源标记为tcp
       order.source = 'tcp';
       
-      // 检查订单是否已处理过
-      if (this.isOrderProcessed(order._id)) {
-        console.log(`TCP订单 ${order.id} 已处理过，跳过`);
-        return;
-      }
-      
-      // 检查订单是否已存在
+      // 检查订单是否已存在（相同ID = 更新订单）
       const existingOrderIndex = this.tcpOrders.findIndex((o) => o.id === order.id);
+      
       if (existingOrderIndex !== -1) {
-        console.log(`TCP订单已存在,ID: ${order.id}`);
+        console.log(`[TCP Order] Order ${order.id} already exists, updating with new data`);
+        
+        // 获取旧订单的更新次数
+        const oldOrder = this.tcpOrders[existingOrderIndex];
+        const currentUpdateCount = oldOrder.updateCount || 0;
+        
+        // 标记为已更新的订单，并增加更新次数
+        order.isUpdated = true;
+        order.updatedAt = Date.now();
+        order.updateCount = currentUpdateCount + 1;
+        
+        // 替换旧订单为新订单（POS更新了订单）
+        this.tcpOrders[existingOrderIndex] = order;
+        await StorageService.saveTCPOrders(this.tcpOrders);
+        console.log(`[TCP Order] Order ${order.id} updated successfully (update #${order.updateCount})`);
+        
+        // 播放更新提示音（可选）
+        AudioService.playNewOrderAlert();
+        
+        // 触发回调通知订单已更新
+        if (this.tcpOrderUpdateCallback) {
+          this.tcpOrderUpdateCallback(this.tcpOrders);
+        }
+        
+        if (this.combinedOrderUpdateCallback) {
+          this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
+        }
+        
         return;
       }
 
-      // 添加到处理缓存
-      this.addToProcessedCache(order.id);
-
-      // 添加新订单到末尾
+      // 新订单：添加到列表末尾
+      console.log(`[TCP Order] New order ${order.id} received, adding to list`);
       this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
-      console.log(`TCP订单已添加并保存，当前总数: ${this.tcpOrders.length}`);
+      console.log(`[TCP Order] Order added, total TCP orders: ${this.tcpOrders.length}`);
      
       // 播放新订单提示音
       AudioService.playNewOrderAlert();
@@ -253,7 +273,7 @@ export class OrderService {
       
       console.log(`已初始化处理缓存，当前缓存大小: ${this.processedOrderIds.size}`);
       
-      // 绑定TCP服务器
+      // 绑定TCP服务器（使用原生模块接收POS订单）
       const tcpBound = await this.bindTCPServer();
       if (tcpBound) {
         console.log('TCP服务器绑定成功');

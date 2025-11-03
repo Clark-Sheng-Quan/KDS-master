@@ -13,7 +13,29 @@ import { NETWORK_ORDERS_KEY, TCP_ORDERS_KEY } from './constants';
 export const loadNetworkOrders = async (): Promise<FormattedOrder[]> => {
   try {
     const ordersJson = await AsyncStorage.getItem(NETWORK_ORDERS_KEY);
-    return ordersJson ? JSON.parse(ordersJson) : [];
+    if (!ordersJson) {
+      return [];
+    }
+    
+    const orders = JSON.parse(ordersJson);
+    
+    // 数据验证和清理：过滤掉没有 products 数组的订单
+    const validOrders = orders.filter((order: any) => {
+      // 检查订单是否有 products 数组
+      if (!order.products || !Array.isArray(order.products)) {
+        console.warn(`[StorageService] Removing invalid network order (missing products array):`, order.id || 'unknown');
+        return false;
+      }
+      return true;
+    });
+    
+    // 如果有无效订单被过滤掉，保存清理后的订单列表
+    if (validOrders.length < orders.length) {
+      console.log(`[StorageService] Cleaned ${orders.length - validOrders.length} invalid network orders from storage`);
+      await saveNetworkOrders(validOrders);
+    }
+    
+    return validOrders;
   } catch (error) {
     console.error('加载网络订单失败:', error);
     return [];
@@ -26,7 +48,29 @@ export const loadNetworkOrders = async (): Promise<FormattedOrder[]> => {
 export const loadTCPOrders = async (): Promise<FormattedOrder[]> => {
   try {
     const ordersJson = await AsyncStorage.getItem(TCP_ORDERS_KEY);
-    return ordersJson ? JSON.parse(ordersJson) : [];
+    if (!ordersJson) {
+      return [];
+    }
+    
+    const orders = JSON.parse(ordersJson);
+    
+    // 数据验证和清理：过滤掉没有 products 数组的旧格式订单
+    const validOrders = orders.filter((order: any) => {
+      // 检查订单是否有 products 数组
+      if (!order.products || !Array.isArray(order.products)) {
+        console.warn(`[StorageService] Removing invalid TCP order (missing products array):`, order.id || 'unknown');
+        return false; // 过滤掉旧格式的订单
+      }
+      return true;
+    });
+    
+    // 如果有无效订单被过滤掉，保存清理后的订单列表
+    if (validOrders.length < orders.length) {
+      console.log(`[StorageService] Cleaned ${orders.length - validOrders.length} invalid TCP orders from storage`);
+      await saveTCPOrders(validOrders);
+    }
+    
+    return validOrders;
   } catch (error) {
     console.error('加载TCP订单失败:', error);
     return [];

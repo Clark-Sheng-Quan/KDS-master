@@ -1,6 +1,7 @@
 import TcpSocket from 'react-native-tcp-socket';
 import { CategoryType } from './distributionService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatTCPOrder } from './orderService/formatters';
 
 // TCP服务器配置
 const TCP_PORT = 4322;
@@ -431,6 +432,27 @@ export class TCPSocketService {
    * Handle single TCP message (KDS server receives messages from POS/Client)
    */
   private static handleTcpMessage(jsonData: any, socket: any, clientKey: string) {
+    // 检测POS订单格式（没有type字段，但有orderType和orderitems字段）
+    if (!jsonData.type && jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
+      console.log(`[TCP] Detected POS order format (no type field), Order ID: ${jsonData.id}`);
+      console.log(`[TCP] Order has ${jsonData.orderitems.length} items`);
+      
+      // 转换POS订单格式为FormattedOrder格式（orderitems → products）
+      const formattedOrder = formatTCPOrder(jsonData);
+      console.log(`[TCP] Formatted POS order, has ${formattedOrder.products.length} products`);
+      
+      // 处理格式化后的订单数据
+      this.executeOrderCallbacks(formattedOrder);
+      
+      // 发送ACK确认（可选）
+      const orderAck = this.createMessage('order_ack', {
+        orderId: jsonData.id,
+        status: 'received'
+      });
+      socket.write(this.formatTcpMessage(orderAck));
+      return; // 重要：返回，不继续处理其他消息类型
+    }
+    
     // Handle registration message (POS client actively connects and registers)
     if (jsonData.type === 'registration') {
       console.log(`[TCP] Received POS client registration:`, jsonData);
@@ -836,29 +858,46 @@ export class TCPSocketService {
     // 保留旧的单一回调方式，同时支持多回调
     this.orderCallback = callback;
     
-    // 添加到回调数组
-    if (!this.orderCallbacks.includes(callback)) {
-      this.orderCallbacks.push(callback);
-    }
+    // 清空旧的回调数组，只保留新的回调（避免重复调用）
+    this.orderCallbacks = [callback];
+    
+    console.log('[TCP] Order callback set, total callbacks:', this.orderCallbacks.length);
   }
   
   /**
    * Execute all order callback functions
    */
   private static executeOrderCallbacks(data: any): void {
+    console.log('[TCP] ===== executeOrderCallbacks 被调用 =====');
+    console.log('[TCP] 回调数量:', this.orderCallbacks.length);
+    console.log('[TCP] 数据 ID:', data.id);
+    
     // Execute single callback
     if (this.orderCallback) {
-      this.orderCallback(data);
+      console.log('[TCP] 执行单一回调...');
+      try {
+        this.orderCallback(data);
+        console.log('[TCP] 单一回调执行完成');
+      } catch (error) {
+        console.error('[TCP] 单一回调执行失败:', error);
+      }
+    } else {
+      console.log('[TCP] 没有设置单一回调');
     }
     
     // Execute all callbacks
-    for (const callback of this.orderCallbacks) {
+    console.log('[TCP] 开始执行所有回调...');
+    for (let i = 0; i < this.orderCallbacks.length; i++) {
+      const callback = this.orderCallbacks[i];
       try {
+        console.log(`[TCP] 执行回调 #${i + 1}...`);
         callback(data);
+        console.log(`[TCP] 回调 #${i + 1} 执行完成`);
       } catch (error) {
-        console.error('[TCP] Failed to execute order callback:', error);
+        console.error(`[TCP] 回调 #${i + 1} 执行失败:`, error);
       }
     }
+    console.log('[TCP] ===== 所有回调执行完成 =====');
   }
   
   /**

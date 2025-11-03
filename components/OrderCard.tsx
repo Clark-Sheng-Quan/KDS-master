@@ -338,17 +338,21 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const renderProductItem = (item: any, index: number) => {
     // 获取产品的分类颜色
     const categoryColor = getCategoryColor(item.category);
+    
+    // 检查item是否被取消（VOIDED）
+    const isVoided = item.itemState === 'VOIDED';
 
     return (
       <View key={`${order.id}-item-${index}`} style={styles.itemContainer}>
         <TouchableOpacity
-          onPress={() => handleItemClick(`${order.id}-item-${index}`)}
-          onLongPress={() => handleItemLongPress(item)}
-          disabled={disabled}
-          activeOpacity={0.7}
+          onPress={() => !isVoided && handleItemClick(`${order.id}-item-${index}`)}
+          onLongPress={() => !isVoided && handleItemLongPress(item)}
+          disabled={disabled || isVoided}
+          activeOpacity={isVoided ? 1 : 0.7}
           style={[
             styles.itemRow,
             completedItems[`${order.id}-item-${index}`] && styles.completedItem,
+            isVoided && styles.voidedItem, // Add voided style
             // 如果没有option，则添加底部圆角
             (!item.options || item.options.length === 0) && {
               borderBottomLeftRadius: 4,
@@ -358,9 +362,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           delayLongPress={500} // 500毫秒长按触发
         >
           <View style={styles.itemNameContainer}>
-            <Text style={styles.itemName}>{item.name}</Text>
+            <Text style={[
+              styles.itemName,
+              isVoided && styles.voidedText, // Add strikethrough
+            ]}>
+              {item.name}
+            </Text>
           </View>
-          {completedItems[`${order.id}-item-${index}`] ? (
+          {isVoided ? (
+            // Show "Cancelled" for voided items
+            <Text style={styles.cancelledText}>Cancelled</Text>
+          ) : completedItems[`${order.id}-item-${index}`] ? (
             <Ionicons
               name="checkmark-circle"
               size={24}
@@ -371,22 +383,23 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           )}
         </TouchableOpacity>
 
-        {/* 选项列表 */}
-        {item.options && item.options.length > 0 && (
+        {/* 选项列表 - 如果item被取消，也显示取消样式 */}
+        {item.options && Array.isArray(item.options) && item.options.length > 0 && (
           <View style={styles.optionsContainer}>
             {item.options.map((option: any, optIndex: number) => (
               <TouchableOpacity
                 key={`${order.id}-item-${index}-option-${optIndex}`}
                 onPress={(e) =>
-                  handleOptionClick(
+                  !isVoided && handleOptionClick(
                     `${order.id}-item-${index}-option-${optIndex}`,
                     e
                   )
                 }
-                disabled={disabled}
-                activeOpacity={0.7}
+                disabled={disabled || isVoided}
+                activeOpacity={isVoided ? 1 : 0.7}
                 style={[
                   styles.optionRow,
+                  isVoided && styles.voidedOption, // Add voided option style
                   // 最后一个option有底部圆角
                   optIndex === item.options.length - 1 && {
                     borderBottomLeftRadius: 4,
@@ -395,14 +408,22 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 ]}
               >
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionName}>- {option.name}</Text>
-                  <Text style={styles.optionValue}>
+                  <Text style={[
+                    styles.optionName,
+                    isVoided && styles.voidedText, // Strikethrough for options too
+                  ]}>
+                    - {option.name}
+                  </Text>
+                  <Text style={[
+                    styles.optionValue,
+                    isVoided && styles.voidedText,
+                  ]}>
                     {" x"}
                     {safeText(option.value)}
                   </Text>
                 </View>
 
-                {completedOptions[
+                {!isVoided && completedOptions[
                   `${order.id}-item-${index}-option-${optIndex}`
                 ] && (
                   <Ionicons
@@ -421,6 +442,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     );
   };
 
+  // 安全检查：如果订单没有products数组，返回null或空组件
+  if (!order.products || !Array.isArray(order.products)) {
+    console.error('[OrderCard] Order has no products array:', order);
+    return null;
+  }
+
   return (
     <TouchableOpacity
       activeOpacity={disabled ? 1 : 0.7}
@@ -434,6 +461,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           selected && styles.selectedCard,
         ]}
       >
+        {/* 订单更新指示器 - 左上角 */}
+        {order.isUpdated && (
+          <View style={styles.updateBadge}>
+            <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
+            <Text style={styles.updateBadgeText}>
+              UPDATED{order.updateCount && order.updateCount > 1 ? ` ${order.updateCount}` : ''}
+            </Text>
+          </View>
+        )}
+
         {/* 添加订单来源指示器
         <View
           style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
@@ -445,7 +482,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <ConfirmModal
             visible={showDoneConfirm}
             title={t("complete")}
-            message={`${t("confirmComplete")} #${order.order_num}?`}
+            message={`${t("confirmComplete")} #${
+              typeof order.order_num === 'string' || typeof order.order_num === 'number' 
+                ? order.order_num 
+                : order.id || 'N/A'
+            }?`}
             confirmText={t("complete")}
             cancelText={t("cancel")}
             onConfirm={handleDoneConfirm}
@@ -468,7 +509,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <View style={styles.leftColumn}>
               {/* 左1：Order Number */}
               <Text style={styles.orderId}>
-                #{order.order_num || order.orderId}
+                #{typeof order.order_num === 'string' || typeof order.order_num === 'number' 
+                  ? order.order_num 
+                  : order.orderId || 'N/A'}
               </Text>
               
               {/* 左2：Pickup Method - 仅内容 */}
@@ -477,12 +520,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 { color: order.pickupMethod?.toLowerCase() === 'take-away' ? '#FF9B2F' : '#0096FF' }
               ]}>
                 {order.pickupMethod?.toLowerCase() === 'take-away' ? 'Take-Away' : 
-                 order.pickupMethod?.toLowerCase() === 'dine_in' ? 'Dine-In' : 
-                 order.pickupMethod}
+                 order.pickupMethod?.toLowerCase() === 'dine_in' || order.pickupMethod?.toLowerCase() === 'dinein' ? 'Dine-In' : 
+                 typeof order.pickupMethod === 'string' ? order.pickupMethod : 'Dine-In'}
               </Text>
               
               {/* 左3：Prepare Time */}
-              {order.total_prepare_time !== undefined &&
+              {typeof order.total_prepare_time === 'number' &&
                 order.total_prepare_time > 0 && (
                   <Text style={styles.prepareTime}>
                     {t("Prepare")}:{" "}
@@ -528,7 +571,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 setContentHeight(height);
               }}
             >
-              {order.products.map((item, index) =>
+              {order.products && Array.isArray(order.products) && order.products.map((item, index) =>
                 renderProductItem(item, index)
               )}
             </ScrollView>
@@ -753,6 +796,24 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     backgroundColor: "#e0e0e0",
   },
+  voidedItem: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.7,
+  },
+  voidedText: {
+    textDecorationLine: "line-through",
+    color: "#999",
+  },
+  voidedOption: {
+    backgroundColor: "#f8f8f8",
+    opacity: 0.7,
+  },
+  cancelledText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ff4444",
+    marginLeft: 12,
+  },
   selectedCard: {
     borderWidth: 2,
     borderColor: theme.colors.primaryColor,
@@ -768,6 +829,29 @@ const styles = StyleSheet.create({
   recalledOrder: {
     borderLeftWidth: 4,
     borderLeftColor: theme.colors.warningColor,
+  },
+  updateBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "#FF9B2F",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  updateBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   scrollIndicatorText: {
     position: "absolute",

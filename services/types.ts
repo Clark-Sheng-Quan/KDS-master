@@ -62,6 +62,7 @@ export interface OrderItem {
   category?: string;
   options?: OrderOption[];
   prepare_time?: number;
+  itemState?: 'PROCESSED' | 'VOIDED'; // POS item state
 }
 
 export interface FormattedOrder {
@@ -78,4 +79,7 @@ export interface FormattedOrder {
   products: OrderItem[];
   total_prepare_time?: number;
   targetCategory?: string;
+  isUpdated?: boolean; // 标记订单是否为更新
+  updatedAt?: number; // 更新时间戳
+  updateCount?: number; // 更新次数
 } 

@@ -446,17 +446,17 @@ export default function SettingsScreen() {
   const getCategoryDisplayName = (category: CategoryType) => {
     switch (category) {
       case CategoryType.DRINKS:
-        return "饮料";
+        return "饮料drinks";
       case CategoryType.HOT_FOOD:
-        return "热食";
+        return "热食hot food";
       case CategoryType.COLD_FOOD:
-        return "冷食";
+        return "冷食cold food";
       case CategoryType.DESSERT:
-        return "甜点";
+        return "甜点dessert";
       case CategoryType.ALL:
-        return "全部";
+        return "全部all";
       default:
-        return "未知";
+        return "未知unknown";
     }
   };
 
