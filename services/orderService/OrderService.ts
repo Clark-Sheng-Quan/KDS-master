@@ -273,13 +273,9 @@ export class OrderService {
       
       console.log(`已初始化处理缓存，当前缓存大小: ${this.processedOrderIds.size}`);
       
-      // 绑定TCP服务器（使用原生模块接收POS订单）
-      const tcpBound = await this.bindTCPServer();
-      if (tcpBound) {
-        console.log('TCP服务器绑定成功');
-      } else {
-        console.error('TCP服务器绑定失败');
-      }
+      // ⚠️ 不要绑定TCP服务器！TCP由DistributionService管理
+      // 原生模块 (orderModule) 已被弃用，改用 TCPSocketService (4322端口)
+      console.log('[OrderService] TCP服务器由 DistributionService 管理，跳过绑定');
       
       // 启动网络轮询
       this.startNetworkPolling();

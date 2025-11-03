@@ -201,13 +201,18 @@ export class DistributionService {
 
       // 设置回调，处理从POS接收的订单
       TCPSocketService.setOrderCallback((order) => {
-        console.log(`[DistributionService] 收到来自POS的订单:`, order.id);
-        
-        // 订单已经在 tcpSocketService 中被格式化为 FormattedOrder
-        // 直接添加到本地订单列表
-        OrderService.addTCPOrder(order);
-        
-        console.log(`[DistributionService] 订单 ${order.id} 已添加到本地列表`);
+        try {
+          if (!order || !order.id) {
+            console.error('[DistributionService] Invalid order received');
+            return;
+          }
+          
+          // 订单已经在 tcpSocketService 中被格式化为 FormattedOrder
+          // 直接添加到本地订单列表
+          OrderService.addTCPOrder(order);
+        } catch (error) {
+          console.error('[DistributionService] Order callback error:', error);
+        }
       });
       
       console.log("子KDS初始化完成，等待POS连接...");

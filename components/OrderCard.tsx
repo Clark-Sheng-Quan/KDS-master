@@ -112,23 +112,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     }
   }, [contentHeight, containerHeight, order.id]);
 
-  // 监听来自slave KDS的商品完成状态更新
+    // 🔥 注意：不要在这里设置全局回调！
+  // OrderCard 不应该覆盖 DistributionService 设置的订单回调
+  // 商品完成状态的更新应该通过其他机制处理（例如事件总线或 context）
   useEffect(() => {
-    // 只有主KDS才需要监听
-    if (!isSlaveKDS) {
-      const handleOrderItemsCompleted = (data: any) => {
-        if (
-          data.type === "order_items_completed" &&
-          data.orderId === order.id
-        ) {
-          console.log(`主KDS收到订单 ${order.id} 的商品完成状态更新`);
-          updateCompletedItemsFromSlave(data.completedItems);
-        }
-      };
-
-      // 设置回调函数
-      TCPSocketService.setOrderCallback(handleOrderItemsCompleted);
-    }
+    // TODO: 实现一个事件监听机制来接收商品完成状态更新
+    // 而不是设置全局的 TCP 回调
+    console.log('[OrderCard] Component mounted for order:', order.id);
   }, [order.id, isSlaveKDS]);
 
   // 更新来自slave KDS的商品完成状态

@@ -855,49 +855,34 @@ export class TCPSocketService {
    * 设置订单回调函数
    */
   public static setOrderCallback(callback: (order: any) => void): void {
-    // 保留旧的单一回调方式，同时支持多回调
+    // 设置单一回调，覆盖之前的回调
     this.orderCallback = callback;
     
-    // 清空旧的回调数组，只保留新的回调（避免重复调用）
-    this.orderCallbacks = [callback];
-    
-    console.log('[TCP] Order callback set, total callbacks:', this.orderCallbacks.length);
+    // 清空回调数组，防止重复执行
+    this.orderCallbacks = [];
   }
   
   /**
    * Execute all order callback functions
    */
   private static executeOrderCallbacks(data: any): void {
-    console.log('[TCP] ===== executeOrderCallbacks 被调用 =====');
-    console.log('[TCP] 回调数量:', this.orderCallbacks.length);
-    console.log('[TCP] 数据 ID:', data.id);
-    
     // Execute single callback
     if (this.orderCallback) {
-      console.log('[TCP] 执行单一回调...');
       try {
         this.orderCallback(data);
-        console.log('[TCP] 单一回调执行完成');
       } catch (error) {
-        console.error('[TCP] 单一回调执行失败:', error);
+        console.error('[TCP] Order callback execution failed:', error);
       }
-    } else {
-      console.log('[TCP] 没有设置单一回调');
     }
     
-    // Execute all callbacks
-    console.log('[TCP] 开始执行所有回调...');
-    for (let i = 0; i < this.orderCallbacks.length; i++) {
-      const callback = this.orderCallbacks[i];
+    // Execute all callbacks in array (if any)
+    for (const callback of this.orderCallbacks) {
       try {
-        console.log(`[TCP] 执行回调 #${i + 1}...`);
         callback(data);
-        console.log(`[TCP] 回调 #${i + 1} 执行完成`);
       } catch (error) {
-        console.error(`[TCP] 回调 #${i + 1} 执行失败:`, error);
+        console.error('[TCP] Callback execution failed:', error);
       }
     }
-    console.log('[TCP] ===== 所有回调执行完成 =====');
   }
   
   /**

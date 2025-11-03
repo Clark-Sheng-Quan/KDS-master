@@ -158,7 +158,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       OrderService.stopNetworkPolling(); // 停止网络轮询
       DistributionService.shutdown();
     };
-  }, [distributedOrderIds]);
+  }, []); // 移除 distributedOrderIds 依赖，避免重复初始化
 
   // 移除订单
   const removeOrder = useCallback(
