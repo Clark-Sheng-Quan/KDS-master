@@ -46,11 +46,9 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
                 Log.d(TAG, "DeviceMappingService created");
             }
 
-            if (discoveryRegistry == null) {
-                discoveryRegistry = new DiscoveryRegistry(reactContext);
-                discoveryRegistry.StartService(); // 开始广播当前设备
-                Log.d(TAG, "DiscoveryRegistry created and started");
-            }
+            // DiscoveryRegistry 已在 MainActivity.onCreate() 时初始化
+            // 这里只需要获取 deviceMappingService
+            Log.d(TAG, "Device discovery already initialized by MainActivity");
 
             promise.resolve("Device discovery initialized successfully");
         } catch (Exception e) {

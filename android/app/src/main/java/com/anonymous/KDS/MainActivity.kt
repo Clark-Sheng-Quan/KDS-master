@@ -4,6 +4,7 @@ import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -25,14 +26,27 @@ class MainActivity : ReactActivity() {
     super.onCreate(null)
     
     // 初始化设备发现服务
-    val discoveryRegistry = DiscoveryRegistry(this)
-    
-    // 从 SharedPreferences 读取保存的设备名称
-    val sharedPrefs = getSharedPreferences("device_prefs", android.content.Context.MODE_PRIVATE)
-    val savedDeviceName = sharedPrefs.getString("device_name", "KDS:Device")
-    
-    discoveryRegistry.setServiceName(savedDeviceName ?: "KDS:Device")
-    discoveryRegistry.StartService()
+    initializeDeviceDiscovery()
+  }
+  
+  /**
+   * 初始化设备发现服务
+   * 在应用启动时启动 mDNS 广播
+   */
+  private fun initializeDeviceDiscovery() {
+    try {
+      val discoveryRegistry = DiscoveryRegistry(this)
+      
+      // 从 SharedPreferences 读取保存的设备名称
+      val sharedPrefs = getSharedPreferences("device_prefs", android.content.Context.MODE_PRIVATE)
+      val savedDeviceName = sharedPrefs.getString("device_name", "KDS:Device")
+      
+      discoveryRegistry.setServiceName(savedDeviceName ?: "KDS:Device")
+      discoveryRegistry.StartService()
+      Log.d("MainActivity", "Device Discovery Service started")
+    } catch (e: Exception) {
+      Log.e("MainActivity", "Error initializing device discovery", e)
+    }
   }
 
   /**

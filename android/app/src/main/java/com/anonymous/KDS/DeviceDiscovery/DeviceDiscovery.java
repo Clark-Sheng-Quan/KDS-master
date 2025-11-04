@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiInfo;
 import android.util.Log;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +32,44 @@ public class DeviceDiscovery {
     public DeviceDiscovery(Context context) {
         this.context = context;
         this.nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
+    }
+
+    /**
+     * 获取当前设备的WiFi IP地址
+     */
+    private String getLocalIpAddress() {
+        try {
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager != null) {
+                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                int ipInt = wifiInfo.getIpAddress();
+                
+                // 将整数IP转换为字符串格式
+                return String.format("%d.%d.%d.%d",
+                    (ipInt & 0xff),
+                    (ipInt >> 8 & 0xff),
+                    (ipInt >> 16 & 0xff),
+                    (ipInt >> 24 & 0xff));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting local IP address: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 从SharedPreferences获取当前设备名称
+     */
+    private String getCurrentDeviceName() {
+        try {
+            android.content.SharedPreferences prefs = context.getSharedPreferences("RCTAsyncLocalStorage_V1", Context.MODE_PRIVATE);
+            String deviceName = prefs.getString("device_name", null);
+            Log.d(TAG, "Current device name from storage: " + deviceName);
+            return deviceName;
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting device name: " + e.getMessage());
+        }
+        return null;
     }
 
     private static String TAG = "DEVICE_DISCOVERY";
@@ -231,8 +270,21 @@ public class DeviceDiscovery {
             public void onServiceResolved(NsdServiceInfo resolvedInfo) {
                 String host = resolvedInfo.getHost().getHostAddress();
                 int port = resolvedInfo.getPort();
+                String serviceName = resolvedInfo.getServiceName();
+                
+                // 检查是否是当前设备自己（通过服务名称判断）
+                String currentDeviceName = getCurrentDeviceName();
+                if (currentDeviceName != null && serviceName.equals(currentDeviceName)) {
+                    // 如果是自己的设备，使用本地IP地址
+                    String localIp = getLocalIpAddress();
+                    if (localIp != null) {
+                        host = localIp;
+                        Log.d(TAG, "Detected own device '" + serviceName + "', using local IP: " + localIp);
+                    }
+                }
+                
                 onServiceDiscovered.accept(new NetworkDevice(
-                        resolvedInfo.getServiceName(),
+                        serviceName,
                         host,
                         port
                 ));
