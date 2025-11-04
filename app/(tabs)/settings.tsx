@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
+import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
@@ -35,6 +36,7 @@ enum CategoryType {
 // 设置相关的常量
 const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 const DEFAULT_COMPACT_CARDS_PER_ROW = "5";
+const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
@@ -51,6 +53,9 @@ export default function SettingsScreen() {
   const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
+
+  // 添加显示打印按钮开关状态
+  const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
 
   // KDS分类设置（仅用于UI显示，Master-Slave功能已移除）
   const [kdsCategory, setKdsCategory] = useState<CategoryType>(CategoryType.ALL);
@@ -77,6 +82,14 @@ export default function SettingsScreen() {
           setCompactCardsPerRow(savedCompactCardsPerRow);
         }
 
+        // 加载打印按钮显示设置
+        const savedShowPrintButton = await AsyncStorage.getItem(
+          STORAGE_KEY_SHOW_PRINT_BUTTON
+        );
+        if (savedShowPrintButton !== null) {
+          setShowPrintButton(savedShowPrintButton === "true");
+        }
+
         // 加载子KDS分类设置
         const savedCategory = await AsyncStorage.getItem("kds_category");
         if (savedCategory) {
@@ -90,39 +103,14 @@ export default function SettingsScreen() {
           setEditingDeviceName(savedDeviceName);
         }
 
-        // 设置连接状态回调 - 监听TCP连接状态变化（Slave端）
-        TCPSocketService.setConnectionStatusCallback((status) => {
-          console.log('[Settings] 连接状态变化:', status);
-          setConnectionStatus(status);
-          
-          // 同步 masterIP from TCPSocketService
-          const currentMasterIP = TCPSocketService.getMasterIP();
-          console.log('[Settings] 同步 masterIP:', currentMasterIP);
-          setMasterIP(currentMasterIP);
-        });
-
-        /* Master模式功能已禁用 - Slave连接状态回调
-        // 只在Master模式下设置子设备连接状态回调
-        const currentRole = savedRole || kdsRole;
-        if (currentRole === 'master') {
-          // 设置子设备连接状态回调 - Master端监听Slave的连接状态
-          TCPSocketService.setSlaveConnectionStatusCallback((slaveIP, status, slaveName) => {
-            console.log('[Settings] Slave连接状态变化:', slaveIP, status, slaveName);
-            setSubKdsList((prevList) => {
-              const updated = prevList.map((kds) => 
-                kds.ip === slaveIP 
-                  ? { ...kds, status: status, name: slaveName || kds.name }
-                  : kds
-              );
-              console.log('[Settings] 更新subKdsList:', updated);
-              return updated;
-            });
-          });
-          console.log('[Settings] 已设置Master模式的Slave连接状态回调');
-        } else {
-          console.log('[Settings] Slave模式，不设置子设备连接状态回调');
-        }
-        */
+        // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
+        const currentMasterIP = TCPSocketService.getMasterIP();
+        console.log('[Settings] 加载时获取 masterIP:', currentMasterIP);
+        setMasterIP(currentMasterIP);
+        
+        // 获取初始连接状态
+        const currentStatus = TCPSocketService.getConnectionStatus();
+        setConnectionStatus(currentStatus);
 
         setLoading(false);
       } catch (error) {
@@ -132,15 +120,23 @@ export default function SettingsScreen() {
     }
 
     loadSettings();
-    
-    // 清理函数（可选）
-    return () => {
-      // 可以在这里清理回调
-    };
   }, []); // 只在组件挂载时执行一次
 
+  // 使用定时器定期检查连接状态（避免设置回调冲突）
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const currentStatus = TCPSocketService.getConnectionStatus();
+      const currentMasterIP = TCPSocketService.getMasterIP();
+      
+      setConnectionStatus(currentStatus);
+      setMasterIP(currentMasterIP);
+    }, 2000); // 每2秒检查一次
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   // 保存设置
-  const saveSettings = async () => {
+  const saveSettings = useCallback(async () => {
     try {
       await AsyncStorage.setItem("kds_port", port);
 
@@ -172,43 +168,13 @@ export default function SettingsScreen() {
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
     }
-  };
+  }, [port, compactCardsPerRow, kdsCategory, editingDeviceName]);
 
   // 处理从Device Discovery连接目标设备
-  const handleConnectToDevice = async (device: NetworkDevice) => {
+  const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
     console.log('[Settings] handleConnectToDevice被调用，设备:', device.name, device.ip);
     
     try {
-      /* Master模式功能已禁用
-      // 如果当前是Master，则目标设备设为Slave，并添加到子KDS列表
-      if (kdsRole === KDSRole.MASTER) {
-        console.log('[Settings] Master模式，显示确认对话框');
-        
-        // 检查IP是否已存在
-        if (subKdsList.some((kds) => kds.ip === device.ip)) {
-          console.log('[Settings] 设备已存在，跳过');
-          Alert.alert("提示", "该设备已在子KDS列表中");
-          setShowDeviceDiscovery(false);
-          return;
-        }
-
-        // Master模式：提示Slave设备需要主动连接
-        Alert.alert(
-          t("connectToDevice"),
-          `请在Slave设备 ${device.name} (${device.ip}) 上选择连接到本Master设备。\n\nMaster会自动接受连接。`,
-          [
-            {
-              text: "确定",
-              onPress: () => {
-                console.log('[Settings] 用户了解，等待Slave主动连接');
-                setShowDeviceDiscovery(false);
-              },
-              style: 'default',
-            },
-          ]
-        );
-      } else {
-      */
         // 如果当前是Slave，则连接到Master KDS (在当前方案中，POS作为客户端连接到KDS)
         console.log('[Settings] Slave模式，连接到POS IP:', device.ip);
         
@@ -263,123 +229,10 @@ export default function SettingsScreen() {
       console.error('[Settings] handleConnectToDevice错误:', error);
       Alert.alert("错误", "连接设备失败");
     }
-  };
+  }, [t, setShowDeviceDiscovery]);
 
-  /* Master模式功能已禁用 - 添加和删除子KDS
-  // 添加子KDS - 自动分配品类
-  const addSubKds = async () => {
-    if (!newSubKdsIP.trim()) {
-      Alert.alert("错误", "请输入IP地址");
-      return;
-    }
-
-    // 检查IP是否已存在
-    if (subKdsList.some((kds) => kds.ip === newSubKdsIP)) {
-      Alert.alert("错误", "此IP已添加");
-      return;
-    }
-
-    // 自动分配品类 (轮流分配不同品类)
-    const categories = [
-      CategoryType.DRINKS,
-      CategoryType.HOT_FOOD,
-      CategoryType.COLD_FOOD,
-      CategoryType.DESSERT,
-    ];
-
-    // 根据现有子KDS数量决定分配哪个品类
-    const categoryIndex = subKdsList.length % categories.length;
-    const assignedCategory = categories[categoryIndex];
-
-    // 保存用户输入的原始IP地址，不进行转换
-    const inputIP = newSubKdsIP;
-
-    console.log(`添加子KDS，输入IP: ${inputIP}, 分配品类: ${assignedCategory}`);
-
-    try {
-      // 使用DistributionService添加子KDS，传递原始IP
-      const success = await DistributionService.addSubKDS(
-        inputIP,
-        assignedCategory
-      );
-
-      if (success) {
-        // 更新本地状态，使用原始输入的IP
-        const newSubKdsList = [
-          ...subKdsList,
-          { ip: inputIP, name: inputIP, category: assignedCategory, status: 'disconnected' as const },
-        ];
-        setSubKdsList(newSubKdsList);
-        setNewSubKdsIP(""); // 清空输入框
-        
-        // 保存到AsyncStorage（使用新的保存函数）
-        await saveSubKdsListToStorage(newSubKdsList);
-        
-        Alert.alert("成功", `已添加子KDS: ${inputIP}`);
-      } else {
-        Alert.alert("错误", "添加子KDS失败");
-      }
-    } catch (error) {
-      console.error("添加子KDS错误:", error);
-      Alert.alert("错误", "添加子KDS时发生错误");
-    }
-  };
-
-  // 删除子KDS
-  const removeSubKds = async (ip: string) => {
-    try {
-      // 使用DistributionService移除子KDS
-      const success = await DistributionService.removeSubKDS(ip);
-
-      if (success) {
-        // 更新本地状态
-        const updatedList = subKdsList.filter((kds) => kds.ip !== ip);
-        setSubKdsList(updatedList);
-        
-        // 保存到AsyncStorage（使用新的保存函数）
-        await saveSubKdsListToStorage(updatedList);
-      } else {
-        Alert.alert("错误", "移除子KDS失败");
-      }
-    } catch (error) {
-      console.error("移除子KDS错误:", error);
-      Alert.alert("错误", "移除子KDS时发生错误");
-    }
-  };
-
-  // 处理重新连接设备（在新方案中，Master不主动连接Slave）
-  const handleReconnectDevice = async (kds: { ip: string; name: string; category: CategoryType; status: 'connected' | 'disconnected' }) => {
-    try {
-      console.log('[Settings] handleReconnectDevice被调用，设备:', kds.name, kds.ip);
-      
-      // 新方案：Master不主动连接，提示用户在Slave端操作
-      Alert.alert(
-        "重新连接提示",
-        `要重新连接到 ${kds.name} (${kds.ip})，请在该Slave设备上重新连接到本Master设备。\n\nMaster会自动接受连接。`,
-        [
-          {
-            text: "确定",
-            onPress: () => {
-              console.log('[Settings] 用户了解重连流程');
-            },
-            style: 'default',
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("[Settings] handleReconnectDevice错误:", error);
-      Alert.alert("错误", "重新连接设备时发生错误");
-    }
-  };
-
-  // 保存subKdsList到AsyncStorage
-  const saveSubKdsListToStorage = async (list: typeof subKdsList) => {
-    await AsyncStorage.setItem("sub_kds_list", JSON.stringify(list));
-    console.log('[Settings] 保存subKdsList到AsyncStorage');
-  };
-  */
-
-  const saveManualMasterIP = async () => {
+  // 保存手动输入的Master IP
+  const saveManualMasterIP = useCallback(async () => {
     if (!manualMasterIP.trim()) {
       Alert.alert(t("error"), t("pleaseEnterIPAddress"));
       return;
@@ -406,10 +259,10 @@ export default function SettingsScreen() {
       console.error('[Settings] 手动连接过程出错:', error);
       Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
     }
-  };
+  }, [manualMasterIP, t]);
 
   // 获取品类显示名称
-  const getCategoryDisplayName = (category: CategoryType) => {
+  const getCategoryDisplayName = useCallback((category: CategoryType) => {
     switch (category) {
       case CategoryType.DRINKS:
         return "饮料drinks";
@@ -424,21 +277,31 @@ export default function SettingsScreen() {
       default:
         return "未知unknown";
     }
-  };
+  }, []);
 
   // 处理语言切换
-  const handleLanguageChange = async (newLanguage: SupportedLanguage) => {
+  const handleLanguageChange = useCallback(async (newLanguage: SupportedLanguage) => {
     await changeLanguage(newLanguage);
-  };
+  }, [changeLanguage]);
 
   // 处理Compact模式每行卡片数量变更
-  const handleCompactCardsPerRowChange = async (value: string) => {
+  const handleCompactCardsPerRowChange = useCallback(async (value: string) => {
     setCompactCardsPerRow(value);
     await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, value);
-  };
+  }, []);
+
+  // 处理打印按钮显示开关
+  const handleShowPrintButtonChange = useCallback(async (value: boolean) => {
+    setShowPrintButton(value);
+    await AsyncStorage.setItem(STORAGE_KEY_SHOW_PRINT_BUTTON, value.toString());
+    
+    // 发出设置变化事件，使 PrintButton 组件即时响应
+    settingsListener.emitSettingChange('show_print_button', value);
+    console.log('[Settings] 发出 show_print_button 设置变化事件，值:', value);
+  }, []);
 
   // 重置设置
-  const resetSettings = () => {
+  const resetSettings = useCallback(() => {
     Alert.alert(t("resetSettings"), t("confirmReset"), [
       {
         text: t("cancel"),
@@ -461,10 +324,10 @@ export default function SettingsScreen() {
         },
       },
     ]);
-  };
+  }, [t, changeLanguage]);
 
   // 保存KDS设置
-  const saveKDSRole = async () => {
+  const saveKDSRole = useCallback(async () => {
     try {
       await AsyncStorage.setItem("kds_port", port);
       await AsyncStorage.setItem("device_name", editingDeviceName);
@@ -488,7 +351,7 @@ export default function SettingsScreen() {
       console.error("保存KDS设置失败:", error);
       Alert.alert(t("error"), t("saveSettingsFailed"));
     }
-  };
+  }, [port, editingDeviceName, kdsCategory, t]);
 
   if (loading) {
     return (
@@ -501,85 +364,46 @@ export default function SettingsScreen() {
   return (
     <>
       <ScrollView style={styles.container}>
-      <Text style={styles.title}>{t("settings")}</Text>
+        <Text style={styles.title}>{t("settings")}</Text>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("deviceInfo")}</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t("deviceInfo")}</Text>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("localIPAddress")}</Text>
-          <Text style={styles.infoValue}>{ipAddress}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("tcpPort")}</Text>
-          <TextInput
-            style={styles.textInput}
-            value={port}
-            onChangeText={setPort}
-            keyboardType="number-pad"
-          />
-        </View>
-
-        <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t("deviceName")}</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editingDeviceName}
-                onChangeText={setEditingDeviceName}
-                placeholder="e.g. KDS:Kitchen NO.1"
-                placeholderTextColor="#999"
-              />
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("localIPAddress")}</Text>
+            <Text style={styles.infoValue}>{ipAddress}</Text>
           </View>
 
-      <View style={styles.infoRowColumn}>
-        <Text style={styles.infoLabel}>{t("kdsRole")}</Text>
-        {/* Master模式功能已禁用 - 强制使用Slave模式
-        <View style={styles.roleSelector}>
-              <TouchableOpacity
-                style={[
-                  styles.roleButton,
-                  kdsRole === KDSRole.MASTER && styles.roleButtonActive,
-                ]}
-                onPress={() => setKdsRole(KDSRole.MASTER)}
-              >
-                <Text
-                  style={
-                    kdsRole === KDSRole.MASTER
-                      ? styles.roleTextActive
-                      : styles.roleText
-                  }
-                >
-                  {t("masterKDS")}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.roleButton,
-                  kdsRole === KDSRole.SLAVE && styles.roleButtonActive,
-                ]}
-                onPress={() => setKdsRole(KDSRole.SLAVE)}
-              >
-                <Text
-                  style={
-                    kdsRole === KDSRole.SLAVE
-                      ? styles.roleTextActive
-                      : styles.roleText
-                  }
-                >
-                  {t("subKDS")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-        */}
-        <Text style={styles.infoValue}>{t("slaveDevices")}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("tcpPort")}</Text>
+            <TextInput
+              style={styles.textInput}
+              value={port}
+              onChangeText={setPort}
+              keyboardType="number-pad"
+            />
           </View>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
-          <View style={styles.categoryPickerWrapper}>
-            <Picker
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("deviceName")}</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editingDeviceName}
+              onChangeText={setEditingDeviceName}
+              placeholder="e.g. KDS:Kitchen NO.1"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.infoRowColumn}>
+            <Text style={styles.infoLabel}>{t("kdsRole")}</Text>
+            <Text style={styles.infoValue}>{t("slaveDevices")}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
+            <View style={styles.categoryPickerWrapper}>
+              <Picker
                 selectedValue={kdsCategory}
                 style={styles.categoryPicker}
                 onValueChange={(itemValue) =>
@@ -609,171 +433,191 @@ export default function SettingsScreen() {
                 />
               </Picker>
             </View>
-        </View>        <View>
+          </View>
+          
+          <View>
             <TouchableOpacity
               style={[styles.saveButton, { marginTop: 20, maxWidth: 200, alignSelf: "center" }]}
               onPress={saveKDSRole}
             >
               <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
             </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* ========== 设备连接 - POS System ========== */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
+        {/* ========== 设备连接 - POS System ========== */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
 
-            {/* Master IP 地址 */}
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
-              <Text style={styles.infoValue}>{masterIP || t("notSet")}</Text>
-            </View>
+          {/* Master IP 地址 */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
+            <Text style={styles.infoValue}>{masterIP || t("notSet")}</Text>
+          </View>
 
-            {/* 连接状态 */}
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
-              <View style={styles.statusAndButtonContainer}>
-                <View style={styles.statusBadge}>
-                  <Ionicons 
-                    name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
-                    size={16} 
-                    color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
-                  />
-                  <Text style={[
-                    styles.statusText,
-                    connectionStatus === 'connected' 
-                      ? styles.statusConnected 
-                      : styles.statusDisconnected
-                  ]}>
-                    {connectionStatus === 'connected' 
-                      ? t("connectionEstablished") 
-                      : t("disconnected")}
-                  </Text>
-                </View>
-
-                {masterIP && (
-                  <TouchableOpacity 
-                    style={styles.resetConnectionButton}
-                    onPress={() => {
-                      Alert.alert(
-                        t("confirm"),
-                        t("confirmResetMasterConnection"),
-                        [
-                          { 
-                            text: t("cancel"), 
-                            onPress: () => {
-                              console.log('[Settings] 用户取消重置Master');
-                            }, 
-                            style: 'cancel' 
-                          },
-                          {
-                            text: t("confirm"),
-                            onPress: async () => {
-                              console.log('[Settings] 重置Master连接');
-                              try {
-                                // 断开TCP连接
-                                console.log('[Settings] 断开Master连接');
-                                TCPSocketService.disconnect();
-                                
-                                // 清空Master IP
-                                setMasterIP("");
-                                await AsyncStorage.removeItem("master_ip");
-                                
-                                Alert.alert(t("success"), t("masterConnectionReset"));
-                              } catch (error: any) {
-                                console.error('[Settings] 重置连接出错:', error);
-                                Alert.alert(t("error"), `${t("failed")}: ${error.message}`);
-                              }
-                            },
-                            style: 'destructive',
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Ionicons name="refresh-circle" size={18} color="white" />
-                    <Text style={styles.resetConnectionButtonText}>{t("resetConnection")}</Text>
-                  </TouchableOpacity>
-                )}
+          {/* 连接状态 */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
+            <View style={styles.statusAndButtonContainer}>
+              <View style={styles.statusBadge}>
+                <Ionicons 
+                  name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
+                  size={16} 
+                  color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
+                />
+                <Text style={[
+                  styles.statusText,
+                  connectionStatus === 'connected' 
+                    ? styles.statusConnected 
+                    : styles.statusDisconnected
+                ]}>
+                  {connectionStatus === 'connected' 
+                    ? t("connectionEstablished") 
+                    : t("disconnected")}
+                </Text>
               </View>
-            </View>
 
-            {/* 手动添加 IP */}
-            <View style={styles.addKdsContainer}>
-              <TextInput
-                style={[styles.textInput, { flex: 1, marginRight: 10 }]}
-                value={manualMasterIP}
-                onChangeText={setManualMasterIP}
-                placeholder={t("enterMasterKDSIPAddress")}
-              />
-              <TouchableOpacity style={styles.addButton} onPress={saveManualMasterIP}>
-                <Text style={styles.addButtonText}>{t("save")}</Text>
-              </TouchableOpacity>
+              {masterIP && (
+                <TouchableOpacity 
+                  style={styles.resetConnectionButton}
+                  onPress={() => {
+                    Alert.alert(
+                      t("confirm"),
+                      t("confirmResetMasterConnection"),
+                      [
+                        { 
+                          text: t("cancel"), 
+                          onPress: () => {
+                            console.log('[Settings] 用户取消重置Master');
+                          }, 
+                          style: 'cancel' 
+                        },
+                        {
+                          text: t("confirm"),
+                          onPress: async () => {
+                            console.log('[Settings] 重置Master连接');
+                            try {
+                              // 断开TCP连接
+                              console.log('[Settings] 断开Master连接');
+                              TCPSocketService.disconnect();
+                              
+                              // 清空Master IP
+                              setMasterIP("");
+                              await AsyncStorage.removeItem("master_ip");
+                              
+                              Alert.alert(t("success"), t("masterConnectionReset"));
+                            } catch (error: any) {
+                              console.error('[Settings] 重置连接出错:', error);
+                              Alert.alert(t("error"), `${t("failed")}: ${error.message}`);
+                            }
+                          },
+                          style: 'destructive',
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="refresh-circle" size={18} color="white" />
+                  <Text style={styles.resetConnectionButtonText}>{t("resetConnection")}</Text>
+                </TouchableOpacity>
+              )}
             </View>
-                      {/* Device Discovery 按钮 */}
-            <TouchableOpacity
-              style={styles.deviceDiscoveryButton}
-              onPress={() => setShowDeviceDiscovery(true)}
-            >
-              <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
+          </View>
+
+          {/* 手动添加 IP */}
+          <View style={styles.addKdsContainer}>
+            <TextInput
+              style={[styles.textInput, { flex: 1, marginRight: 10 }]}
+              value={manualMasterIP}
+              onChangeText={setManualMasterIP}
+              placeholder={t("enterMasterKDSIPAddress")}
+            />
+            <TouchableOpacity style={styles.addButton} onPress={saveManualMasterIP}>
+              <Text style={styles.addButtonText}>{t("save")}</Text>
             </TouchableOpacity>
           </View>
 
-      {/* 显示设置卡片 */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
+          {/* Device Discovery 按钮 */}
+          <TouchableOpacity
+            style={styles.deviceDiscoveryButton}
+            onPress={() => setShowDeviceDiscovery(true)}
+          >
+            <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
+          </TouchableOpacity>
+        </View>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={compactCardsPerRow}
-              style={styles.textPicker}
-              onValueChange={handleCompactCardsPerRowChange}
-              dropdownIconColor="#666"
+        {/* 显示设置卡片 */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={compactCardsPerRow}
+                style={styles.textPicker}
+                onValueChange={handleCompactCardsPerRowChange}
+                dropdownIconColor="#666"
+              >
+                <Picker.Item label="3" value="3" />
+                <Picker.Item label="4" value="4" />
+                <Picker.Item label="5" value="5" />
+                <Picker.Item label="6" value="6" />
+              </Picker>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("language")}</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={language}
+                style={styles.textPicker}
+                onValueChange={(itemValue: SupportedLanguage) =>
+                  handleLanguageChange(itemValue)
+                }
+                dropdownIconColor="#666"
+              >
+                <Picker.Item label={t("english")} value="en" />
+                <Picker.Item label={t("chinese")} value="zh" />
+              </Picker>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Show Print Button</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                showPrintButton && styles.switchButtonActive
+              ]}
+              onPress={() => handleShowPrintButtonChange(!showPrintButton)}
             >
-              <Picker.Item label="3" value="3" />
-              <Picker.Item label="4" value="4" />
-              <Picker.Item label="5" value="5" />
-              <Picker.Item label="6" value="6" />
-            </Picker>
+              <View style={[
+                styles.switchThumb,
+                showPrintButton && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t("language")}</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={language}
-              style={styles.textPicker}
-              onValueChange={(itemValue: SupportedLanguage) =>
-                handleLanguageChange(itemValue)
-              }
-              dropdownIconColor="#666"
-            >
-              <Picker.Item label={t("english")} value="en" />
-              <Picker.Item label={t("chinese")} value="zh" />
-            </Picker>
-          </View>
+        {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
+          <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
+        </TouchableOpacity> */}
+        
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
+          <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+          <Text style={styles.infoText}>{t("copyright")}</Text>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
-        <Text style={styles.resetButtonText}>{t("resetSettings")}</Text>
-      </TouchableOpacity> */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
-        <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
-        <Text style={styles.infoText}>{t("copyright")}</Text>
-      </View>
-    </ScrollView>
-
-    <DeviceDiscoveryPanel
-      visible={showDeviceDiscovery}
-      onClose={() => setShowDeviceDiscovery(false)}
-      onSelectAsMaster={handleConnectToDevice}
-      currentDeviceIP={ipAddress}
-    />
+      <DeviceDiscoveryPanel
+        visible={showDeviceDiscovery}
+        onClose={() => setShowDeviceDiscovery(false)}
+        onSelectAsMaster={handleConnectToDevice}
+        currentDeviceIP={ipAddress}
+      />
     </>
   );
 }
@@ -1045,6 +889,31 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  switchButton: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#ccc",
+    padding: 2,
+    justifyContent: "center",
+  },
+  switchButtonActive: {
+    backgroundColor: "#4CAF50",
+  },
+  switchThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "white",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  switchThumbActive: {
+    alignSelf: "flex-end",
   },
 });
 

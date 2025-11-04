@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import { FormattedOrder } from "../services/types";
 import { OrderService } from "../services/orderService";
@@ -218,20 +219,34 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     }
   }, [networkStatus]);
 
+  // 使用 useMemo 缓存 Context value，避免每次渲染都创建新对象
+  const contextValue = useMemo(
+    () => ({
+      orders,
+      networkOrders,
+      tcpOrders,
+      loading,
+      error,
+      removeOrder,
+      refreshOrders,
+      isKDSMaster,
+      networkStatus,
+    }),
+    [
+      orders,
+      networkOrders,
+      tcpOrders,
+      loading,
+      error,
+      removeOrder,
+      refreshOrders,
+      isKDSMaster,
+      networkStatus,
+    ]
+  );
+
   return (
-    <OrderContext.Provider
-      value={{
-        orders,
-        networkOrders,
-        tcpOrders,
-        loading,
-        error,
-        removeOrder,
-        refreshOrders,
-        isKDSMaster,
-        networkStatus,
-      }}
-    >
+    <OrderContext.Provider value={contextValue}>
       {children}
     </OrderContext.Provider>
   );

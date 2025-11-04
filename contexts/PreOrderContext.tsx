@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { FormattedOrder } from "../services/types";
 import { OrderService } from "../services/orderService/OrderService";
 import { getNextSevenDaysRange } from "../services/orderService/timeUtils";
@@ -66,7 +66,7 @@ export function PreOrderProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const removeOrder = async (orderId: string) => {
+  const removeOrder = useCallback(async (orderId: string) => {
     try {
       await OrderService.removeOrder(orderId);
       setOrders((prevOrders) =>
@@ -75,17 +75,21 @@ export function PreOrderProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("删除预订单失败:", error);
     }
-  };
+  }, []);
+
+  // 使用 useMemo 缓存 Context value
+  const contextValue = useMemo(
+    () => ({
+      orders,
+      loading,
+      error,
+      removeOrder,
+    }),
+    [orders, loading, error, removeOrder]
+  );
 
   return (
-    <PreOrderContext.Provider
-      value={{
-        orders,
-        loading,
-        error,
-        removeOrder,
-      }}
-    >
+    <PreOrderContext.Provider value={contextValue}>
       {children}
     </PreOrderContext.Provider>
   );

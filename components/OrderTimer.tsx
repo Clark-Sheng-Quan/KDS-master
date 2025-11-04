@@ -2,20 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
-  Alert,
-  ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { FormattedOrder } from "@/services/types";
-import { NativeModules } from "react-native";
-import { checkPrinter } from "../services/orderPrinter";
 import { colors } from "../styles/color";
-import { useOrders } from "@/contexts/OrderContext";
-const { Printer_K1215 } = NativeModules;
 import { useLanguage } from "../contexts/LanguageContext";
-const { Printer_K1215: NativePrinter_K1215 } = NativeModules;
 
 interface OrderTimerProps {
   order: FormattedOrder;
@@ -25,7 +16,6 @@ interface OrderTimerProps {
 export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) => {
   const { t } = useLanguage();
   const [elapsedTime, setElapsedTime] = useState(0); // 存储已经过去的时间（秒）
-  const [isPrinting, setIsPrinting] = useState(false);
   const onTimeUpdateRef = useRef(onTimeUpdate);
 
   // 保持 onTimeUpdate 引用最新
@@ -123,9 +113,10 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   useEffect(() => {
     if (onTimeUpdateRef.current) {
       const formattedTime = formatTime(elapsedTime);
-      onTimeUpdateRef.current(elapsedTime, statusInfo.color, formattedTime);
+      const color = getStatusInfo().color;
+      onTimeUpdateRef.current(elapsedTime, color, formattedTime);
     }
-  }, [elapsedTime, statusInfo.color]); // 移除 onTimeUpdate 依赖
+  }, [elapsedTime]); // 只依赖 elapsedTime，不依赖 statusInfo.color
 
   // 计算并格式化剩余准备时间
   const getRemainingPrepTime = () => {
@@ -139,84 +130,26 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
 
   const remainingPrepTime = getRemainingPrepTime();
 
-  const handlePrint = async () => {
-    if (isPrinting) return;
-
-    setIsPrinting(true);
-    try {
-      // 检查打印机连接状态
-      const isReady = await checkPrinter();
-
-      if (!isReady) {
-        Alert.alert(t("notConnected"), t("printerNotConnected"));
-        return;
-      }
-
-      // 格式化订单数据为打印机需要的格式
-      const printData = {
-        shopName: "KDS Restaurant", // 可以从配置读取
-        orderId: order.order_num || order.orderId || order.id,
-        orderTime: order.pickupTime || new Date().toLocaleString(),
-        pickupMethod: order.pickupMethod || "取餐",
-        tableNumber: order.tableNumber || null,
-        items: order.products ? order.products.map((product: any) => ({
-          name: product.name || "未知商品",
-          price: product.price || 0,
-          quantity: product.quantity || 1,
-          options: product.options || []
-        })) : []
-      };
-
-      console.log("打印数据:", JSON.stringify(printData, null, 2));
-
-      // 直接打印当前订单
-      const result = await Printer_K1215.printOrder(printData);
-
-      if (result) {
-        Alert.alert(
-          t("success"),
-          `${t("orderPrinted")} #${order.orderId || order.id}`
-        );
-      } else {
-        Alert.alert(t("failed"), t("printOrderFailed"));
-      }
-    } catch (error) {
-      console.error("打印订单失败:", error);
-      Alert.alert(t("error"), `${t("printingError")}: ${error}`);
-    } finally {
-      setIsPrinting(false);
-    }
-  };
   return (
     <View style={styles.headerRight}>
-      {/* 已过时间已移除，只保留状态按钮 */}
+      {/* 状态按钮 */}
       <View
         style={[styles.statusButton, { backgroundColor: statusInfo.color }]}
       >
         <Text style={styles.statusButtonText}>{statusInfo.text}</Text>
       </View>
-      {/* Print 按钮已注释 */}
-      {/* <TouchableOpacity
-        style={[styles.printButton, isPrinting && styles.disabledButton]}
-        onPress={handlePrint}
-        disabled={isPrinting}
-      >
-        {isPrinting ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <>
-            <Ionicons name="print-outline" size={20} color="white" />
-            <Text style={styles.printButtonText}>{t("print")}</Text>
-          </>
-        )}
-      </TouchableOpacity> */}
+      
+      {/* 已过时间 */}
+      <Text style={[styles.elapsedTimeText, { color: statusInfo.color }]}>
+        {formatTime(elapsedTime)}
+      </Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   headerRight: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
     gap: 12,
   },
@@ -235,21 +168,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  printButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.buttonColor,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-  printButtonText: {
-    color: "white",
-    fontSize: 16,
+  elapsedTimeText: {
+    fontSize: 20,
     fontWeight: "600",
   },
 });

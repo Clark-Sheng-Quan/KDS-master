@@ -12,6 +12,7 @@ import { FormattedOrder } from "../services/types";
 import { Ionicons } from "@expo/vector-icons";
 import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
+import { PrintButton } from "./PrintButton";
 import { ConfirmModal } from "./ReuseComponents/ConfirmModal";
 import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -61,7 +62,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   }>({});
 
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
-  const [isSlaveKDS, setIsSlaveKDS] = useState(false);
 
   // 添加商品详情弹窗状态
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -70,39 +70,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     name: string;
   } | null>(null);
 
-  // 添加一个状态来强制重新渲染
-  const [, forceUpdate] = useState({});
-
   // 添加状态来检测ScrollView是否可以滚动
   const [isScrollable, setIsScrollable] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
-  // 添加已过时间状态（从 OrderTimer 接收）
-  const [elapsedTimeFormatted, setElapsedTimeFormatted] = useState<string>("00:00");
-  const [statusColor, setStatusColor] = useState<string>(colors.activeColor);
-
-  // 检查当前KDS是否为slave
-  useEffect(() => {
-    const checkKDSRole = async () => {
-      const role = await AsyncStorage.getItem("kds_role");
-      setIsSlaveKDS(role === "slave");
-    };
-
-    checkKDSRole();
-  }, []);
-
-  // 接收来自 OrderTimer 的时间更新
-  const handleTimeUpdate = (elapsedTime: number, color: string, formattedTime: string) => {
-    setElapsedTimeFormatted(formattedTime);
-    setStatusColor(color);
-  };
-
-  // 监听颜色映射变化
-  useEffect(() => {
-    // 当颜色映射变化时，强制更新组件
-    forceUpdate({});
-  }, [categoryColorMap]);
+  // 不需要在这里保存 elapsedTimeFormatted 和 statusColor
+  // 这些数据已经由 OrderTimer 组件处理，不需要重复在父组件中保存
+  // 这样可以避免无限循环的问题
 
   // 监听 contentHeight 和 containerHeight 的变化，判断是否可滚动
   useEffect(() => {
@@ -118,19 +93,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   useEffect(() => {
     // TODO: 实现一个事件监听机制来接收商品完成状态更新
     // 而不是设置全局的 TCP 回调
-    console.log('[OrderCard] Component mounted for order:', order.id);
-  }, [order.id, isSlaveKDS]);
-
-  // 更新来自slave KDS的商品完成状态
-  const updateCompletedItemsFromSlave = (slaveCompletedItems: {
-    [key: string]: boolean;
-  }) => {
-    console.log(`收到来自slave KDS的商品完成状态更新:`, slaveCompletedItems);
-    setCompletedItems((prev) => ({
-      ...prev,
-      ...slaveCompletedItems,
-    }));
-  };
+  }, [order.id]);
 
   // 获取订单来源的颜色
   const getSourceColor = (source: string | undefined) => {
@@ -188,24 +151,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const handleDoneConfirm = () => {
     setShowDoneConfirm(false);
 
-    // 如果是slave KDS，发送完成的商品状态到master KDS
-    if (isSlaveKDS) {
-      console.log(`Slave KDS发送商品完成状态到master KDS:`, completedItems);
-      TCPSocketService.sendOrderItemsCompleted(order.id, completedItems).then(
-        (success) => {
-          if (success) {
-            console.log(`成功发送商品完成状态到master KDS`);
-          } else {
-            console.error(`发送商品完成状态到master KDS失败`);
-          }
-        }
-      );
-    }
-    // 如果是主KDS，还需要发送API请求更新订单状态
-    else {
-      // 发送API请求更新订单状态为"ready"
-      updateOrderStatusToReady(order.id, order.source || "");
-    }
+    // 发送API请求更新订单状态为"ready"
+    updateOrderStatusToReady(order.id, order.source || "");
 
     // 调用完成订单的回调
     if (onOrderComplete) {
@@ -525,6 +472,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                     min
                   </Text>
                 )}
+              {/* 左4：Table Number */}
+              <Text style={styles.prepareTime}>Table:{" "}
+                <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
+              </Text>
             </View>
 
             {/* 右列 */}
@@ -534,13 +485,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 Due: {formatAustralianTime(order.pickupTime)}
               </Text>
               
-              {/* 右2：Timer (active/urgent/delayed 状态框) */}
-              {!disabled && !hideTimer && <OrderTimer order={order} onTimeUpdate={handleTimeUpdate} />}
+              {/* 右2-3：Timer (已过时间 + active/urgent/delayed 状态框) */}
+              {!disabled && !hideTimer && <OrderTimer order={order} />}
               
-              {/* 右3：已过时间 - 使用状态颜色 */}
-              <Text style={[styles.elapsedTimeText, { color: statusColor }]}>
-                {elapsedTimeFormatted}
-              </Text>
+              {/* 右4：打印键 */}
+              <PrintButton order={order} disabled={disabled} />
             </View>
           </View>
 
@@ -684,7 +633,6 @@ const styles = StyleSheet.create({
   pickupMethodText: {
     fontSize: 18,
     // color 已移到内联样式，根据 pickupMethod 动态设置
-    marginBottom: 4,
     fontWeight: "600", // 增加字重使其更突出
   },
   dueTimeText: {
@@ -692,15 +640,21 @@ const styles = StyleSheet.create({
     color: "#555",
     marginBottom: 12
   },
-  elapsedTimeText: {
-    fontSize: 20,
-    fontWeight: "600",
+  prepareTime: {
+    fontSize: 18, // 从 14 增大到 18
+    color: "#666",
     marginTop: 12,
+    flexWrap: "nowrap",
+  },
+  prepareTimeValue: {
+    fontSize: 18, // 从 14 增大到 18
+    color: "#333",
+    fontWeight: "bold",
   },
   itemsContainer: {
     flex: 1,
     minHeight: 0,
-    marginTop: 4, 
+    marginTop: 20, 
     marginBottom: 8,
     // maxHeight: 350
     justifyContent: "flex-end", // 添加：从底部向上排列
@@ -854,21 +808,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#00a8e8", // 蓝色
     fontWeight: "600",
-  },
-  prepareTime: {
-    fontSize: 18, // 从 14 增大到 18
-    color: "#666",
-    marginTop: 2,
-    flexWrap: "nowrap",
-  },
-  prepareTimeValue: {
-    fontSize: 18, // 从 14 增大到 18
-    color: "#333",
-    fontWeight: "bold",
-  },
-  optionText: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 2,
   },
 });

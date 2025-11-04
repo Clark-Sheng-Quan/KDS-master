@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { categoryColors } from "../styles/color";
 
@@ -45,56 +45,65 @@ export const CategoryColorProvider: React.FC<{ children: React.ReactNode }> = ({
     loadCategoryColors();
   }, []);
 
-  // 设置分类颜色
-  const setCategoryColor = async (
+  // 设置分类颜色 - 使用 useCallback 缓存
+  const setCategoryColor = useCallback(async (
     category: string,
     colorKey: keyof typeof categoryColors
   ) => {
     try {
-      const updatedMap = { ...categoryColorMap };
+      setCategoryColorMap((prevMap) => {
+        const updatedMap = { ...prevMap };
 
-      // 限制最多20个分类颜色
-      const currentCategories = Object.keys(updatedMap);
-      if (currentCategories.length >= 20 && !updatedMap[category]) {
-        // 如果已经有20个分类且当前分类不在映射中，则不添加
-        return;
-      }
+        // 限制最多20个分类颜色
+        const currentCategories = Object.keys(updatedMap);
+        if (currentCategories.length >= 20 && !updatedMap[category]) {
+          // 如果已经有20个分类且当前分类不在映射中，则不添加
+          return prevMap;
+        }
 
-      updatedMap[category] = categoryColors[colorKey];
-      setCategoryColorMap(updatedMap);
+        updatedMap[category] = categoryColors[colorKey];
 
-      // 保存到 AsyncStorage
-      await AsyncStorage.setItem("category_colors", JSON.stringify(updatedMap));
+        // 保存到 AsyncStorage
+        AsyncStorage.setItem("category_colors", JSON.stringify(updatedMap)).catch((error) => {
+          console.error("保存分类颜色失败:", error);
+        });
+
+        return updatedMap;
+      });
     } catch (error) {
       console.error("保存分类颜色失败:", error);
     }
-  };
+  }, []);
 
-  // 重置所有分类颜色
-  const resetCategoryColors = async () => {
+  // 重置所有分类颜色 - 使用 useCallback 缓存
+  const resetCategoryColors = useCallback(async () => {
     try {
       setCategoryColorMap({});
       await AsyncStorage.removeItem("category_colors");
     } catch (error) {
       console.error("重置分类颜色失败:", error);
     }
-  };
+  }, []);
 
-  // 获取分类颜色
-  const getCategoryColor = (category: string | undefined): string => {
+  // 获取分类颜色 - 使用 useCallback 缓存
+  const getCategoryColor = useCallback((category: string | undefined): string => {
     if (!category) return categoryColors.default;
     return categoryColorMap[category] || categoryColors.default;
-  };
+  }, [categoryColorMap]);
+
+  // 使用 useMemo 缓存 Context value
+  const contextValue = useMemo(
+    () => ({
+      categoryColorMap,
+      setCategoryColor,
+      resetCategoryColors,
+      getCategoryColor,
+    }),
+    [categoryColorMap, setCategoryColor, resetCategoryColors, getCategoryColor]
+  );
 
   return (
-    <CategoryColorContext.Provider
-      value={{
-        categoryColorMap,
-        setCategoryColor,
-        resetCategoryColors,
-        getCategoryColor,
-      }}
-    >
+    <CategoryColorContext.Provider value={contextValue}>
       {children}
     </CategoryColorContext.Provider>
   );

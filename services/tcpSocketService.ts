@@ -500,11 +500,11 @@ export class TCPSocketService {
       type: jsonData.type || jsonData.orderType || 'unknown'
     };
     
-    // 立即发送 HTTP 响应（在执行回调之前）
+    // 所有消息都保持连接（keep-alive）
     const httpResponse = 
       'HTTP/1.1 200 OK\r\n' +
       'Content-Type: application/json\r\n' +
-      'Connection: close\r\n' +
+      'Connection: keep-alive\r\n' +
       '\r\n' +
       JSON.stringify(responseData) + '\n';
     
@@ -519,9 +519,9 @@ export class TCPSocketService {
       this.masterIP = clientIP;
       console.log(`[HTTP] Saved POS IP as masterIP: ${clientIP}`);
       
-      // 添加到持久连接池（虽然 HTTP 是短连接，但保存 IP）
+      // 添加到持久连接池，保持连接
       this.persistentConnections.set(clientIP, socket);
-      console.log(`[HTTP] Registered POS client ${clientIP}`);
+      console.log(`[HTTP] Registered POS client ${clientIP}, connection kept alive`);
       
       // 更新连接状态
       if (this.currentConnectionStatus !== 'connected') {
@@ -529,6 +529,7 @@ export class TCPSocketService {
         this.connectionStatusCallback?.('connected');
         console.log(`[HTTP] POS connection status updated to: connected`);
       }
+      
     } else if (jsonData.type === 'heartbeat') {
       // 处理心跳
       console.log(`[HTTP] Received heartbeat from POS client`);
@@ -539,6 +540,7 @@ export class TCPSocketService {
         this.connectionStatusCallback?.('connected');
         console.log(`[HTTP] POS connection status updated to: connected`);
       }
+      
     } else if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
       // 处理订单消息
       console.log(`[HTTP] Received order message, Order ID: ${jsonData.data.id}`);
@@ -549,6 +551,7 @@ export class TCPSocketService {
       } catch (error) {
         console.error(`[HTTP] Error executing order callbacks:`, error);
       }
+      
     } else if (!jsonData.type && jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
       // 处理 POS 订单格式
       console.log(`[HTTP] Received POS order, Order ID: ${jsonData.id}`);
@@ -558,16 +561,14 @@ export class TCPSocketService {
       const formattedOrder = formatTCPOrder(jsonData);
       console.log(`[HTTP] Formatted POS order, has ${formattedOrder.products.length} products`);
       this.executeOrderCallbacks(formattedOrder);
+      
     } else {
       // 其他未知消息类型
       console.warn(`[HTTP] Unknown message type:`, jsonData.type || 'no type');
     }
     
-    // 短暂延迟后关闭连接（HTTP 短连接）
-    setTimeout(() => {
-      socket.destroy();
-      console.log(`[HTTP] Connection closed`);
-    }, 100);
+    // ✅ 所有消息处理后都保持连接，不关闭
+    console.log(`[HTTP] Message processed, connection kept alive`);
   }
 
 
@@ -884,6 +885,13 @@ export class TCPSocketService {
    */
   public static setConnectionStatusCallback(callback: (status: 'connected' | 'disconnected') => void): void {
     this.connectionStatusCallback = callback;
+  }
+
+  /**
+   * 获取当前连接状态
+   */
+  public static getConnectionStatus(): 'connected' | 'disconnected' {
+    return this.currentConnectionStatus;
   }
 
   /**

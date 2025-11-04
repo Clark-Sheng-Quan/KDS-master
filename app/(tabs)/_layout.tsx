@@ -35,7 +35,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="multiple"
+          name="MultipleKDS"
           options={{
             title: "Multiple",
             tabBarIcon: ({ color, size }) => (

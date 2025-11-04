@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   translations,
@@ -43,27 +43,33 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
     loadLanguage();
   }, []);
 
-  // 翻译函数
-  const t = (key: string): string => {
+  // 翻译函数 - 使用 useCallback 缓存
+  const t = useCallback((key: string): string => {
     return (
       translations[language][
         key as keyof (typeof translations)[typeof language]
       ] || key
     );
-  };
+  }, [language]);
 
-  // 更改语言
-  const changeLanguage = async (lang: SupportedLanguage) => {
+  // 更改语言 - 使用 useCallback 缓存
+  const changeLanguage = useCallback(async (lang: SupportedLanguage) => {
     setLanguage(lang);
     try {
       await AsyncStorage.setItem("app_language", lang);
     } catch (error) {
       console.error("保存语言设置失败:", error);
     }
-  };
+  }, []);
+
+  // 使用 useMemo 缓存 Context value
+  const contextValue = useMemo(
+    () => ({ language, t, changeLanguage }),
+    [language, t, changeLanguage]
+  );
 
   return (
-    <LanguageContext.Provider value={{ language, t, changeLanguage }}>
+    <LanguageContext.Provider value={contextValue}>
       {children}
     </LanguageContext.Provider>
   );
