@@ -137,7 +137,14 @@ export default function SettingsScreen() {
   // 保存设置
   const saveSettings = useCallback(async () => {
     try {
-      await AsyncStorage.setItem("kds_port", port);
+      // 保存端口（使用 TCPSocketService.setTcpPort）
+      const portNum = parseInt(port, 10);
+      if (portNum > 0 && portNum < 65536) {
+        await TCPSocketService.setTcpPort(portNum);
+      } else {
+        Alert.alert("错误", "端口号必须在 1-65535 之间");
+        return;
+      }
 
       // 保存Compact模式每行卡片数量
       await AsyncStorage.setItem(
@@ -320,7 +327,15 @@ export default function SettingsScreen() {
   // 保存KDS设置
   const saveKDSRole = useCallback(async () => {
     try {
-      await AsyncStorage.setItem("kds_port", port);
+      // 保存端口（使用 TCPSocketService.setTcpPort）
+      const portNum = parseInt(port, 10);
+      if (portNum > 0 && portNum < 65536) {
+        await TCPSocketService.setTcpPort(portNum);
+      } else {
+        Alert.alert("错误", "端口号必须在 1-65535 之间");
+        return;
+      }
+      
       await AsyncStorage.setItem("device_name", editingDeviceName);
 
       // 保存分类设置

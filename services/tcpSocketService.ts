@@ -2,8 +2,8 @@ import TcpSocket from 'react-native-tcp-socket';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatTCPOrder } from './orderService/formatters';
 
-// TCP服务器配置
-const TCP_PORT = 4322;
+// TCP服务器配置 - 默认端口
+const DEFAULT_TCP_PORT = 4322;
 // 重连配置
 const RECONNECT_INTERVAL = 5000; // 5秒后尝试重连
 const MAX_RECONNECT_ATTEMPTS = 10; // 最大重连次数
@@ -17,6 +17,8 @@ export class TCPSocketService {
   private static masterConnection: any = null;
   // 主KDS的IP地址
   private static masterIP: string = "";
+  // 当前使用的 TCP 端口（动态）
+  private static tcpPort: number = DEFAULT_TCP_PORT;
   // 持久连接池 - 保存与子KDS的持久连接
   private static persistentConnections: Map<string, any> = new Map();
   // 重连计数器
@@ -38,6 +40,56 @@ export class TCPSocketService {
   private static heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
   // 心跳超时时间（30秒未收到心跳则认为连接断开，触发重连）
   private static readonly HEARTBEAT_TIMEOUT = 30000;
+  
+  /**
+   * 获取 TCP 端口号（从 AsyncStorage 或默认值）
+   */
+  public static async getTcpPort(): Promise<number> {
+    try {
+      const savedPort = await AsyncStorage.getItem('kds_port');
+      if (savedPort) {
+        const port = parseInt(savedPort, 10);
+        if (port > 0 && port < 65536) {
+          this.tcpPort = port;
+          console.log(`[TCP] Port loaded from storage: ${port}`);
+          return port;
+        }
+      }
+    } catch (error) {
+      console.error('[TCP] Failed to read port from storage:', error);
+    }
+    
+    this.tcpPort = DEFAULT_TCP_PORT;
+    console.log(`[TCP] Using default port: ${DEFAULT_TCP_PORT}`);
+    return DEFAULT_TCP_PORT;
+  }
+
+  /**
+   * 设置 TCP 端口号（保存到 AsyncStorage）
+   */
+  public static async setTcpPort(port: number): Promise<boolean> {
+    try {
+      if (port <= 0 || port >= 65536) {
+        console.error('[TCP] Invalid port number:', port);
+        return false;
+      }
+
+      await AsyncStorage.setItem('kds_port', port.toString());
+      this.tcpPort = port;
+      console.log(`[TCP] Port updated to ${port}`);
+      return true;
+    } catch (error) {
+      console.error('[TCP] Failed to save port:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取当前使用的端口
+   */
+  public static getCurrentPort(): number {
+    return this.tcpPort;
+  }
   
   private static sanitizeIP(rawIP?: string | null): string {
     if (!rawIP) {
@@ -307,8 +359,11 @@ export class TCPSocketService {
    * 启动TCP服务器
    */
   public static startServer(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
+        // 获取端口号
+        const port = await this.getTcpPort();
+
         // 如果服务器已启动，先关闭
         if (this.server) {
           this.server.close();
@@ -453,8 +508,8 @@ export class TCPSocketService {
         });
         
         // Start server
-        this.server.listen(TCP_PORT, '0.0.0.0', () => {
-          console.log(`[TCP] Server started on port ${TCP_PORT}`);
+        this.server.listen(port, '0.0.0.0', () => {
+          console.log(`[TCP] Server started on port ${port}`);
           resolve(true);
         });
         
@@ -630,10 +685,10 @@ export class TCPSocketService {
         // Create new connection
         this.masterConnection = TcpSocket.createConnection({
           host: masterIP,
-          port: TCP_PORT,
+          port: this.tcpPort,
           tls: false
         }, () => {
-          console.log(`[TCP] Connected to ${masterIP}:${TCP_PORT}`);
+          console.log(`[TCP] Connected to ${masterIP}:${this.tcpPort}`);
           
           // Reset reconnect counter
           this.reconnectAttempts.set(masterIP, 0);
@@ -881,7 +936,7 @@ export class TCPSocketService {
         // Create new connection
         const socket = TcpSocket.createConnection({
           host: targetIP,
-          port: TCP_PORT,
+          port: this.tcpPort,
           tls: false
         }, () => {
           // Send data (standard format)
