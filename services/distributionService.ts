@@ -16,17 +16,14 @@ export class DistributionService {
    */
   public static async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('[DistributionService] Already initialized, skipping');
       return;
     }
     
     try {
-      console.log('[DistributionService] Initializing KDS system...');
       
       // 启动 TCP 服务器以接收来自 POS 的订单
       try {
         await TCPSocketService.startServer();
-        console.log('[DistributionService] TCP server started successfully');
       } catch (e) {
         console.warn('[DistributionService] Failed to start TCP server:', e);
       }
@@ -47,7 +44,7 @@ export class DistributionService {
       });
       
       this.initialized = true;
-      console.log('[DistributionService] KDS system initialized successfully');
+      
     } catch (error) {
       console.error('[DistributionService] Initialization failed:', error);
       throw error;
@@ -60,13 +57,10 @@ export class DistributionService {
    */
   public static async shutdown(): Promise<void> {
     try {
-      console.log('[DistributionService] Shutting down...');
-      
       // 关闭 TCP 服务
       TCPSocketService.shutdown();
       
       this.initialized = false;
-      console.log('[DistributionService] Shutdown complete');
     } catch (error) {
       console.error('[DistributionService] Shutdown failed:', error);
     }

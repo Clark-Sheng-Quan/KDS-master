@@ -11,18 +11,16 @@ import { FormattedOrder } from '../types';
  */
 export const convertToSydneyTime = (utcTimeString: string): string => {
   try {
-    console.log('[Time] Converting time, input:', utcTimeString);
-
     let utcDate: DateTime;
     const trimmedString = utcTimeString.trim();
     
     // Try to parse as ISO format first (most common, fastest)
     utcDate = DateTime.fromISO(trimmedString, { zone: 'utc' });
     if (utcDate.isValid) {
-      console.log('[Time] Parsed as ISO format');
+      
       const sydneyDate = utcDate.setZone('Australia/Sydney');
       const formattedSydneyTime = sydneyDate.toFormat('yyyy-MM-dd HH:mm:ss');
-      console.log('[Time] Final Sydney time:', formattedSydneyTime);
+      
       return formattedSydneyTime;
     }
     
@@ -35,20 +33,18 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
       const dateTimePart = timezoneOffsetMatch[1]; // "2025-10-29 03:59:45"
       const offsetPart = timezoneOffsetMatch[2];    // "+0000"
       
-      console.log('[Time] Detected timezone offset:', offsetPart);
       
       // Convert to ISO format that Luxon can parse: "2025-10-29T03:59:45+00:00"
       const isoString = dateTimePart.replace(' ', 'T') + offsetPart.slice(0, 3) + ':' + offsetPart.slice(3);
-      console.log('[Time] Converted to ISO format:', isoString);
       
       utcDate = DateTime.fromISO(isoString);
     } else if (trimmedString.match(/^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+(AM|PM)$/i)) {
       // POS Format: "Oct 30, 2025 10:44:43 PM" or "Oct 30, 2025 10:44:43 AM"
-      console.log('[Time] Detected POS format (MMM dd, yyyy hh:mm:ss a)');
-      utcDate = DateTime.fromFormat(trimmedString, 'MMM dd, yyyy hh:mm:ss a', { zone: 'utc' });
+      
+      utcDate = DateTime.fromFormat(trimmedString, 'MMM dd, yyyy hh:mm:ss a', { zone: 'utc', locale: 'en-US' });
     } else {
       // Format: "2025-10-29 00:00:00" (no timezone offset, assume UTC)
-      console.log('[Time] No timezone offset detected, parsing as UTC');
+      
       utcDate = DateTime.fromFormat(trimmedString, 'yyyy-MM-dd HH:mm:ss', { zone: 'utc' });
     }
 
@@ -62,7 +58,7 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
     const sydneyDate = utcDate.setZone('Australia/Sydney');
     const formattedSydneyTime = sydneyDate.toFormat('yyyy-MM-dd HH:mm:ss');
     
-    console.log('[Time] Final Sydney time:', formattedSydneyTime);
+    
     return formattedSydneyTime;
   } catch (error) {
     console.error('[Time] Timezone conversion error:', error);
@@ -75,8 +71,7 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
  */
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
-    console.log('[Format] Formatting POS TCP order:', orderData);
-    
+
     // Extract order ID from POS format
     const orderId = orderData.id || String(Date.now());
     
@@ -95,7 +90,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
           productCategory = product.category;
         }
         
-        console.log("[Format] POS Product:", product.name, "Category:", productCategory, "Qty:", item.qty, "State:", itemState);
+        // console.log("[Format] POS Product:", product.name, "Category:", productCategory, "Qty:", item.qty, "State:", itemState);
         
         // Process product options (POS format)
         let options: any[] = [];
@@ -129,7 +124,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     // Log summary of item states
     const processedCount = formattedItems.filter((i: any) => i.itemState === 'PROCESSED').length;
     const voidedCount = formattedItems.filter((i: any) => i.itemState === 'VOIDED').length;
-    console.log(`[Format] Order ${orderId} has ${processedCount} PROCESSED items and ${voidedCount} VOIDED items`);
+    // console.log(`[Format] Order ${orderId} has ${processedCount} PROCESSED items and ${voidedCount} VOIDED items`);
 
     // Convert times to Sydney timezone
     const sydneyOrderTime = convertToSydneyTime(
@@ -174,8 +169,6 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       total_prepare_time: totalPrepareTime,
     };
     
-    console.log('[Format] Formatted POS order:', formattedOrder);
-    console.log(`[Format] Order ${orderId} has ${formattedItems.length} PROCESSED items`);
     return formattedOrder;
   } catch (error) {
     console.error('[Format] Failed to format POS TCP order:', error, orderData);
@@ -203,13 +196,10 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     const formattedItems = order.products.map((product: any, index: number) => {
       // Process category, take first element from array
       let productCategory = "default";
-      console.log("[Format] product.category is:", product.category);
       // Check product category info
       if (product.category.length > 0) {
         productCategory = product.category[0];
       }
-      
-      console.log("[Format] Product:", product.name, "Category:", productCategory);
       
       // Process options
       let options = [];
@@ -272,8 +262,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
  */
 export const formatOrders = async (ordersData: any): Promise<FormattedOrder[]> => {
   const formattedOrders: FormattedOrder[] = [];
-  
-  console.log('[Format] Starting to format orders, raw data contains', ordersData.orders.length, 'orders');
   
   // Ensure we have orders array
   if (!ordersData || !ordersData.orders || !Array.isArray(ordersData.orders)) {

@@ -202,7 +202,7 @@ export const fetchHistoryOrders = async (timeRange: [string, string]) => {
     }
     
     const result = await response.json();
-    console.log("result！！！",result)
+    
     return result.orders || [];
   } catch (error) {
     console.error('获取历史订单出错:', error);

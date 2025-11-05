@@ -53,7 +53,6 @@ export const printTestReceipt = async (): Promise<boolean> => {
     
     // 打印测试订单
     const result = await Printer_K1215.printOrder(testOrder);
-    console.log('测试打印结果:', result);
     return result;
   } catch (error) {
     console.error('测试打印失败:', error);

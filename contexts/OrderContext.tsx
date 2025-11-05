@@ -113,7 +113,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
         // 设置订单更新回调函数 - 这是唯一的分发入口点
         OrderService.setOrderUpdateCallback(async (updatedOrders) => {
-          console.log("收到订单更新，订单数量:", updatedOrders.length);
+          
 
           // 首先对所有订单进行去重
           const uniqueOrders = [];
@@ -141,7 +141,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           // 注意：我们不再在这里分发订单，因为OrderService的addNetworkOrder方法
           // 已经负责在添加新网络订单时调用DistributionService.processAndDistributeOrder
           // 这样可以避免重复分发订单
-          console.log("订单状态已更新");
+          
         });
 
         setLoading(false);

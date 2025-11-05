@@ -105,7 +105,6 @@ export default function SettingsScreen() {
 
         // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
         const currentMasterIP = TCPSocketService.getMasterIP();
-        console.log('[Settings] 加载时获取 masterIP:', currentMasterIP);
         setMasterIP(currentMasterIP);
         
         // 获取初始连接状态
@@ -172,33 +171,26 @@ export default function SettingsScreen() {
 
   // 处理从Device Discovery连接目标设备
   const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
-    console.log('[Settings] handleConnectToDevice被调用，设备:', device.name, device.ip);
-    
     try {
         // 如果当前是Slave，则连接到Master KDS (在当前方案中，POS作为客户端连接到KDS)
-        console.log('[Settings] Slave模式，连接到POS IP:', device.ip);
         
         Alert.alert(
           t("connectToDevice"),
           t("connectToMasterKDS"),
           [
             { text: t("cancel"), onPress: () => {
-              console.log('[Settings] 用户取消连接到POS');
               setShowDeviceDiscovery(false);
             }, style: 'cancel' },
             {
               text: t("connect"),
               onPress: async () => {
-                console.log('[Settings] 用户确认连接到POS，IP:', device.ip);
                 setMasterIP(device.ip);
                 
                 try {
                   // 立即连接到POS/Master，不需要重启
-                  console.log('[Settings] 开始连接到POS系统');
                   const connected = await TCPSocketService.connectToMaster(device.ip);
                   
                   if (connected) {
-                    console.log('[Settings] 成功建立TCP连接到POS系统，等待心跳确认');
                     // 保存IP到本地存储
                     await AsyncStorage.setItem("master_ip", device.ip);
                     
@@ -210,7 +202,6 @@ export default function SettingsScreen() {
                       `${t("connectionEstablished")}\nPOS IP: ${device.ip}\n\n等待接收心跳以确认连接状态...`
                     );
                   } else {
-                    console.log('[Settings] 连接到POS系统失败');
                     setMasterIP(""); // 重置IP
                     Alert.alert(t("error"), t("connectionFailed"));
                   }

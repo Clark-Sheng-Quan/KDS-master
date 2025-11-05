@@ -13,7 +13,6 @@ class AudioService {
         );
         this.sound = sound;
         this.isLoaded = true;
-        console.log('音频文件已加载');
       }
     } catch (error) {
       console.error('加载音频文件失败:', error);
@@ -31,7 +30,6 @@ class AudioService {
         // 确保从头开始播放
         await this.sound.setPositionAsync(0);
         await this.sound.playAsync();
-        console.log('正在播放新订单提示音');
       }
     } catch (error) {
       console.error('播放提示音失败:', error);
@@ -44,7 +42,6 @@ class AudioService {
       await this.sound.unloadAsync();
       this.sound = null;
       this.isLoaded = false;
-      console.log('音频资源已释放');
     }
   }
 }

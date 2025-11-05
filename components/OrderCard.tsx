@@ -163,12 +163,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   // 新增：更新订单状态为ready的函数
   const updateOrderStatusToReady = async (orderId: string, source: string) => {
     try {
-      console.log(`更新订单 ${orderId} 状态为ready`);
-
       // 获取token
       const token = await AsyncStorage.getItem("token");
       if (!token) {
-        console.error("无法获取访问令牌，请先登录");
         return;
       }
 
@@ -182,23 +179,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         switch (order.status?.toLowerCase()) {
           case "unpaid":
             targetStatus = "paid";
-            console.log("订单未支付，先转换为 paid");
             break;
           case "paid":
             targetStatus = "processing";
-            console.log("订单已支付，转换为 processing");
             break;
           case "processing":
             targetStatus = "ready";
-            console.log("订单处理中，转换为 ready");
             break;
           case "dispatch":
             targetStatus = "ready";
-            console.log("订单已派送，转换为 ready");
             break;
           default:
             targetStatus = "ready";
-            console.log("订单状态未知，尝试直接转换为 ready");
         }
         
         // 构建请求体 - 根据后端 API 文档
@@ -223,17 +215,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         }
 
         const result = await response.json();
-
-        if (result && result.success) {
-          console.log(`订单 ${orderId} 状态已更新为ready`);
-        } else {
-          console.error(`更新订单状态失败:`, result);
-        }
-      } else {
-        console.log(`订单 ${orderId} 不是网络订单，不需要更新状态`);
       }
     } catch (error) {
-      console.error(`更新订单状态失败:`, error);
+      // Error silently handled
     }
   };
 

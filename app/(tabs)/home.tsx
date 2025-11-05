@@ -110,18 +110,9 @@ export default function HomeScreen() {
       const categories = new Set<string>();
       categories.add("all"); // 添加"全部"选项
 
-      // 添加调试日志
-      console.log("开始分析订单中的商品分类...");
-      console.log(`总共有 ${orders.length} 个订单`);
-
       orders.forEach((order) => {
         if (order.products && order.products.length > 0) {
-          console.log(`订单 ${order.id} 有 ${order.products.length} 个商品`);
-
           order.products.forEach((product) => {
-            console.log(
-              `商品: ${product.name}, 分类: ${product.category || "无分类"}`
-            );
             if (product.category) {
               categories.add(product.category);
             }
@@ -130,7 +121,6 @@ export default function HomeScreen() {
       });
 
       const categoryArray = Array.from(categories);
-      console.log("找到的所有分类:", categoryArray);
       setAvailableCategories(categoryArray);
     }
   }, [orders]);
@@ -162,12 +152,9 @@ export default function HomeScreen() {
           const categoryStr = await AsyncStorage.getItem("kds_category");
           const kdsCategory = categoryStr || "all";
 
-          console.log(`子KDS分类设置: ${kdsCategory}`);
-
           // 自动设置分类过滤器
           if (kdsCategory !== "all") {
             setCategoryFilter(kdsCategory);
-            console.log(`已自动设置分类过滤器为: ${kdsCategory}`);
 
             // 过滤订单中的商品，只保留匹配当前分类的商品
             const ordersWithFilteredProducts = orders
@@ -200,9 +187,6 @@ export default function HomeScreen() {
               })
               .filter((order) => order !== null) as FormattedOrder[];
 
-            console.log(
-              `过滤后的订单数量: ${ordersWithFilteredProducts.length}`
-            );
             setFilteredOrders(ordersWithFilteredProducts);
             return; // 提前返回，不再执行下面的过滤逻辑
           }
@@ -218,9 +202,6 @@ export default function HomeScreen() {
             return order.targetCategory === kdsCategory;
           });
 
-          console.log(
-            `根据目标分类过滤后的订单数量: ${filteredByTarget.length}`
-          );
           setFilteredOrders(filteredByTarget);
         }
       } catch (error) {

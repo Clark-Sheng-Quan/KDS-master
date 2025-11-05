@@ -72,7 +72,6 @@ export class StockService {
       .map(wh => wh ? [wh.name, wh._id] : [])
       .filter(item => item.length === 2) // 过滤掉空数组
     );
-    console.log("最终生成的仓库映射:", warehouseIds);
     return warehouseIds;
   }
   // 获取仓库库存
@@ -176,7 +175,6 @@ export class StockService {
   // 获取Token辅助方法
   private static async getToken(): Promise<string | null> {
     try {
-      console.log("开始获取token...");
       const token = await AsyncStorage.getItem("token");
       if (!token) {
         console.error("token不存在或为空");
