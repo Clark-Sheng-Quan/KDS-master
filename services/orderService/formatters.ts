@@ -71,6 +71,7 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
  */
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
+    
 
     // Extract order ID from POS format
     const orderId = orderData.id || String(Date.now());
@@ -79,6 +80,26 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const items = Array.isArray(orderData.orderitems) ? orderData.orderitems : [];
     
     const formattedItems = items.map((item: any, index: number) => {
+        // Check if this is a simple format (name, quantity, notes directly on item)
+        // or complex format (product object with nested structure)
+        const isSimpleFormat = item.name && !item.product;
+        
+        if (isSimpleFormat) {
+          // Simple format: { id, name, quantity, notes }
+          
+          return {
+            id: item.id || `item-${index}-${Date.now()}`,
+            name: item.name || 'Unknown Item',
+            quantity: item.quantity || 1,
+            price: item.price || 0,
+            options: item.notes ? [{ name: 'Notes', value: item.notes, price: 0 }] : [],
+            category: item.category || 'default',
+            prepare_time: item.prepare_time || 0,
+            itemState: item.itemState || 'PROCESSED',
+          };
+        }
+        
+        // Complex format: { product: { name, category, options, ... }, qty, itemState }
         const product = item.product || {};
         const itemState = item.itemState || 'PROCESSED'; // Track item state
         
@@ -89,9 +110,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
         } else if (typeof product.category === 'string') {
           productCategory = product.category;
         }
-        
-        // console.log("[Format] POS Product:", product.name, "Category:", productCategory, "Qty:", item.qty, "State:", itemState);
-        
+  
         // Process product options (POS format)
         let options: any[] = [];
         const optionsArray = product.options || [];
@@ -124,11 +143,9 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     // Log summary of item states
     const processedCount = formattedItems.filter((i: any) => i.itemState === 'PROCESSED').length;
     const voidedCount = formattedItems.filter((i: any) => i.itemState === 'VOIDED').length;
-    // console.log(`[Format] Order ${orderId} has ${processedCount} PROCESSED items and ${voidedCount} VOIDED items`);
-
     // Convert times to Sydney timezone
     const sydneyOrderTime = convertToSydneyTime(
-      orderData.createdAt || new Date().toISOString()
+      orderData.timestamp || orderData.createdAt || new Date().toISOString()
     );
     
     // Extract pickup method from POS format - ensure it's a string, not an object
@@ -168,6 +185,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       source: 'tcp', // Mark source as TCP
       total_prepare_time: totalPrepareTime,
     };
+    
     
     return formattedOrder;
   } catch (error) {

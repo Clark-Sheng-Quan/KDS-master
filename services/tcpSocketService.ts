@@ -2,47 +2,47 @@ import TcpSocket from 'react-native-tcp-socket';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatTCPOrder } from './orderService/formatters';
 
-// TCP服务器配置 - 默认端口
+// TCP server configuration - default port
 const DEFAULT_TCP_PORT = 4322;
-// 重连配置
-const RECONNECT_INTERVAL = 5000; // 5秒后尝试重连
-const MAX_RECONNECT_ATTEMPTS = 10; // 最大重连次数
+// Reconnection configuration
+const RECONNECT_INTERVAL = 5000; // Try to reconnect after 5 seconds
+const MAX_RECONNECT_ATTEMPTS = 10; // Maximum number of reconnection attempts
 
 export class TCPSocketService {
-  // 服务器实例
+  // Server instance
   private static server: any = null;
-  // 客户端连接实例
+  // Client connection instances
   private static clients: Map<string, any> = new Map();
-  // 主服务器连接
+  // Master server connection
   private static masterConnection: any = null;
-  // 主KDS的IP地址
+  // Master KDS IP address
   private static masterIP: string = "";
-  // 当前使用的 TCP 端口（动态）
+  // Current TCP port (dynamic)
   private static tcpPort: number = DEFAULT_TCP_PORT;
-  // 持久连接池 - 保存与子KDS的持久连接
+  // Persistent connection pool - stores persistent connections to sub-KDS
   private static persistentConnections: Map<string, any> = new Map();
-  // 重连计数器
+  // Reconnection attempt counter
   private static reconnectAttempts: Map<string, number> = new Map();
-  // 重连定时器
+  // Reconnection timers
   private static reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   
-  // 回调函数
+  // Order callback function
   private static orderCallback: ((order: any) => void) | null = null;
-  // 添加订单回调函数数组
+  // Array of order callback functions
   private static orderCallbacks: ((order: any) => void)[] = [];
-  // 连接状态变化回调
+  // Connection status change callback
   private static connectionStatusCallback: ((status: 'connected' | 'disconnected') => void) | null = null;
-  // 当前连接状态
+  // Current connection status
   private static currentConnectionStatus: 'connected' | 'disconnected' = 'disconnected';
-  // 连接警告/错误回调
+  // Connection warning/error callback
   private static connectionErrorCallback: ((message: string) => void) | null = null;
-  // 心跳超时定时器 - 用于检测Slave端是否持续收到心跳
+  // Heartbeat timeout timer - used to detect if Slave side continuously receives heartbeat
   private static heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
-  // 心跳超时时间（30秒未收到心跳则认为连接断开，触发重连）
+  // Heartbeat timeout (if no heartbeat received within 30 seconds, consider connection lost and trigger reconnection)
   private static readonly HEARTBEAT_TIMEOUT = 30000;
   
   /**
-   * 获取 TCP 端口号（从 AsyncStorage 或默认值）
+   * Get TCP port (from AsyncStorage or default value)
    */
   public static async getTcpPort(): Promise<number> {
     try {
@@ -65,7 +65,7 @@ export class TCPSocketService {
   }
 
   /**
-   * 设置 TCP 端口号（保存到 AsyncStorage）
+   * Set TCP port (save to AsyncStorage)
    */
   public static async setTcpPort(port: number): Promise<boolean> {
     try {
@@ -85,7 +85,7 @@ export class TCPSocketService {
   }
 
   /**
-   * 获取当前使用的端口
+   * Get the current port in use
    */
   public static getCurrentPort(): number {
     return this.tcpPort;
@@ -151,17 +151,17 @@ export class TCPSocketService {
   }
 
   /**
-   * 重置Slave端的心跳超时定时器
-   * 每次收到心跳时调用，确保连接状态为 connected
-   * 如果30秒内未收到心跳，则触发重连
+   * Reset the heartbeat timeout timer for the Slave side
+   * Called every time a heartbeat is received to ensure connection status is 'connected'
+   * If no heartbeat is received within 30 seconds, trigger reconnection
    */
   private static resetHeartbeatTimeout(): void {
-    // 清除旧的超时定时器
+    // Clear old timeout timer
     if (this.heartbeatTimeout) {
       clearTimeout(this.heartbeatTimeout);
     }
 
-    // 更新连接状态为 connected
+    // Update connection status to connected
     if (this.currentConnectionStatus !== 'connected') {
       this.currentConnectionStatus = 'connected';
       this.connectionStatusCallback?.('connected');
@@ -180,10 +180,10 @@ export class TCPSocketService {
   }
 
   /**
-   * 通用JSON流解析器 - 处理TCP粘包问题
-   * @param buffer 数据缓冲区
-   * @param onMessage 处理单条JSON消息的回调
-   * @returns 更新后的缓冲区
+   * General JSON stream parser - handles TCP packet sticking issues
+   * @param buffer Data buffer
+   * @param onMessage Callback for processing a single JSON message
+   * @returns Updated buffer
    */
   private static parseJsonStream(
     buffer: string,
@@ -223,7 +223,7 @@ export class TCPSocketService {
               const jsonString = buffer.substring(processedIndex, i + 1);
               const jsonData = JSON.parse(jsonString);
 
-              // 只处理非空对象
+              // Only process non-empty objects
               if (Object.keys(jsonData).length > 0) {
                 onMessage(jsonData);
               }
@@ -242,7 +242,7 @@ export class TCPSocketService {
   }
 
   /**
-   * 构造带时间戳的JSON消息
+   * Construct a JSON message with timestamp
    */
   private static createMessage(type: string, data?: any): string {
     return JSON.stringify({
@@ -253,20 +253,20 @@ export class TCPSocketService {
   }
 
   /**
-   * 将JSON消息转换为标准TCP协议格式（带Content-Length header）
-   * 格式: Content-Length: {length}\r\n\r\n{json}
+   * Convert JSON message to standard TCP protocol format (with Content-Length header)
+   * Format: Content-Length: {length}\r\n\r\n{json}
    */
   private static formatTcpMessage(message: string): string {
-    // React Native环境下计算UTF-8字节长度（兼容方式，不使用Node.js Buffer）
+    // Calculate UTF-8 byte length in React Native environment (compatible way, do not use Node.js Buffer)
     const contentLength = new TextEncoder().encode(message).length;
     return `Content-Length: ${contentLength}\r\n\r\n${message}`;
   }
 
   /**
-   * 解析标准TCP协议消息（带Content-Length header）
-   * @param buffer 数据缓冲区
-   * @param onMessage 处理单条JSON消息的回调
-   * @returns 更新后的缓冲区
+   * Parse standard TCP protocol message (with Content-Length header)
+   * @param buffer Data buffer
+   * @param onMessage Callback for processing a single JSON message
+   * @returns Updated buffer
    */
   private static parseStandardTcpStream(
     buffer: string,
@@ -356,15 +356,15 @@ export class TCPSocketService {
   }
 
   /**
-   * 启动TCP服务器
+   * Start TCP server
    */
   public static startServer(): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
       try {
-        // 获取端口号
+        // Get port number
         const port = await this.getTcpPort();
 
-        // 如果服务器已启动，先关闭
+        // If server is already started, close it first
         if (this.server) {
           this.server.close();
           this.server = null;
@@ -379,13 +379,13 @@ export class TCPSocketService {
           // Save client connection
           this.clients.set(clientKey, socket);
           
-          // 为每个连接添加数据缓冲区，用于处理粘包问题
+          // Add a data buffer for each connection to handle packet sticking issues
           let dataBuffer = '';
           
-          // 标记这个连接是否是 HTTP 请求（等待 body）
+          // Mark whether this connection is an HTTP request (waiting for body)
           let isHttpRequest = false;
           
-          // 接收数据
+          // Receive data
           socket.on('data', (data: string | Buffer) => {
             try {
               const chunk = typeof data === 'string' ? data : data.toString('utf8');
@@ -393,12 +393,12 @@ export class TCPSocketService {
               // Debug: Print received raw data
               console.log(`[HTTP] Received raw data from ${clientKey}:`, chunk);
               
-              // 过滤掉空白字符的数据
+              // Filter out data that is only whitespace
               if (chunk.trim() === '') {
                 return;
               }
               
-              // 检测 HTTP 请求
+              // Detect HTTP request
               if (chunk.trimStart().startsWith('POST') || 
                   chunk.trimStart().startsWith('GET') || 
                   chunk.trimStart().startsWith('PUT') || 
@@ -406,17 +406,17 @@ export class TCPSocketService {
                   chunk.includes('HTTP/1.')) {
                     console.log(`[HTTP] ========== HTTP REQUEST DETECTED ==========`);
                 
-                // 检查是否有 Expect: 100-continue header
+                // Check for Expect: 100-continue header
                 if (chunk.includes('Expect: 100-continue')) {
-                  // 标记这是一个 HTTP 请求
+                  // Mark this as an HTTP request
                   isHttpRequest = true;
-                  // 发送 100 Continue 响应，告诉客户端继续发送 body
+                  // Send 100 Continue response to tell client to continue sending body
                   socket.write('HTTP/1.1 100 Continue\r\n\r\n');
                   return;
                 }
                 
                 try {
-                  // 提取 HTTP 请求体中的 JSON 数据
+                  // Extract JSON data from HTTP request body
                   const bodyStart = chunk.indexOf('\r\n\r\n');
                   
                   if (bodyStart !== -1) {
@@ -424,10 +424,10 @@ export class TCPSocketService {
                 
                     
                     if (jsonBody) {
-                      // 解析 JSON 数据
+                      // Parse JSON data
                       const jsonData = JSON.parse(jsonBody);
                       
-                      // 处理 HTTP 请求并发送响应
+                      // Process HTTP request and send response
                       this.handleHttpRequest(jsonData, socket, clientKey);
                     } else {
                       dataBuffer += chunk;
@@ -452,16 +452,16 @@ export class TCPSocketService {
                 return;
               }
               
-              // 如果是 HTTP body 数据（在 100-continue 之后到达）
+              // If it's HTTP body data (arrived after 100-continue)
               if (isHttpRequest && chunk.trim().startsWith('{')) {
                 
                 try {
                   const jsonData = JSON.parse(chunk.trim());
                   
-                  // 处理 HTTP 请求并发送响应
+                  // Process HTTP request and send response
                   this.handleHttpRequest(jsonData, socket, clientKey);
                   
-                  // 重置标记
+                  // Reset flag
                   isHttpRequest = false;
                 } catch (parseError: any) {
                   console.error(`[TCP] JSON parse error:`, parseError.message);
@@ -477,7 +477,7 @@ export class TCPSocketService {
                 return;
               }
               
-              // 其他格式的数据（不支持）
+              // Other unsupported data formats
               console.warn(`[TCP] Unsupported data format from ${remoteIP}`);
               const errorResponse = 
                 'HTTP/1.1 400 Bad Request\r\n' +
@@ -493,15 +493,15 @@ export class TCPSocketService {
             }
           });
           
-          // 设置错误和关闭处理
+          // Setup error and close handlers
           this.setupSocketErrorHandlers(socket, `Client ${clientKey}`);
           
-          // 额外处理：从clients Map中移除
+          // Additionally: remove from clients Map
           socket.on('error', () => this.clients.delete(clientKey));
           socket.on('close', () => this.clients.delete(clientKey));
         });
         
-        // 服务器错误处理
+        // Server error handling
         this.server.on('error', (error: Error) => {
           console.error('[TCP] Server error:', error);
           reject(error);
@@ -513,7 +513,7 @@ export class TCPSocketService {
           resolve(true);
         });
         
-        // 启动心跳检测
+        // Start heartbeat detection
         this.startHeartbeat();
       } catch (error) {
         console.error('[TCP] Start server failed:', error);
@@ -529,117 +529,87 @@ export class TCPSocketService {
     const messageType = jsonData.type || jsonData.orderType || 'unknown';
     console.log(`[TCP] ${this.getSocketIP(socket)} - Message: ${messageType}`);
     
-    // 准备响应数据
+    // Debug: Log received order structure
+    if (jsonData.products || jsonData.orderitems) {
+      console.log(`[TCP] Order structure - has products: ${!!jsonData.products}, has orderitems: ${!!jsonData.orderitems}, type: ${jsonData.type}, orderType: ${jsonData.orderType}`);
+    }
+    
+    // Prepare response data
     const responseData = {
       status: '200',
       message: 'Message processed',
       type: messageType
     };
     
-    // 所有消息都保持连接（keep-alive）
+    const responseBody = JSON.stringify(responseData);
+    const contentLength = new TextEncoder().encode(responseBody).length;
+    
+    // All messages keep connection (keep-alive)
     const httpResponse = 
       'HTTP/1.1 200 OK\r\n' +
       'Content-Type: application/json\r\n' +
+      `Content-Length: ${contentLength}\r\n` +
       'Connection: keep-alive\r\n' +
       '\r\n' +
-      JSON.stringify(responseData) + '\n';
+      responseBody;
     
-    console.log(`[TCP] Response: 200 OK`);
-    socket.write(httpResponse);
+    console.log(`[TCP] Sending response (${contentLength} bytes):`, responseBody);
+    socket.write(httpResponse, () => {
+      console.log(`[TCP] Response sent successfully`);
+    });
     
-    // 然后处理不同类型的消息
+    // Then handle different message types
     if (jsonData.type === 'registration') {
-      // 处理 registration
+      // Handle registration
       const clientIP = this.getSocketIP(socket);
       this.masterIP = clientIP;
       
-      // 添加到持久连接池，保持连接
+      // Add to persistent connection pool, keep connection
       this.persistentConnections.set(clientIP, socket);
       
-      // 更新连接状态
+      // Update connection status
       if (this.currentConnectionStatus !== 'connected') {
         this.currentConnectionStatus = 'connected';
         this.connectionStatusCallback?.('connected');
       }
       
     } else if (jsonData.type === 'heartbeat') {
-      // 处理心跳
+      // Handle heartbeat
       
-      // 更新连接状态
+      // Update connection status
       if (this.currentConnectionStatus !== 'connected') {
         this.currentConnectionStatus = 'connected';
         this.connectionStatusCallback?.('connected');
       }
       
     } else if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
-      // 处理订单消息
+      // Handle order message (wrapped format)
+      console.log('[TCP] Processing wrapped order (type=order, data.id exists)');
       try {
         this.executeOrderCallbacks(jsonData.data);
       } catch (error) {
         console.error(`[TCP] Order callback error:`, error);
       }
       
-    } else if (!jsonData.type && jsonData.products && Array.isArray(jsonData.products) && jsonData.id) {
-      // 处理已格式化的订单（包含 products 数组）
-      
-      // 直接使用，无需再次格式化
+    } else if (jsonData.products && Array.isArray(jsonData.products) && jsonData.id) {
+      // Handle formatted order (contains products array) - Test 3 format
+      console.log('[TCP] Processing formatted order (has products array and id)');
+      // Use directly, no need to reformat
       this.executeOrderCallbacks(jsonData);
       
-    } else if (!jsonData.type && jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
-      // 处理 POS 订单格式（包含 orderitems 数组，需要格式化）
-      
-      // 转换格式并处理
+    } else if (jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
+      // Handle POS order format (contains orderitems array, needs formatting) - Test 4 format
+      console.log('[TCP] Processing POS order (orderType=POS, has orderitems)');
+      // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
       this.executeOrderCallbacks(formattedOrder);
       
     } else {
-      // 其他未知消息类型
-      console.warn(`[TCP] Unknown message type: ${messageType}`);
+      // Other unknown message types
+      console.warn(`[TCP] Unknown message type: ${messageType}, jsonData:`, JSON.stringify(jsonData, null, 2));
     }
   }
 
-
-
-  /**
-   * Handle messages from Master (Slave mode)
-   */
-  private static handleMasterMessage(jsonData: any) {
-    // Handle heartbeat
-    if (jsonData.type === 'heartbeat') {
-      // Reset heartbeat timeout, update connection status to connected
-      this.resetHeartbeatTimeout();
-      
-      if (this.masterConnection) {
-        const heartbeatAck = this.createMessage('heartbeat_ack');
-        this.masterConnection.write(this.formatTcpMessage(heartbeatAck));
-      }
-      return;
-    }
-    
-    // Handle order data
-    if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
-      const orderId = jsonData.data.id;
-      
-      // Process order data (including updates - duplicate ID means order update)
-      this.executeOrderCallbacks(jsonData.data);
-      
-      // Send acknowledgment (standard format)
-      if (this.masterConnection) {
-        const orderAck = this.createMessage('order_ack', {
-          orderId: orderId,
-          status: 'received'
-        });
-        this.masterConnection.write(this.formatTcpMessage(orderAck));
-      }
-      return;
-    }
-    
-    // Handle other message types
-    // Don't log unknown_message_type to avoid loops
-    if (jsonData.type === 'unknown_message_type') {
-      return;
-    }
-  }
   
   /**
    * Send heartbeat to all persistent connections
@@ -850,13 +820,13 @@ export class TCPSocketService {
   }
   
   /**
-   * 设置订单回调函数
+   * Set order callback function
    */
   public static setOrderCallback(callback: (order: any) => void): void {
-    // 设置单一回调，覆盖之前的回调
+    // Set single callback, overwrite previous callback
     this.orderCallback = callback;
     
-    // 清空回调数组，防止重复执行
+    // Clear callback array to prevent duplicate execution
     this.orderCallbacks = [];
   }
   
@@ -864,18 +834,27 @@ export class TCPSocketService {
    * Execute all order callback functions
    */
   private static executeOrderCallbacks(data: any): void {
+    console.log('[TCP] executeOrderCallbacks called with data:', JSON.stringify(data, null, 2));
+    console.log('[TCP] orderCallback exists:', !!this.orderCallback);
+    console.log('[TCP] orderCallbacks array length:', this.orderCallbacks.length);
+    
     // Execute single callback
     if (this.orderCallback) {
       try {
+        console.log('[TCP] Executing single order callback...');
         this.orderCallback(data);
+        console.log('[TCP] Single order callback executed successfully');
       } catch (error) {
         console.error('[TCP] Order callback execution failed:', error);
       }
+    } else {
+      console.warn('[TCP] No order callback registered!');
     }
     
     // Execute all callbacks in array (if any)
     for (const callback of this.orderCallbacks) {
       try {
+        console.log('[TCP] Executing callback from array...');
         callback(data);
       } catch (error) {
         console.error('[TCP] Callback execution failed:', error);
@@ -884,28 +863,28 @@ export class TCPSocketService {
   }
   
   /**
-   * 设置连接状态回调 - 连接状态变化时调用
+   * Set connection status callback - called when connection status changes
    */
   public static setConnectionStatusCallback(callback: (status: 'connected' | 'disconnected') => void): void {
     this.connectionStatusCallback = callback;
   }
 
   /**
-   * 获取当前连接状态
+   * Get current connection status
    */
   public static getConnectionStatus(): 'connected' | 'disconnected' {
     return this.currentConnectionStatus;
   }
 
   /**
-   * 设置连接错误回调 - 显示连接相关的错误/警告消息
+   * Set connection error callback - show connection related error/warning messages
    */
   public static setConnectionErrorCallback(callback: (message: string) => void): void {
     this.connectionErrorCallback = callback;
   }
 
   /**
-   * 触发连接错误回调
+   * Trigger connection error callback
    */
   public static triggerConnectionError(message: string): void {
     this.connectionErrorCallback?.(message);
@@ -984,12 +963,12 @@ export class TCPSocketService {
   }
   
   /**
-   * 获取Slave设备名称
+   * Get Slave device name
    */
   private static getSlaveName(): string {
-    // 这将在调用时从AsyncStorage同步获取
-    // 由于AsyncStorage是异步的，这里返回一个默认值
-    // 实际的名称应该在初始化时从AsyncStorage读取
+    // This will be synchronously obtained from AsyncStorage when called
+    // Since AsyncStorage is asynchronous, return a default value here
+    // The actual name should be read from AsyncStorage during initialization
     return 'Slave KDS';
   }
   
@@ -1081,4 +1060,4 @@ export class TCPSocketService {
   public static getMasterIP(): string {
     return this.masterIP;
   }
-} 
+}
