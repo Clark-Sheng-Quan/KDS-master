@@ -126,17 +126,24 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             }
           }
 
+          // 按订单时间排序（最新的在前）
+          const sortedOrders = uniqueOrders.sort((a, b) => {
+            const timeA = new Date(a.orderTime).getTime();
+            const timeB = new Date(b.orderTime).getTime();
+            return timeA - timeB; // 降序，最新的在前
+          });
+
           // 区分网络订单和TCP订单
-          const networkOrdersList = uniqueOrders.filter(
+          const networkOrdersList = sortedOrders.filter(
             (order) => order.source === "network"
           );
-          const tcpOrdersList = uniqueOrders.filter(
+          const tcpOrdersList = sortedOrders.filter(
             (order) => order.source === "tcp"
           );
 
           setNetworkOrders(networkOrdersList);
           setTcpOrders(tcpOrdersList);
-          setOrders(uniqueOrders);
+          setOrders(sortedOrders);
 
           // 注意：我们不再在这里分发订单，因为OrderService的addNetworkOrder方法
           // 已经负责在添加新网络订单时调用DistributionService.processAndDistributeOrder
@@ -207,9 +214,17 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       const savedNetworkOrders = await OrderService.loadNetworkOrders();
       const savedTcpOrders = await OrderService.loadTCPOrders();
 
+      // 合并所有订单并按时间排序
+      const allOrders = [...savedNetworkOrders, ...savedTcpOrders];
+      const sortedOrders = allOrders.sort((a, b) => {
+        const timeA = new Date(a.orderTime).getTime();
+        const timeB = new Date(b.orderTime).getTime();
+        return timeB - timeA; // 降序，最新的在前
+      });
+
       setNetworkOrders(savedNetworkOrders);
       setTcpOrders(savedTcpOrders);
-      setOrders([...savedNetworkOrders, ...savedTcpOrders]);
+      setOrders(sortedOrders);
 
       setLoading(false);
     } catch (error) {

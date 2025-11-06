@@ -130,7 +130,8 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const sydneyOrderTime = convertToSydneyTime(
       orderData.timestamp || orderData.createdAt || new Date().toISOString()
     );
-    
+    console.log('[TCP Format] Input time:', orderData.timestamp || orderData.createdAt);
+    console.log('[TCP Format] Converted orderTime:', sydneyOrderTime);
     // Extract pickup method from POS format - ensure it's a string, not an object
     let pickupMethod = "DINEIN";
     if (typeof orderData.ordermode === 'string' && orderData.ordermode) {

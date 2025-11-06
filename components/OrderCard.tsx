@@ -259,7 +259,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       const month = monthNames[date.getMonth()];
       const year = date.getFullYear();
       
-      return `${hours}:${minutes}-${day}-${month}-${year}`;
+      return `${hours}:${minutes} • ${day}-${month}-${year}`;
     } catch (error) {
       return timeString; // 出错时返回原值
     }

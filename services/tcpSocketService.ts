@@ -16,6 +16,8 @@ export class TCPSocketService {
   private static masterIP: string = "";
   // Last connected POS socket (for sending completion messages)
   private static posSocket: any = null;
+  // Last connected POS IP (for fallback when masterIP might be cleared)
+  private static posIP: string = "";
   
   // Current TCP port (dynamic)
   private static tcpPort: number = DEFAULT_TCP_PORT;
@@ -158,12 +160,14 @@ export class TCPSocketService {
           
           // Save client connection
           this.clients.set(clientKey, socket);
-          
+          console.log(`[TCP] Saved client connection: clients.size=${this.clients.size}`);
           // Save POS socket reference for later completion messages
           this.posSocket = socket;
           
           // Save POS IP for reference
           this.masterIP = remoteIP;
+          this.posIP = remoteIP;
+          console.log(`[TCP] Saved masterIP: ${this.masterIP}, posIP: ${this.posIP}`);
           
           
           // Update connection status - mark as connected
@@ -185,7 +189,6 @@ export class TCPSocketService {
               
               // Add to buffer
               dataBuffer += chunk;
-  
               
               // Clear previous timeout since we received more data
               if (incompleteDataTimeout) {
@@ -227,9 +230,6 @@ export class TCPSocketService {
               const bodyStart = headerEndIndex + 4;
               const totalNeeded = bodyStart + contentLength;
               
-              // Verify body content length in bytes (not string length)
-              // const bodyPreview = dataBuffer.substring(bodyStart, Math.min(bodyStart + 50, dataBuffer.length));
-              // const bodyPreviewBytes = new TextEncoder().encode(bodyPreview).length;
               // IMPORTANT: Content-Length is in BYTES, but JavaScript string length is in CHARACTERS
               // We need to check actual byte length, not character length
               const currentBodyBytes = new TextEncoder().encode(dataBuffer.substring(bodyStart)).length;
@@ -277,7 +277,7 @@ export class TCPSocketService {
               }
               
               console.log(`[HTTP] ========== COMPLETE HTTP MESSAGE RECEIVED ==========`);
-              console.log(`[HTTP] Body: ${contentLength} bytes`);
+
               
               // Reset buffer for next request (keep any excess data)
               const excessData = dataBuffer.substring(charPosition);
@@ -430,7 +430,7 @@ export class TCPSocketService {
       // Handle POS order format (contains orderitems array, needs formatting)
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
-      console.log('[TCP] Formatted order:', formattedOrder);
+      // console.log('[TCP] Formatted order:', formattedOrder);
       this.executeOrderCallbacks(formattedOrder);
       
     } else {
@@ -553,8 +553,6 @@ export class TCPSocketService {
    * Execute all order callback functions
    */
   private static executeOrderCallbacks(data: any): void {
-    console.log('[TCP] orderCallback exists:', !!this.orderCallback);
-    console.log('[TCP] orderCallbacks array length:', this.orderCallbacks.length);
     
     // Execute single callback
     if (this.orderCallback) {
@@ -615,15 +613,8 @@ export class TCPSocketService {
    */
   public static async sendOrderItemsCompleted(orderId: string, orderitems: any[]): Promise<boolean> {
     try {
-      console.log(`[TCP] sendOrderItemsCompleted - masterIP=${this.masterIP}, clients.size=${this.clients.size}`);
-      
-      // List all active clients
-      for (const [key, socket] of this.clients.entries()) {
-        console.log(`[TCP] Active client: ${key}, destroyed=${socket.destroyed}`);
-      }
-      
       // Check if we have an active socket connection
-      if (this.clients.size === 0) {
+      if (this.clients.size === 0 && !this.posSocket) {
         console.warn(`[TCP] No active client connections`);
         return false;
       }
@@ -633,13 +624,17 @@ export class TCPSocketService {
       for (const [key, socket] of this.clients.entries()) {
         if (!socket.destroyed) {
           activeSocket = socket;
-          console.log(`[TCP] Using active socket: ${key}`);
           break;
         }
       }
+      
+      // If no socket found in clients map, try posSocket as fallback
+      if (!activeSocket && this.posSocket && !this.posSocket.destroyed) {
+        activeSocket = this.posSocket;
+      }
 
       if (!activeSocket) {
-        console.warn(`[TCP] No valid socket found (all destroyed)`);
+        console.warn(`[TCP] No valid socket found`);
         return false;
       }
 
@@ -656,18 +651,18 @@ export class TCPSocketService {
       const messageBody = JSON.stringify(completionMessage);
       const contentLength = new TextEncoder().encode(messageBody).length;
 
+      // Use masterIP if available, otherwise fall back to posIP
+      const hostIP = this.masterIP || this.posIP;
+      
       // Build HTTP request
       const httpRequest = 
         'POST / HTTP/1.1\r\n' +
-        `Host: ${this.masterIP}:${this.tcpPort}\r\n` +
+        `Host: ${hostIP}:${this.tcpPort}\r\n` +
         'Content-Type: application/json\r\n' +
         `Content-Length: ${contentLength}\r\n` +
         'Connection: keep-alive\r\n' +
         '\r\n' +
         messageBody;
-
-      console.log(`[TCP] Sending completion message via existing socket...`);
-      console.log(`[TCP] Message:`, completionMessage);
 
       // Send via existing socket
       try {

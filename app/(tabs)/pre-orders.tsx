@@ -264,6 +264,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
+    paddingBottom: 20,
   },
   cardStyle: {
     marginBottom: CARD_MARGIN,

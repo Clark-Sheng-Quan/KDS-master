@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "flex-start",
     gap: CARD_MARGIN,
+    paddingBottom: 20,
   },
   cardStyle: {
     width:
