@@ -154,6 +154,20 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     // 发送API请求更新订单状态为"ready"
     updateOrderStatusToReady(order.id, order.source || "");
 
+    // 如果是TCP订单，发送完成消息回POS
+    if (order.source?.toLowerCase() === 'tcp') {
+      // 导入TCPSocketService
+      const { TCPSocketService } = require('../services/tcpSocketService');
+      // 构建订单项数组，使用原始的orderitems格式
+      const orderitems = order.products?.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        qty: item.qty,
+        category: item.category,
+      })) || [];
+      TCPSocketService.sendOrderItemsCompleted(order.id, orderitems);
+    }
+
     // 调用完成订单的回调
     if (onOrderComplete) {
       onOrderComplete(order);
@@ -369,11 +383,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     return null;
   }
 
+  // 如果需要选择功能，使用 TouchableOpacity；否则使用 View
+  const CardWrapper = selectable ? TouchableOpacity : View;
+  const cardWrapperProps = selectable ? {
+    activeOpacity: disabled ? 1 : 0.7,
+    onPress: onSelect,
+  } : {};
+
   return (
-    <TouchableOpacity
-      activeOpacity={disabled ? 1 : 0.7}
-      onPress={selectable ? onSelect : undefined}
-    >
+    <CardWrapper {...cardWrapperProps}>
       <View
         style={[
           styles.orderCard,
@@ -530,7 +548,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </CardWrapper>
   );
 };
 

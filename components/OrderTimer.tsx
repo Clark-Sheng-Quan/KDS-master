@@ -7,6 +7,7 @@ import {
 import { FormattedOrder } from "@/services/types";
 import { colors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
+import { DateTime } from 'luxon';
 
 interface OrderTimerProps {
   order: FormattedOrder;
@@ -38,14 +39,24 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   // 计算订单生成时间与当前时间的差值（秒）
   const calculateTimeDifference = () => {
     try {
-      // 解析订单的pickupTime（已转换为悉尼时区的字符串）
-      const pickupDate = new Date(order.orderTime);
+      // 解析订单的orderTime（格式："yyyy-MM-dd HH:mm:ss"，已是悉尼时区）
+      const pickupDate = DateTime.fromFormat(
+        order.orderTime, 
+        'yyyy-MM-dd HH:mm:ss',
+        { zone: 'Australia/Sydney' }
+      );
 
-      // 获取当前时间
-      const now = new Date();
+      if (!pickupDate.isValid) {
+        console.error('[OrderTimer] Invalid orderTime format:', order.orderTime, pickupDate.invalidReason);
+        setElapsedTime(0);
+        return;
+      }
+
+      // 获取当前悉尼时间
+      const now = DateTime.now().setZone('Australia/Sydney');
 
       // 计算时间差（毫秒）
-      const diffMs = now.getTime() - pickupDate.getTime();
+      const diffMs = now.toMillis() - pickupDate.toMillis();
 
       // 转换为秒并确保不为负数
       const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));

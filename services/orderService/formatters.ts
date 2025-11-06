@@ -39,9 +39,9 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
       
       utcDate = DateTime.fromISO(isoString);
     } else if (trimmedString.match(/^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+(AM|PM)$/i)) {
-      // POS Format: "Oct 30, 2025 10:44:43 PM" or "Oct 30, 2025 10:44:43 AM"
-      
-      utcDate = DateTime.fromFormat(trimmedString, 'MMM dd, yyyy hh:mm:ss a', { zone: 'utc', locale: 'en-US' });
+      // POS Format: "Oct 30, 2025 10:44:43 PM" or "Oct 30, 2025 3:21:07 PM"
+      // Use 'h' for 1-12 hour format (without leading zero) instead of 'hh'
+      utcDate = DateTime.fromFormat(trimmedString, 'MMM d, yyyy h:mm:ss a', { zone: 'utc', locale: 'en-US' });
     } else {
       // Format: "2025-10-29 00:00:00" (no timezone offset, assume UTC)
       
@@ -71,7 +71,6 @@ export const convertToSydneyTime = (utcTimeString: string): string => {
  */
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
-    
 
     // Extract order ID from POS format
     const orderId = orderData.id || String(Date.now());
@@ -80,26 +79,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const items = Array.isArray(orderData.orderitems) ? orderData.orderitems : [];
     
     const formattedItems = items.map((item: any, index: number) => {
-        // Check if this is a simple format (name, quantity, notes directly on item)
-        // or complex format (product object with nested structure)
-        const isSimpleFormat = item.name && !item.product;
-        
-        if (isSimpleFormat) {
-          // Simple format: { id, name, quantity, notes }
-          
-          return {
-            id: item.id || `item-${index}-${Date.now()}`,
-            name: item.name || 'Unknown Item',
-            quantity: item.quantity || 1,
-            price: item.price || 0,
-            options: item.notes ? [{ name: 'Notes', value: item.notes, price: 0 }] : [],
-            category: item.category || 'default',
-            prepare_time: item.prepare_time || 0,
-            itemState: item.itemState || 'PROCESSED',
-          };
-        }
-        
-        // Complex format: { product: { name, category, options, ... }, qty, itemState }
+        // POS format: { product: { name, category, options, ... }, qty, itemState }
         const product = item.product || {};
         const itemState = item.itemState || 'PROCESSED'; // Track item state
         
@@ -112,19 +92,20 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
         }
   
         // Process product options (POS format)
+        // Include ALL available options, not just selected ones (qty = 0 means not yet selected)
         let options: any[] = [];
         const optionsArray = product.options || [];
         
         if (Array.isArray(optionsArray)) {
-          options = optionsArray.flatMap((optionGroup: any) => {
+          options = optionsArray.map((optionGroup: any) => {
             const optionItems = optionGroup.option_items || [];
-            return optionItems
-              .filter((opt: any) => opt.qty > 0) // Only include selected options
-              .map((opt: any) => ({
+            return {
+              name: optionGroup.name || 'Option Group',
+              items: optionItems.map((opt: any) => ({
                 name: opt.name || 'Option',
-                value: String(opt.qty || 1),
-                price: opt.price_adjust || 0
-              }));
+                price_adjust: opt.price_adjust || 0
+              }))
+            };
           });
         }
         
@@ -139,10 +120,12 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
           itemState: itemState, // Include item state (PROCESSED or VOIDED)
         };
       });
-
-    // Log summary of item states
-    const processedCount = formattedItems.filter((i: any) => i.itemState === 'PROCESSED').length;
-    const voidedCount = formattedItems.filter((i: any) => i.itemState === 'VOIDED').length;
+    
+    // Calculate total prepare time from all items
+    const totalPrepareTimeFromItems = formattedItems.reduce((sum: number, item: any) => {
+      return sum + (item.prepare_time || 0);
+    }, 0);
+    
     // Convert times to Sydney timezone
     const sydneyOrderTime = convertToSydneyTime(
       orderData.timestamp || orderData.createdAt || new Date().toISOString()
@@ -165,12 +148,20 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     }
     
     // Extract total prepare time - ensure it's a number, not an object
-    let totalPrepareTime = 0;
+    let totalPrepareTime = totalPrepareTimeFromItems;
     if (typeof orderData.total_prepare_time === 'number') {
       totalPrepareTime = orderData.total_prepare_time;
     } else if (typeof orderData.total_prepare_time === 'string') {
       const parsed = parseInt(orderData.total_prepare_time, 10);
-      totalPrepareTime = isNaN(parsed) ? 0 : parsed;
+      totalPrepareTime = isNaN(parsed) ? totalPrepareTimeFromItems : parsed;
+    }
+    
+    // Extract table number - ensure it's a string, not an object
+    let tableNumber = '';
+    if (typeof orderData.tableNumber === 'string' && orderData.tableNumber) {
+      tableNumber = orderData.tableNumber;
+    } else if (typeof orderData.tableNumber === 'number') {
+      tableNumber = String(orderData.tableNumber);
     }
     
     const formattedOrder: FormattedOrder = {
@@ -184,6 +175,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       products: formattedItems,
       source: 'tcp', // Mark source as TCP
       total_prepare_time: totalPrepareTime,
+      tableNumber: tableNumber, // Add table number
     };
     
     
@@ -204,6 +196,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     };
   }
 };
+
 
 /**
  * 格式化网络订单
@@ -276,7 +269,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
 };
 
 /**
- * 格式化多个订单
+ * 格式化多个订单 History orders
  */
 export const formatOrders = async (ordersData: any): Promise<FormattedOrder[]> => {
   const formattedOrders: FormattedOrder[] = [];

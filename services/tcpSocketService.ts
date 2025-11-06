@@ -4,42 +4,31 @@ import { formatTCPOrder } from './orderService/formatters';
 
 // TCP server configuration - default port
 const DEFAULT_TCP_PORT = 4322;
-// Reconnection configuration
-const RECONNECT_INTERVAL = 5000; // Try to reconnect after 5 seconds
-const MAX_RECONNECT_ATTEMPTS = 10; // Maximum number of reconnection attempts
 
 export class TCPSocketService {
   // Server instance
   private static server: any = null;
   // Client connection instances
   private static clients: Map<string, any> = new Map();
-  // Master server connection
-  private static masterConnection: any = null;
-  // Master KDS IP address
+  // Persistent connection pool (for registration message keeping connection alive)
+  private static persistentConnections: Map<string, any> = new Map();
+  // Last connected client IP (for POS connection tracking)
   private static masterIP: string = "";
+  // Last connected POS socket (for sending completion messages)
+  private static posSocket: any = null;
+  
   // Current TCP port (dynamic)
   private static tcpPort: number = DEFAULT_TCP_PORT;
-  // Persistent connection pool - stores persistent connections to sub-KDS
-  private static persistentConnections: Map<string, any> = new Map();
-  // Reconnection attempt counter
-  private static reconnectAttempts: Map<string, number> = new Map();
-  // Reconnection timers
-  private static reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   
   // Order callback function
   private static orderCallback: ((order: any) => void) | null = null;
   // Array of order callback functions
   private static orderCallbacks: ((order: any) => void)[] = [];
-  // Connection status change callback
+  
+  // Connection status tracking
+  private static connectionStatus: Map<string, boolean> = new Map(); // Track connection status by IP
   private static connectionStatusCallback: ((status: 'connected' | 'disconnected') => void) | null = null;
-  // Current connection status
-  private static currentConnectionStatus: 'connected' | 'disconnected' = 'disconnected';
-  // Connection warning/error callback
-  private static connectionErrorCallback: ((message: string) => void) | null = null;
-  // Heartbeat timeout timer - used to detect if Slave side continuously receives heartbeat
-  private static heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
-  // Heartbeat timeout (if no heartbeat received within 30 seconds, consider connection lost and trigger reconnection)
-  private static readonly HEARTBEAT_TIMEOUT = 30000;
+  private static connectionErrorCallback: ((error: string, ip?: string) => void) | null = null;
   
   /**
    * Get TCP port (from AsyncStorage or default value)
@@ -123,238 +112,6 @@ export class TCPSocketService {
     return this.sanitizeIP(socket.remoteAddress || fallback);
   }
 
-  private static handleSlaveConnectionLoss(ip: string, reason: string): void {
-    const normalized = this.sanitizeIP(ip);
-    if (!normalized) {
-      return;
-    }
-
-    if (this.persistentConnections.has(normalized)) {
-      const connection = this.persistentConnections.get(normalized);
-      if (!connection || connection.destroyed) {
-        this.persistentConnections.delete(normalized);
-      }
-    }
-
-    console.log(`[TCP] Client ${normalized} disconnected`);
-    
-    // Clear masterIP if this was the POS connection
-    if (this.masterIP === normalized) {
-      this.masterIP = "";
-      
-      // Update connection status to disconnected (POS is now disconnected)
-      if (this.currentConnectionStatus !== 'disconnected') {
-        this.currentConnectionStatus = 'disconnected';
-        this.connectionStatusCallback?.('disconnected');
-      }
-    }
-  }
-
-  /**
-   * Reset the heartbeat timeout timer for the Slave side
-   * Called every time a heartbeat is received to ensure connection status is 'connected'
-   * If no heartbeat is received within 30 seconds, trigger reconnection
-   */
-  private static resetHeartbeatTimeout(): void {
-    // Clear old timeout timer
-    if (this.heartbeatTimeout) {
-      clearTimeout(this.heartbeatTimeout);
-    }
-
-    // Update connection status to connected
-    if (this.currentConnectionStatus !== 'connected') {
-      this.currentConnectionStatus = 'connected';
-      this.connectionStatusCallback?.('connected');
-    }
-
-    // Set new timeout timer
-    this.heartbeatTimeout = setTimeout(() => {
-      this.currentConnectionStatus = 'disconnected';
-      this.connectionStatusCallback?.('disconnected');
-      
-      // Trigger reconnection (if masterIP is saved)
-      if (this.masterIP) {
-        this.scheduleReconnect(this.masterIP);
-      }
-    }, this.HEARTBEAT_TIMEOUT);
-  }
-
-  /**
-   * General JSON stream parser - handles TCP packet sticking issues
-   * @param buffer Data buffer
-   * @param onMessage Callback for processing a single JSON message
-   * @returns Updated buffer
-   */
-  private static parseJsonStream(
-    buffer: string,
-    onMessage: (jsonData: any) => void
-  ): string {
-    let processedIndex = 0;
-    let braceCount = 0;
-    let inString = false;
-    let escape = false;
-
-    for (let i = 0; i < buffer.length; i++) {
-      const char = buffer[i];
-
-      if (escape) {
-        escape = false;
-        continue;
-      }
-
-      if (char === '\\') {
-        escape = true;
-        continue;
-      }
-
-      if (char === '"') {
-        inString = !inString;
-        continue;
-      }
-
-      if (!inString) {
-        if (char === '{') {
-          braceCount++;
-        } else if (char === '}') {
-          braceCount--;
-
-          if (braceCount === 0) {
-            try {
-              const jsonString = buffer.substring(processedIndex, i + 1);
-              const jsonData = JSON.parse(jsonString);
-
-              // Only process non-empty objects
-              if (Object.keys(jsonData).length > 0) {
-                onMessage(jsonData);
-              }
-
-              processedIndex = i + 1;
-            } catch (e) {
-              console.error(`[TCP] JSON Parse Fail:`, e);
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    return buffer.substring(processedIndex);
-  }
-
-  /**
-   * Construct a JSON message with timestamp
-   */
-  private static createMessage(type: string, data?: any): string {
-    return JSON.stringify({
-      type,
-      ...data,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  /**
-   * Convert JSON message to standard TCP protocol format (with Content-Length header)
-   * Format: Content-Length: {length}\r\n\r\n{json}
-   */
-  private static formatTcpMessage(message: string): string {
-    // Calculate UTF-8 byte length in React Native environment (compatible way, do not use Node.js Buffer)
-    const contentLength = new TextEncoder().encode(message).length;
-    return `Content-Length: ${contentLength}\r\n\r\n${message}`;
-  }
-
-  /**
-   * Parse standard TCP protocol message (with Content-Length header)
-   * @param buffer Data buffer
-   * @param onMessage Callback for processing a single JSON message
-   * @returns Updated buffer
-   */
-  private static parseStandardTcpStream(
-    buffer: string,
-    onMessage: (jsonData: any) => void
-  ): string {
-    let remaining = buffer;
-
-    while (true) {
-      // Look for header separator \r\n\r\n
-      const headerEndIndex = remaining.indexOf('\r\n\r\n');
-      
-      if (headerEndIndex === -1) {
-        // No complete header yet, wait for more data
-        break;
-      }
-
-      // Extract header
-      const headerString = remaining.substring(0, headerEndIndex);
-      
-      // Parse Content-Length
-      const contentLengthMatch = headerString.match(/Content-Length:\s*(\d+)/i);
-      
-      if (!contentLengthMatch) {
-        console.error('[TCP] Invalid header format, no Content-Length found');
-        // Skip this malformed message
-        remaining = remaining.substring(headerEndIndex + 4);
-        continue;
-      }
-
-      const contentLength = parseInt(contentLengthMatch[1], 10);
-      const messageStart = headerEndIndex + 4; // Skip \r\n\r\n
-      const messageEnd = messageStart + contentLength;
-
-      // Check if we have the complete message body
-      if (remaining.length < messageEnd) {
-        // Incomplete message, wait for more data
-        break;
-      }
-
-      // Extract message body
-      const messageBody = remaining.substring(messageStart, messageEnd);
-      
-      try {
-        const jsonData = JSON.parse(messageBody);
-        
-        // Only process non-empty objects
-        if (Object.keys(jsonData).length > 0) {
-          onMessage(jsonData);
-        }
-      } catch (e) {
-        console.error('[TCP] JSON Parse Fail:', e, 'Body:', messageBody);
-      }
-
-      // Move to next message
-      remaining = remaining.substring(messageEnd);
-    }
-
-    return remaining;
-  }
-
-  /**
-   * Clean up persistent connection
-   */
-  private static cleanupPersistentConnection(ip: string, reason: string): void {
-    const normalizedIP = this.sanitizeIP(ip);
-    if (this.persistentConnections.has(normalizedIP)) {
-      this.persistentConnections.delete(normalizedIP);
-    }
-  }
-
-  /**
-   * Setup socket event handlers (error and close)
-   */
-  private static setupSocketErrorHandlers(socket: any, identifier: string): void {
-    socket.on('error', (error: Error) => {
-      console.error(`[TCP] ${identifier} error:`, error);
-      const ip = this.getSocketIP(socket);
-      this.cleanupPersistentConnection(ip, 'error');
-      this.handleSlaveConnectionLoss(ip, 'error');
-    });
-
-    socket.on('close', () => {
-      const ip = this.getSocketIP(socket);
-      this.cleanupPersistentConnection(ip, 'close');
-      this.handleSlaveConnectionLoss(ip, 'close');
-    });
-  }
-
   /**
    * Start TCP server
    */
@@ -373,132 +130,233 @@ export class TCPSocketService {
         // Create new server
         this.server = TcpSocket.createServer((socket) => {
           const remoteIP = this.getSocketIP(socket);
-          const clientKey = `${remoteIP}:${socket.remotePort}`;
-          console.log(`[TCP] Client connected: ${remoteIP}`);
+          const remotePort = socket.remotePort || 0;
+          const clientKey = `${remoteIP}:${remotePort}`;
+          console.log(`[TCP] Client connection request: ${remoteIP}`);
+          
+          // Check if there's an existing connection from a DIFFERENT IP
+          let hasDifferentConnection = false;
+          for (const [key] of this.clients.entries()) {
+            const existingIP = key.split(':')[0];
+            if (existingIP !== remoteIP) {
+              hasDifferentConnection = true;
+              break;
+            }
+          }
+          
+          // Only reject if connection is from a different POS
+          if (hasDifferentConnection) {
+            console.log(`[TCP] Rejected - already have an active connection from different POS`);
+            socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          
+          // Allow multiple connections from the same IP (don't close old ones)
+          // This allows POS to maintain multiple simultaneous connections for different operations
+          console.log(`[TCP] Total connections from ${remoteIP}: ${Array.from(this.clients.keys()).filter(k => k.startsWith(remoteIP + ':')).length + 1}`);
           
           // Save client connection
           this.clients.set(clientKey, socket);
           
+          // Save POS socket reference for later completion messages
+          this.posSocket = socket;
+          
+          // Save POS IP for reference
+          this.masterIP = remoteIP;
+          
+          
+          // Update connection status - mark as connected
+          this.connectionStatus.set(remoteIP, true);
+          
+          // Call connection status callback
+          if (this.connectionStatusCallback) {
+            this.connectionStatusCallback('connected');
+          }
+          
           // Add a data buffer for each connection to handle packet sticking issues
           let dataBuffer = '';
-          
-          // Mark whether this connection is an HTTP request (waiting for body)
-          let isHttpRequest = false;
+          let incompleteDataTimeout: ReturnType<typeof setTimeout> | null = null;
           
           // Receive data
           socket.on('data', (data: string | Buffer) => {
             try {
               const chunk = typeof data === 'string' ? data : data.toString('utf8');
               
-              // Debug: Print received raw data
-              console.log(`[HTTP] Received raw data from ${clientKey}:`, chunk);
+              // Add to buffer
+              dataBuffer += chunk;
+  
+              
+              // Clear previous timeout since we received more data
+              if (incompleteDataTimeout) {
+                clearTimeout(incompleteDataTimeout);
+                incompleteDataTimeout = null;
+              }
               
               // Filter out data that is only whitespace
-              if (chunk.trim() === '') {
+              if (dataBuffer.trim() === '') {
+                console.warn(`[TCP] Buffer is empty/whitespace, ignoring`);
                 return;
               }
               
-              // Detect HTTP request
-              if (chunk.trimStart().startsWith('POST') || 
-                  chunk.trimStart().startsWith('GET') || 
-                  chunk.trimStart().startsWith('PUT') || 
-                  chunk.trimStart().startsWith('DELETE') ||
-                  chunk.includes('HTTP/1.')) {
-                    console.log(`[HTTP] ========== HTTP REQUEST DETECTED ==========`);
-                
-                // Check for Expect: 100-continue header
-                if (chunk.includes('Expect: 100-continue')) {
-                  // Mark this as an HTTP request
-                  isHttpRequest = true;
-                  // Send 100 Continue response to tell client to continue sending body
-                  socket.write('HTTP/1.1 100 Continue\r\n\r\n');
-                  return;
-                }
-                
-                try {
-                  // Extract JSON data from HTTP request body
-                  const bodyStart = chunk.indexOf('\r\n\r\n');
-                  
-                  if (bodyStart !== -1) {
-                    const jsonBody = chunk.substring(bodyStart + 4).trim();
-                
-                    
-                    if (jsonBody) {
-                      // Parse JSON data
-                      const jsonData = JSON.parse(jsonBody);
-                      
-                      // Process HTTP request and send response
-                      this.handleHttpRequest(jsonData, socket, clientKey);
-                    } else {
-                      dataBuffer += chunk;
-                      return;
-                    }
-                  } else {
-                    dataBuffer += chunk;
-                    return;
-                  }
-                } catch (parseError: any) {
-                  console.error(`[TCP] JSON parse error:`, parseError.message);
-                  const errorResponse = 
-                    'HTTP/1.1 400 Bad Request\r\n' +
-                    'Content-Type: application/json\r\n' +
-                    'Connection: close\r\n' +
-                    '\r\n' +
-                    `{"status":"error","message":"Invalid JSON: ${parseError.message}"}\n`;
-                  socket.write(errorResponse);
-                  setTimeout(() => socket.destroy(), 100);
-                }
-                console.log(`[HTTP] ========== HTTP REQUEST PROCESSING COMPLETE ==========`);
+              // Try to find complete HTTP message
+              const headerEndIndex = dataBuffer.indexOf('\r\n\r\n');
+              if (headerEndIndex === -1) {
+                // Headers not complete yet, wait for more data
+            
+                // Set timeout to clear buffer if no more data comes (5 seconds)
+                incompleteDataTimeout = setTimeout(() => {
+                  console.error(`[TCP] Timeout waiting for complete headers. Clearing buffer.`);
+                  dataBuffer = '';
+                  incompleteDataTimeout = null;
+                }, 5000);
                 return;
               }
               
-              // If it's HTTP body data (arrived after 100-continue)
-              if (isHttpRequest && chunk.trim().startsWith('{')) {
+              // Parse headers to get Content-Length
+              const headerPart = dataBuffer.substring(0, headerEndIndex);
+              const contentLengthMatch = headerPart.match(/Content-Length:\s*(\d+)/i);
+              
+              if (!contentLengthMatch) {
+                console.warn(`[TCP] No Content-Length header found`);
+                dataBuffer = '';
+                return;
+              }
+              
+              const contentLength = parseInt(contentLengthMatch[1], 10);
+              const bodyStart = headerEndIndex + 4;
+              const totalNeeded = bodyStart + contentLength;
+              
+              // Verify body content length in bytes (not string length)
+              // const bodyPreview = dataBuffer.substring(bodyStart, Math.min(bodyStart + 50, dataBuffer.length));
+              // const bodyPreviewBytes = new TextEncoder().encode(bodyPreview).length;
+              // IMPORTANT: Content-Length is in BYTES, but JavaScript string length is in CHARACTERS
+              // We need to check actual byte length, not character length
+              const currentBodyBytes = new TextEncoder().encode(dataBuffer.substring(bodyStart)).length;
+              const expectedBodyBytes = contentLength;
+              // Check if we have the complete body (using BYTE count, not character count)
+              if (currentBodyBytes < expectedBodyBytes) {
+                // Body not complete yet, wait for more data
+                const missing = expectedBodyBytes - currentBodyBytes;
+                console.log(`[TCP] Incomplete body: have ${currentBodyBytes} bytes, need ${expectedBodyBytes} bytes (missing ${missing} bytes)`);
                 
-                try {
-                  const jsonData = JSON.parse(chunk.trim());
+                // Set timeout to clear buffer if no more data comes (10 seconds)
+                incompleteDataTimeout = setTimeout(() => {
+                  console.error(`[TCP] Timeout waiting for complete body. Expected ${totalNeeded}, got ${dataBuffer.length}. Clearing buffer.`);
+                  console.error(`[TCP] Last 100 chars of buffer: ${dataBuffer.slice(-100)}`);
+                  dataBuffer = '';
+                  incompleteDataTimeout = null;
+                }, 10000);
+                return;
+              }
+              
+              // Clear timeout - we have complete message
+              if (incompleteDataTimeout) {
+                clearTimeout(incompleteDataTimeout);
+                incompleteDataTimeout = null;
+              }
+              
+              // Extract body - need to find exact byte boundary
+              // Since Content-Length is in bytes, we need to extract exactly that many bytes
+              const fullBufferBytes = new TextEncoder().encode(dataBuffer);
+              
+              // Extract body bytes (from bodyStart byte position, take contentLength bytes)
+              const extractedBodyBytes = fullBufferBytes.slice(bodyStart, bodyStart + contentLength);
+              const jsonBody = new TextDecoder('utf-8').decode(extractedBodyBytes).trim();
+              
+              // Calculate where next message starts (in character positions)
+              // We need to convert byte count back to character count
+              const totalBytesConsumed = bodyStart + contentLength;
+              let charPosition = 0;
+              let byteCount = 0;
+              const encoder = new TextEncoder();
+              
+              while (byteCount < totalBytesConsumed && charPosition < dataBuffer.length) {
+                byteCount += encoder.encode(dataBuffer[charPosition]).length;
+                charPosition++;
+              }
+              
+              console.log(`[HTTP] ========== COMPLETE HTTP MESSAGE RECEIVED ==========`);
+              console.log(`[HTTP] Body: ${contentLength} bytes`);
+              
+              // Reset buffer for next request (keep any excess data)
+              const excessData = dataBuffer.substring(charPosition);
+              dataBuffer = excessData;
+              
+              try {
+                // Parse JSON data
+                if (jsonBody) {
+                  const jsonData = JSON.parse(jsonBody);
                   
                   // Process HTTP request and send response
                   this.handleHttpRequest(jsonData, socket, clientKey);
-                  
-                  // Reset flag
-                  isHttpRequest = false;
-                } catch (parseError: any) {
-                  console.error(`[TCP] JSON parse error:`, parseError.message);
-                  const errorResponse = 
-                    'HTTP/1.1 400 Bad Request\r\n' +
-                    'Content-Type: application/json\r\n' +
-                    'Connection: close\r\n' +
-                    '\r\n' +
-                    `{"status":"error","message":"Invalid JSON: ${parseError.message}"}\n`;
-                  socket.write(errorResponse);
-                  setTimeout(() => socket.destroy(), 100);
+                } else {
+                  console.error(`[TCP] Empty JSON body`);
                 }
-                return;
+              } catch (parseError: any) {
+                console.error(`[TCP] JSON parse error:`, parseError.message);
+                console.error(`[TCP] Body content: ${jsonBody.substring(0, 500)}`);
+                const errorResponse = 
+                  'HTTP/1.1 400 Bad Request\r\n' +
+                  'Content-Type: application/json\r\n' +
+                  'Connection: keep-alive\r\n' +
+                  '\r\n' +
+                  `{"status":"error","message":"Invalid JSON: ${parseError.message}"}\n`;
+                socket.write(errorResponse);
               }
-              
-              // Other unsupported data formats
-              console.warn(`[TCP] Unsupported data format from ${remoteIP}`);
-              const errorResponse = 
-                'HTTP/1.1 400 Bad Request\r\n' +
-                'Content-Type: application/json\r\n' +
-                'Connection: close\r\n' +
-                '\r\n' +
-                '{"status":"error","message":"Only HTTP requests are supported"}\n';
-              socket.write(errorResponse);
-              setTimeout(() => socket.destroy(), 100);
+              console.log(`[HTTP] ========== HTTP REQUEST PROCESSING COMPLETE ==========`);
               
             } catch (error) {
               console.error(`[TCP] Error processing data:`, error);
             }
           });
           
-          // Setup error and close handlers
-          this.setupSocketErrorHandlers(socket, `Client ${clientKey}`);
+          // Error and close handlers
+          socket.on('error', (error) => {
+            console.error(`[TCP] Socket error from ${remoteIP}:`, error);
+            
+            // Clear incomplete data timeout
+            if (incompleteDataTimeout) {
+              clearTimeout(incompleteDataTimeout);
+              incompleteDataTimeout = null;
+            }
+            
+            this.clients.delete(clientKey);
+            this.connectionStatus.set(remoteIP, false);
+            
+            if (this.connectionErrorCallback) {
+              this.connectionErrorCallback(error.message, remoteIP);
+            }
+          });
           
-          // Additionally: remove from clients Map
-          socket.on('error', () => this.clients.delete(clientKey));
-          socket.on('close', () => this.clients.delete(clientKey));
+          socket.on('close', () => {
+            console.log(`[TCP] Client disconnected: ${remoteIP}`);
+            
+            // Clear incomplete data timeout
+            if (incompleteDataTimeout) {
+              clearTimeout(incompleteDataTimeout);
+              incompleteDataTimeout = null;
+            }
+            
+            this.clients.delete(clientKey);
+            
+            // Check if there are still other connections from the same IP
+            const hasOtherConnections = Array.from(this.clients.keys()).some(
+              key => key.startsWith(remoteIP + ':')
+            );
+            
+            if (!hasOtherConnections) {
+              // No more connections from this IP
+              this.connectionStatus.set(remoteIP, false);
+              console.log(`[TCP] All connections from ${remoteIP} closed`);
+              
+              if (this.connectionStatusCallback) {
+                this.connectionStatusCallback('disconnected');
+              }
+            } else {
+              console.log(`[TCP] ${remoteIP} still has ${Array.from(this.clients.keys()).filter(k => k.startsWith(remoteIP + ':')).length} active connection(s)`);
+            }
+          });
         });
         
         // Server error handling
@@ -512,9 +370,6 @@ export class TCPSocketService {
           console.log(`[TCP] Server started on port ${port}`);
           resolve(true);
         });
-        
-        // Start heartbeat detection
-        this.startHeartbeat();
       } catch (error) {
         console.error('[TCP] Start server failed:', error);
         reject(error);
@@ -528,11 +383,6 @@ export class TCPSocketService {
   private static handleHttpRequest(jsonData: any, socket: any, clientKey: string): void {
     const messageType = jsonData.type || jsonData.orderType || 'unknown';
     console.log(`[TCP] ${this.getSocketIP(socket)} - Message: ${messageType}`);
-    
-    // Debug: Log received order structure
-    if (jsonData.products || jsonData.orderitems) {
-      console.log(`[TCP] Order structure - has products: ${!!jsonData.products}, has orderitems: ${!!jsonData.orderitems}, type: ${jsonData.type}, orderType: ${jsonData.orderType}`);
-    }
     
     // Prepare response data
     const responseData = {
@@ -551,11 +401,11 @@ export class TCPSocketService {
       `Content-Length: ${contentLength}\r\n` +
       'Connection: keep-alive\r\n' +
       '\r\n' +
-      responseBody;
+      responseBody + '\n';
     
-    console.log(`[TCP] Sending response (${contentLength} bytes):`, responseBody);
+    
     socket.write(httpResponse, () => {
-      console.log(`[TCP] Response sent successfully`);
+      console.log(`[TCP] Sent response (${contentLength} bytes):`, responseBody);
     });
     
     // Then handle different message types
@@ -564,261 +414,31 @@ export class TCPSocketService {
       const clientIP = this.getSocketIP(socket);
       this.masterIP = clientIP;
       
+      // Update connection status
+      this.connectionStatus.set(clientIP, true);
+      
       // Add to persistent connection pool, keep connection
       this.persistentConnections.set(clientIP, socket);
+      console.log(`[TCP] Registration received from: ${clientIP}`);
       
-      // Update connection status
-      if (this.currentConnectionStatus !== 'connected') {
-        this.currentConnectionStatus = 'connected';
-        this.connectionStatusCallback?.('connected');
+      // Call connection status callback
+      if (this.connectionStatusCallback) {
+        this.connectionStatusCallback('connected');
       }
-      
-    } else if (jsonData.type === 'heartbeat') {
-      // Handle heartbeat
-      
-      // Update connection status
-      if (this.currentConnectionStatus !== 'connected') {
-        this.currentConnectionStatus = 'connected';
-        this.connectionStatusCallback?.('connected');
-      }
-      
-    } else if (jsonData.type === 'order' && jsonData.data && jsonData.data.id) {
-      // Handle order message (wrapped format)
-      console.log('[TCP] Processing wrapped order (type=order, data.id exists)');
-      try {
-        this.executeOrderCallbacks(jsonData.data);
-      } catch (error) {
-        console.error(`[TCP] Order callback error:`, error);
-      }
-      
-    } else if (jsonData.products && Array.isArray(jsonData.products) && jsonData.id) {
-      // Handle formatted order (contains products array) - Test 3 format
-      console.log('[TCP] Processing formatted order (has products array and id)');
-      // Use directly, no need to reformat
-      this.executeOrderCallbacks(jsonData);
       
     } else if (jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
-      // Handle POS order format (contains orderitems array, needs formatting) - Test 4 format
-      console.log('[TCP] Processing POS order (orderType=POS, has orderitems)');
+      // Handle POS order format (contains orderitems array, needs formatting)
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
+      console.log('[TCP] Formatted order:', formattedOrder);
       this.executeOrderCallbacks(formattedOrder);
       
     } else {
-      // Other unknown message types
-      console.warn(`[TCP] Unknown message type: ${messageType}, jsonData:`, JSON.stringify(jsonData, null, 2));
+      // Other message types - log and ignore
+      console.log(`[TCP] Ignoring message type: ${messageType}`);
     }
   }
 
-  
-  /**
-   * Send heartbeat to all persistent connections
-   */
-  private static startHeartbeat() {
-    // Send heartbeat every 15 seconds
-    setInterval(() => {
-      if (this.persistentConnections.size > 0) {
-        for (const [ip, connection] of this.persistentConnections.entries()) {
-          try {
-            const heartbeat = this.createMessage('heartbeat');
-            connection.write(this.formatTcpMessage(heartbeat));
-          } catch (error) {
-            console.error(`[TCP] Heartbeat send failed to ${ip}:`, error);
-          }
-        }
-      }
-    }, 15000);
-  }
-  
-  /**
-   * Connect to Master KDS (Slave mode) or POS System (Current architecture: KDS as server)
-   */
-  public static connectToMaster(masterIP: string): Promise<boolean> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Save Master/POS IP address
-        this.masterIP = masterIP;
-        
-        // Close existing connection first
-        if (this.masterConnection) {
-          this.masterConnection.destroy();
-          this.masterConnection = null;
-        }
-        
-        // Reset reconnect counter
-        this.reconnectAttempts.set(masterIP, 0);
-        
-        // Get sub-KDS category setting (optional, for future use)
-        const categoryStr = await AsyncStorage.getItem("kds_category");
-        const category = categoryStr || 'all';
-        
-        // Create new connection
-        this.masterConnection = TcpSocket.createConnection({
-          host: masterIP,
-          port: this.tcpPort,
-          tls: false
-        }, () => {
-          console.log(`[TCP] Connected to ${masterIP}:${this.tcpPort}`);
-          
-          // Reset reconnect counter
-          this.reconnectAttempts.set(masterIP, 0);
-          
-          // Start heartbeat timeout detection (disconnect and reconnect if no heartbeat within 30s)
-          this.resetHeartbeatTimeout();
-          
-          resolve(true);
-        });
-        
-        // Add data buffer for connection to handle packet splitting
-        let masterDataBuffer = '';
-        
-        // Receive data
-        this.masterConnection.on('data', (data: string | Buffer) => {
-          try {
-            const chunk = typeof data === 'string' ? data : data.toString('utf8');
-            
-            // Filter out whitespace-only data
-            if (chunk.trim() === '') {
-              return;
-            }
-            
-            masterDataBuffer += chunk;
-            // Use standard TCP protocol parser first, fallback to JSON stream if needed
-            try {
-              masterDataBuffer = this.parseStandardTcpStream(masterDataBuffer, (jsonData) => {
-                this.handleMasterMessage(jsonData);
-              });
-            } catch (parseError) {
-              console.error('[TCP] Error parsing standard format, trying JSON stream fallback');
-              try {
-                masterDataBuffer = this.parseJsonStream(masterDataBuffer, (jsonData) => {
-                  this.handleMasterMessage(jsonData);
-                });
-              } catch (fallbackError) {
-                console.error('[TCP] Both parsers failed, clearing buffer');
-                masterDataBuffer = '';
-              }
-            }
-          } catch (error) {
-            console.error(`[TCP] Error processing data:`, error);
-          }
-        });
-        
-        // Error handling
-        this.masterConnection.on('error', (error: Error) => {
-          console.error('[TCP] Error connecting to Master/POS:', error);
-          this.masterConnection = null;
-          
-          // Clear heartbeat timeout timer
-          if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
-            this.heartbeatTimeout = null;
-          }
-          
-          // Update connection status
-          this.currentConnectionStatus = 'disconnected';
-          this.connectionStatusCallback?.('disconnected');
-          
-          // Start reconnection
-          this.scheduleReconnect(masterIP);
-          
-          resolve(false);
-        });
-        
-        // Connection closed
-        this.masterConnection.on('close', () => {
-          console.log('[TCP] Connection to Master/POS closed');
-          this.masterConnection = null;
-          
-          // Clear heartbeat timeout timer
-          if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
-            this.heartbeatTimeout = null;
-          }
-          
-          // Update connection status
-          this.currentConnectionStatus = 'disconnected';
-          this.connectionStatusCallback?.('disconnected');
-          
-          // Start reconnection
-          this.scheduleReconnect(masterIP);
-        });
-      } catch (error) {
-        console.error('[TCP] Failed to connect to Master/POS:', error);
-        
-        // Start reconnection
-        this.scheduleReconnect(masterIP);
-        
-        reject(error);
-      }
-    });
-  }
-
-  /**
-   * Disconnect from Master KDS (Slave mode)
-   */
-  public static disconnect(): void {
-    try {
-      // Close Master connection
-      if (this.masterConnection) {
-        this.masterConnection.destroy();
-        this.masterConnection = null;
-      }
-      
-      // Clear Master IP
-      this.masterIP = "";
-      
-      // Update connection status
-      this.currentConnectionStatus = 'disconnected';
-      this.connectionStatusCallback?.('disconnected');
-      
-      // Clear reconnect timers
-      this.reconnectTimers.forEach((timer) => clearTimeout(timer));
-      this.reconnectTimers.clear();
-      
-      // Clear heartbeat timeout timer
-      if (this.heartbeatTimeout) {
-        clearTimeout(this.heartbeatTimeout);
-        this.heartbeatTimeout = null;
-      }
-    } catch (error) {
-      console.error('[TCP] Disconnect error:', error);
-    }
-  }
-  
-  /**
-   * Schedule reconnection
-   */
-  private static scheduleReconnect(ip: string) {
-    // Get current reconnect attempts
-    const attempts = this.reconnectAttempts.get(ip) || 0;
-    
-    // Stop reconnecting if max attempts reached
-    if (attempts >= MAX_RECONNECT_ATTEMPTS) {
-      return;
-    }
-    
-    // Increment reconnect counter
-    this.reconnectAttempts.set(ip, attempts + 1);
-    
-    // Clear previous timer
-    if (this.reconnectTimers.has(ip)) {
-      clearTimeout(this.reconnectTimers.get(ip)!);
-    }
-    
-    // Set new timer
-    const timer = setTimeout(() => {
-      if (ip === this.masterIP) {
-        // Reconnect to Master/POS
-        this.connectToMaster(ip).catch(error => {
-          console.error(`[TCP] Reconnect error:`, error);
-        });
-      }
-    }, RECONNECT_INTERVAL);
-    
-    this.reconnectTimers.set(ip, timer);
-  }
-  
   /**
    * Set order callback function
    */
@@ -831,17 +451,114 @@ export class TCPSocketService {
   }
   
   /**
+   * Set connection status callback - notified when client connects/disconnects
+   */
+  public static setConnectionStatusCallback(callback: (status: 'connected' | 'disconnected') => void): void {
+    this.connectionStatusCallback = callback;
+  }
+  
+  /**
+   * Set connection error callback - notified when connection error occurs
+   */
+  public static setConnectionErrorCallback(callback: (error: string, ip?: string) => void): void {
+    this.connectionErrorCallback = callback;
+  }
+  
+  /**
+   * Get connection status for a specific IP or all connections
+   */
+  public static getConnectionStatus(ip?: string): 'connected' | 'disconnected' {
+    if (ip) {
+      return this.connectionStatus.get(ip) ? 'connected' : 'disconnected';
+    }
+    // Return 'connected' if any client is connected
+    const hasActiveConnection = this.clients.size > 0 || this.persistentConnections.size > 0;
+    return hasActiveConnection ? 'connected' : 'disconnected';
+  }
+  
+  /**
+   * Disconnect specific IP or all clients
+   */
+  public static disconnect(ip?: string): void {
+    if (ip) {
+      // Disconnect all connections from specific IP
+      let disconnectedCount = 0;
+      for (const [clientKey, socket] of this.clients.entries()) {
+        const clientIP = clientKey.split(':')[0];
+        if (clientIP === ip) {
+          try {
+            socket.destroy();
+            this.clients.delete(clientKey);
+            disconnectedCount++;
+            console.log(`[TCP] Client ${clientKey} disconnected by request`);
+          } catch (error) {
+            console.error(`[TCP] Error disconnecting client ${clientKey}:`, error);
+          }
+        }
+      }
+      
+      if (disconnectedCount > 0) {
+        this.connectionStatus.set(ip, false);
+        console.log(`[TCP] Disconnected ${disconnectedCount} connection(s) from ${ip}`);
+        
+        // Only clear masterIP if it matches
+        if (this.masterIP === ip) {
+          this.masterIP = "";
+        }
+        
+        // Close persistent connection for this IP
+        if (this.persistentConnections.has(ip)) {
+          try {
+            this.persistentConnections.get(ip)?.destroy();
+            this.persistentConnections.delete(ip);
+          } catch (error) {
+            console.error(`[TCP] Error closing persistent connection:`, error);
+          }
+        }
+      }
+    } else {
+      // Disconnect all clients
+      for (const [clientKey, socket] of this.clients.entries()) {
+        try {
+          socket.destroy();
+          this.clients.delete(clientKey);
+          console.log(`[TCP] Client ${clientKey} disconnected by request`);
+        } catch (error) {
+          console.error(`[TCP] Error disconnecting client:`, error);
+        }
+      }
+      
+      this.connectionStatus.clear();
+      this.masterIP = "";
+      
+      // Close all persistent connections
+      for (const [key, socket] of this.persistentConnections.entries()) {
+        try {
+          socket.destroy();
+        } catch (error) {
+          console.error(`[TCP] Error closing persistent connection:`, error);
+        }
+      }
+      this.persistentConnections.clear();
+      
+      console.log(`[TCP] All connections closed - Ready for new connection`);
+    }
+    
+    if (this.connectionStatusCallback) {
+      this.connectionStatusCallback('disconnected');
+    }
+  }
+  
+  /**
    * Execute all order callback functions
    */
   private static executeOrderCallbacks(data: any): void {
-    console.log('[TCP] executeOrderCallbacks called with data:', JSON.stringify(data, null, 2));
     console.log('[TCP] orderCallback exists:', !!this.orderCallback);
     console.log('[TCP] orderCallbacks array length:', this.orderCallbacks.length);
     
     // Execute single callback
     if (this.orderCallback) {
       try {
-        console.log('[TCP] Executing single order callback...');
         this.orderCallback(data);
         console.log('[TCP] Single order callback executed successfully');
       } catch (error) {
@@ -863,116 +580,6 @@ export class TCPSocketService {
   }
   
   /**
-   * Set connection status callback - called when connection status changes
-   */
-  public static setConnectionStatusCallback(callback: (status: 'connected' | 'disconnected') => void): void {
-    this.connectionStatusCallback = callback;
-  }
-
-  /**
-   * Get current connection status
-   */
-  public static getConnectionStatus(): 'connected' | 'disconnected' {
-    return this.currentConnectionStatus;
-  }
-
-  /**
-   * Set connection error callback - show connection related error/warning messages
-   */
-  public static setConnectionErrorCallback(callback: (message: string) => void): void {
-    this.connectionErrorCallback = callback;
-  }
-
-  /**
-   * Trigger connection error callback
-   */
-  public static triggerConnectionError(message: string): void {
-    this.connectionErrorCallback?.(message);
-  }
-  
-  /**
-   * Send data to specified IP
-   */
-  public static sendData(ip: string, data: any): Promise<boolean> {
-    return new Promise(async (resolve) => {
-      const targetIP = this.sanitizeIP(ip) || ip;
-
-      try {
-        // Check for persistent connection
-        if (this.persistentConnections.has(targetIP)) {
-          const socket = this.persistentConnections.get(targetIP);
-          if (socket && !socket.destroyed) {
-            const formattedData = this.formatTcpMessage(JSON.stringify(data));
-            socket.write(formattedData);
-            resolve(true);
-            return;
-          } else {
-            // Connection broken, remove from pool
-            this.persistentConnections.delete(targetIP);
-          }
-        }
-        
-        // Create new connection
-        const socket = TcpSocket.createConnection({
-          host: targetIP,
-          port: this.tcpPort,
-          tls: false
-        }, () => {
-          // Send data (standard format)
-          const formattedData = this.formatTcpMessage(JSON.stringify(data));
-          socket.write(formattedData);
-          
-          // Add to persistent connection pool
-          this.persistentConnections.set(targetIP, socket);
-          
-          // Setup error and close handlers
-          this.setupSocketErrorHandlers(socket, `Persistent connection to ${targetIP}`);
-          
-          resolve(true);
-        });
-      } catch (error) {
-        console.error(`[TCP] Send error:`, error);
-        resolve(false);
-      }
-    });
-  }
-  
-  /**
-   * Broadcast data to all connected clients
-   */
-  public static broadcastData(data: any): void {
-    // Broadcast to all regular clients (standard format)
-    const formattedData = this.formatTcpMessage(JSON.stringify(data));
-    
-    for (const [clientKey, client] of this.clients.entries()) {
-      try {
-        client.write(formattedData);
-      } catch (error) {
-        console.error(`[TCP] Failed to broadcast data to ${clientKey}:`, error);
-      }
-    }
-    
-    // Broadcast to all persistent connections
-    for (const [ip, connection] of this.persistentConnections.entries()) {
-      try {
-        connection.write(formattedData);
-      } catch (error) {
-        console.error(`[TCP] Failed to broadcast data to persistent connection ${ip}:`, error);
-      }
-    }
-  }
-  
-  /**
-   * Get Slave device name
-   */
-  private static getSlaveName(): string {
-    // This will be synchronously obtained from AsyncStorage when called
-    // Since AsyncStorage is asynchronous, return a default value here
-    // The actual name should be read from AsyncStorage during initialization
-    return 'Slave KDS';
-  }
-  
-  /**
    * Shutdown server and all connections
    */
   public static shutdown(): void {
@@ -988,26 +595,8 @@ export class TCPSocketService {
       connections.clear();
     };
 
-    // Helper: Clear all timers in a Map
-    const clearTimers = (timers: Map<string, ReturnType<typeof setTimeout>>) => {
-      for (const timer of timers.values()) {
-        clearTimeout(timer);
-      }
-      timers.clear();
-    };
-
-    // Close all clients and persistent connections
+    // Close all clients
     closeConnections(this.clients, 'client');
-    closeConnections(this.persistentConnections, 'persistent connection');
-    
-    // Close connection to Master KDS
-    if (this.masterConnection) {
-      this.masterConnection.destroy();
-      this.masterConnection = null;
-    }
-    
-    // Clear all timers
-    clearTimers(this.reconnectTimers);
     
     // Close server
     if (this.server) {
@@ -1017,47 +606,82 @@ export class TCPSocketService {
       this.server = null;
     }
   }
-
-  /**
-   * Send order items completed status from Slave KDS to Master KDS
-   */
-  public static async sendOrderItemsCompleted(orderId: string, completedItems: { [key: string]: boolean }): Promise<boolean> {
-    try {
-      if (!this.masterIP) {
-        console.error('[TCP] Master KDS IP not set');
-        return false;
-      }
-      
-      // Build item completion status message
-      const message = {
-        type: 'order_items_completed',
-        orderId,
-        completedItems,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Send to Master KDS
-      return await this.sendData(this.masterIP, message);
-    } catch (error) {
-      console.error('[TCP] Send error:', error);
-      return false;
-    }
-  }
-
-  public static isSlaveConnected(ip: string): boolean {
-    const normalized = this.sanitizeIP(ip);
-    if (!normalized) {
-      return false;
-    }
-
-    const connection = this.persistentConnections.get(normalized);
-    return !!connection && !connection.destroyed;
-  }
-
-  /**
-   * Get the current POS/Master IP address
-   */
   public static getMasterIP(): string {
     return this.masterIP;
+  }
+
+  /**
+   * Send order items completed message to POS via existing socket connection
+   */
+  public static async sendOrderItemsCompleted(orderId: string, orderitems: any[]): Promise<boolean> {
+    try {
+      console.log(`[TCP] sendOrderItemsCompleted - masterIP=${this.masterIP}, clients.size=${this.clients.size}`);
+      
+      // List all active clients
+      for (const [key, socket] of this.clients.entries()) {
+        console.log(`[TCP] Active client: ${key}, destroyed=${socket.destroyed}`);
+      }
+      
+      // Check if we have an active socket connection
+      if (this.clients.size === 0) {
+        console.warn(`[TCP] No active client connections`);
+        return false;
+      }
+
+      // Get the first (and only) active socket
+      let activeSocket = null;
+      for (const [key, socket] of this.clients.entries()) {
+        if (!socket.destroyed) {
+          activeSocket = socket;
+          console.log(`[TCP] Using active socket: ${key}`);
+          break;
+        }
+      }
+
+      if (!activeSocket) {
+        console.warn(`[TCP] No valid socket found (all destroyed)`);
+        return false;
+      }
+
+      const timestamp = new Date().toISOString();
+      
+      // Build completion message
+      const completionMessage = {
+        type: 'order_items_completed',
+        id: orderId,
+        orderitems: orderitems,
+        timestamp: timestamp,
+      };
+
+      const messageBody = JSON.stringify(completionMessage);
+      const contentLength = new TextEncoder().encode(messageBody).length;
+
+      // Build HTTP request
+      const httpRequest = 
+        'POST / HTTP/1.1\r\n' +
+        `Host: ${this.masterIP}:${this.tcpPort}\r\n` +
+        'Content-Type: application/json\r\n' +
+        `Content-Length: ${contentLength}\r\n` +
+        'Connection: keep-alive\r\n' +
+        '\r\n' +
+        messageBody;
+
+      console.log(`[TCP] Sending completion message via existing socket...`);
+      console.log(`[TCP] Message:`, completionMessage);
+
+      // Send via existing socket
+      try {
+        activeSocket.write(httpRequest);
+        console.log('[TCP] Order completion message sent successfully');
+        return true;
+      } catch (error) {
+        console.error('[TCP] Failed to write completion message:', error);
+        return false;
+      }
+
+    } catch (error) {
+      console.error('[TCP] Error sending order completion:', error);
+      return false;
+    }
   }
 }
