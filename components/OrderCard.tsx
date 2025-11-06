@@ -82,8 +82,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   // 监听 contentHeight 和 containerHeight 的变化，判断是否可滚动
   useEffect(() => {
     if (contentHeight > 0 && containerHeight > 0) {
-      const canScroll = contentHeight > containerHeight;
+      // 需要有足够的差异才认为可以滚动（加10pt的缓冲，避免边界情况）
+      const canScroll = contentHeight > containerHeight + 10;
       setIsScrollable(canScroll);
+    } else {
+      // 重置状态当尺寸不可用时
+      setIsScrollable(false);
     }
   }, [contentHeight, containerHeight, order.id]);
 
@@ -410,121 +414,111 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </View>
         )}
 
-        {/* 添加订单来源指示器
-        <View
-          style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
-        >
-          <Text style={styles.sourceText}>{sourceName}</Text>
-        </View> */}
+        <ConfirmModal
+          visible={showDoneConfirm}
+          title={t("complete")}
+          message={`${t("confirmComplete")} #${
+            typeof order.order_num === 'string' || typeof order.order_num === 'number' 
+              ? order.order_num 
+              : order.id || 'N/A'
+          }?`}
+          confirmText={t("complete")}
+          cancelText={t("cancel")}
+          onConfirm={handleDoneConfirm}
+          onCancel={() => setShowDoneConfirm(false)}
+        />
 
-        <View style={styles.textContainer}>
-          <ConfirmModal
-            visible={showDoneConfirm}
-            title={t("complete")}
-            message={`${t("confirmComplete")} #${
-              typeof order.order_num === 'string' || typeof order.order_num === 'number' 
-                ? order.order_num 
-                : order.id || 'N/A'
-            }?`}
-            confirmText={t("complete")}
-            cancelText={t("cancel")}
-            onConfirm={handleDoneConfirm}
-            onCancel={() => setShowDoneConfirm(false)}
+        {/* 添加商品详情弹窗 */}
+        {selectedProduct && (
+          <ProductDetailPopup
+            visible={showProductDetail}
+            onClose={() => setShowProductDetail(false)}
+            productId={selectedProduct.id}
+            productName={selectedProduct.name}
           />
+        )}
 
-          {/* 添加商品详情弹窗 */}
-          {selectedProduct && (
-            <ProductDetailPopup
-              visible={showProductDetail}
-              onClose={() => setShowProductDetail(false)}
-              productId={selectedProduct.id}
-              productName={selectedProduct.name}
-            />
-          )}
+        <ScrollView
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={true}
+          nestedScrollEnabled={true}
+          scrollIndicatorInsets={{ right: 1 }}
+          style={styles.scrollViewContainer}
+          onContentSizeChange={(width, height) => {
+            // ScrollView的总内容高度
+            setContentHeight(height);
+            // 假设OrderActions约50px，所以ScrollView可用空间约550px
+            setContainerHeight(550);
+          }}
+        >
+          <View style={styles.textContainer}>
+            {/* 新 Header 设计 - 左右两列 */}
+            <View style={styles.headerLayout}>
+              {/* 左列 */}
+              <View style={styles.leftColumn}>
+                {/* 左1：Order Number */}
+                <Text style={styles.orderId}>
+                  #{typeof order.order_num === 'string' || typeof order.order_num === 'number' 
+                    ? order.order_num 
+                    : order.orderId || 'N/A'}
+                </Text>
+                
+                {/* 左2：Pickup Method - 仅内容 */}
+                <Text style={[
+                  styles.pickupMethodText,
+                  { color: order.pickupMethod?.toLowerCase() === 'take-away' ? '#FF9B2F' : '#0096FF' }
+                ]}>
+                  {order.pickupMethod?.toLowerCase() === 'take-away' ? 'Take-Away' : 
+                   order.pickupMethod?.toLowerCase() === 'dine_in' || order.pickupMethod?.toLowerCase() === 'dinein' ? 'Dine-In' : 
+                   typeof order.pickupMethod === 'string' ? order.pickupMethod : 'Dine-In'}
+                </Text>
+                
+                {/* 左3：Prepare Time */}
+                {typeof order.total_prepare_time === 'number' &&
+                  order.total_prepare_time > 0 && (
+                    <Text style={styles.prepareTime}>
+                      {t("Prepare")}:{" "}
+                      <Text style={styles.prepareTimeValue}>
+                        {order.total_prepare_time}
+                      </Text>{" "}
+                      min
+                    </Text>
+                  )}
+                {/* 左4：Table Number */}
+                <Text style={styles.prepareTime}>Table:{" "}
+                  <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
+                </Text>
+              </View>
 
-          {/* 新 Header 设计 - 左右两列 */}
-          <View style={styles.headerLayout}>
-            {/* 左列 */}
-            <View style={styles.leftColumn}>
-              {/* 左1：Order Number */}
-              <Text style={styles.orderId}>
-                #{typeof order.order_num === 'string' || typeof order.order_num === 'number' 
-                  ? order.order_num 
-                  : order.orderId || 'N/A'}
-              </Text>
-              
-              {/* 左2：Pickup Method - 仅内容 */}
-              <Text style={[
-                styles.pickupMethodText,
-                { color: order.pickupMethod?.toLowerCase() === 'take-away' ? '#FF9B2F' : '#0096FF' }
-              ]}>
-                {order.pickupMethod?.toLowerCase() === 'take-away' ? 'Take-Away' : 
-                 order.pickupMethod?.toLowerCase() === 'dine_in' || order.pickupMethod?.toLowerCase() === 'dinein' ? 'Dine-In' : 
-                 typeof order.pickupMethod === 'string' ? order.pickupMethod : 'Dine-In'}
-              </Text>
-              
-              {/* 左3：Prepare Time */}
-              {typeof order.total_prepare_time === 'number' &&
-                order.total_prepare_time > 0 && (
-                  <Text style={styles.prepareTime}>
-                    {t("Prepare")}:{" "}
-                    <Text style={styles.prepareTimeValue}>
-                      {order.total_prepare_time}
-                    </Text>{" "}
-                    min
-                  </Text>
-                )}
-              {/* 左4：Table Number */}
-              <Text style={styles.prepareTime}>Table:{" "}
-                <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
-              </Text>
+              {/* 右列 */}
+              <View style={styles.rightColumn}>
+                {/* 右1：Due + Pickup Time */}
+                <Text style={styles.dueTimeText}>
+                  Due: {formatAustralianTime(order.pickupTime)}
+                </Text>
+                
+                {/* 右2-3：Timer (已过时间 + active/urgent/delayed 状态框) */}
+                {!disabled && !hideTimer && <OrderTimer order={order} />}
+                
+                {/* 右4：打印键 */}
+                <PrintButton order={order} disabled={disabled} />
+              </View>
             </View>
 
-            {/* 右列 */}
-            <View style={styles.rightColumn}>
-              {/* 右1：Due + Pickup Time */}
-              <Text style={styles.dueTimeText}>
-                Due: {formatAustralianTime(order.pickupTime)}
-              </Text>
-              
-              {/* 右2-3：Timer (已过时间 + active/urgent/delayed 状态框) */}
-              {!disabled && !hideTimer && <OrderTimer order={order} />}
-              
-              {/* 右4：打印键 */}
-              <PrintButton order={order} disabled={disabled} />
-            </View>
-          </View>
-
-          <View 
-            style={styles.itemsContainer}
-            onLayout={(event) => {
-              const { height } = event.nativeEvent.layout;
-              setContainerHeight(height);
-            }}
-          >
-            <ScrollView
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-              scrollIndicatorInsets={{ right: 1 }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              onContentSizeChange={(width, height) => {
-                setContentHeight(height);
-              }}
-            >
+            <View style={styles.itemsContainer}>
               {order.products && Array.isArray(order.products) && order.products.map((item, index) =>
                 renderProductItem(item, index)
               )}
-            </ScrollView>
-          </View>
-
-          {/* 只在可以滚动时显示提示 - 固定在右下角 */}
-          {isScrollable && (
-            <View style={styles.scrollIndicatorText}>
-              <Text style={styles.scrollMoreText}>Scroll to see more items</Text>
             </View>
-          )}
-        </View>
+          </View>
+        </ScrollView>
+
+        {/* 只在可以滚动时显示提示 - 固定在右下角 */}
+        {isScrollable && (
+          <View style={styles.scrollIndicatorText}>
+            <Text style={styles.scrollMoreText}>Scroll to see more items</Text>
+          </View>
+        )}
         {!disabled && !hideActions && (
           <View>
             <OrderActions
@@ -585,13 +579,16 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 12,
   },
+  scrollViewContainer: {
+    flex: 1,
+    minHeight: 0,
+  },
   textContainer: {
     flex: 1,
     paddingLeft: 10,
     paddingRight: 10,
     display: "flex",
     flexDirection: "column",
-    justifyContent: "space-between", // 添加：让内容两端对齐
   },
   // Header 样式
   header: {
@@ -654,12 +651,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   itemsContainer: {
-    flex: 1,
-    minHeight: 0,
     marginTop: 20, 
     marginBottom: 8,
-    // maxHeight: 350
-    justifyContent: "flex-end", // 添加：从底部向上排列
   },
   itemsTitle: {
     fontSize: 15,
@@ -801,10 +794,12 @@ const styles = StyleSheet.create({
   },
   scrollIndicatorText: {
     position: "absolute",
-    bottom: 0, // done button上方（done button约50px高）
+    bottom: 50, // done button约50px高，所以提示在它上方
     right: 12,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 4,
   },
   scrollMoreText: {
     fontSize: 11,
