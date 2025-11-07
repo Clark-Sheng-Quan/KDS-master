@@ -156,7 +156,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     setShowDoneConfirm(false);
 
     // 发送API请求更新订单状态为"ready"
-    updateOrderStatusToReady(order.id, order.source || "");
+    // 注意：使用 order._id (实际订单ID)，不是 order.id (订单号)
+    updateOrderStatusToReady(order._id, order.source || "");
 
     // 如果是TCP订单，发送完成消息回POS
     if (order.source?.toLowerCase() === 'tcp') {
@@ -169,7 +170,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         qty: item.qty,
         category: item.category,
       })) || [];
-      TCPSocketService.sendOrderItemsCompleted(order.id, orderitems);
+      // 注意：使用 order._id (实际订单ID)，不是 order.id (订单号)
+      TCPSocketService.sendOrderItemsCompleted(order._id, orderitems);
     }
 
     // 调用完成订单的回调
@@ -192,7 +194,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       if (source.toLowerCase() === "network") {
 
         const requestBody = {
-          order_id: order._id,
+          order_id: orderId,  // 使用参数中的 orderId (即 order._id)
           status: "ready",
           source: source,
         };
@@ -213,7 +215,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         const result = await response.json();
       }
     } catch (error) {
-      console.error('更新订单状态异常:', error);
+      console.error('[updateOrderStatusToReady] 异常:', error);
     }
   };
 
