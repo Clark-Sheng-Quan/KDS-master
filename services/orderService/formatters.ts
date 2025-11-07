@@ -130,8 +130,6 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const sydneyOrderTime = convertToSydneyTime(
       orderData.timestamp || orderData.createdAt || new Date().toISOString()
     );
-    console.log('[TCP Format] Input time:', orderData.timestamp || orderData.createdAt);
-    console.log('[TCP Format] Converted orderTime:', sydneyOrderTime);
     // Extract pickup method from POS format - ensure it's a string, not an object
     let pickupMethod = "DINEIN";
     if (typeof orderData.ordermode === 'string' && orderData.ordermode) {
@@ -171,7 +169,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       orderTime: sydneyOrderTime,
       pickupMethod: pickupMethod,
       pickupTime: sydneyOrderTime, // POS doesn't have separate pickup time, use order time
-      order_num: orderNumber,
+      num: orderNumber,              // 订单号 (用于显示)
       status: orderData.status || 'IN_PROGRESS',
       products: formattedItems,
       source: 'tcp', // Mark source as TCP
@@ -190,7 +188,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       orderTime: new Date().toISOString(),
       pickupMethod: "formatting_error",
       pickupTime: new Date().toISOString(),
-      order_num: String(Date.now()),
+      num: String(Date.now()),  // 订单号
       products: [],
       source: 'tcp',
       total_prepare_time: 0,
@@ -239,12 +237,12 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     const sydneyOrderTime = convertToSydneyTime(order.time);
     
     return {
-      id: order.order_num.toString(),
-      _id: order._id || order.order_num.toString(),
+      id: order._id.toString(),
+      _id: order._id || order._id.toString(),
       orderTime: sydneyOrderTime, // Use converted Sydney time
       pickupMethod: order.pick_method,
       pickupTime: sydneyPickupTime, // Use converted Sydney time
-      order_num: order.order_num.toString(),
+      num: order.order_num.toString(),     // 订单号 (用于显示)
       status: order.status, 
       products: formattedItems,
       source: order.source,
@@ -255,16 +253,16 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     
     // Return basic order object instead of throwing error
     return {
-      id: (order.order_num || Date.now()).toString(),
+      id: (order._id || Date.now()).toString(),
       _id: order._id || (order.order_num || Date.now()).toString(),
       orderTime: order.time || new Date().toISOString(),
       pickupMethod: order.pick_method || 'unknown',
       pickupTime: order.pick_time || new Date().toISOString(),
-      order_num: (order.order_num || Date.now()).toString(),
+      num: (order.order_num || Date.now()).toString(),    // 订单号
       status: order.status || 'unknown',
       products: [],
       source: 'network',
-      total_prepare_time: 0, // 添加总准备时间
+      total_prepare_time: 0,
     };
   }
 };

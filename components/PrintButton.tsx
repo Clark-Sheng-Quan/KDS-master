@@ -114,7 +114,7 @@ export const PrintButton: React.FC<PrintButtonProps> = ({
       // 格式化订单数据为打印机需要的格式
       const printData = {
         shopName: "KDS Restaurant", // 可以从配置读取
-        orderId: order.order_num || order.orderId || order.id,
+        orderId: order.num || order.id,  // 使用 num (订单号) 或 id
         orderTime: order.pickupTime || new Date().toLocaleString(),
         pickupMethod: order.pickupMethod || "取餐",
         tableNumber: order.tableNumber || null,
@@ -134,7 +134,7 @@ export const PrintButton: React.FC<PrintButtonProps> = ({
       if (result) {
         Alert.alert(
           t("success"),
-          `${t("orderPrinted")} #${order.orderId || order.id}`
+          `${t("orderPrinted")} #${order.num || order.id}`
         );
       } else {
         Alert.alert(t("failed"), t("printOrderFailed"));

@@ -558,7 +558,6 @@ export class TCPSocketService {
     if (this.orderCallback) {
       try {
         this.orderCallback(data);
-        console.log('[TCP] Single order callback executed successfully');
       } catch (error) {
         console.error('[TCP] Order callback execution failed:', error);
       }
@@ -609,73 +608,113 @@ export class TCPSocketService {
   }
 
   /**
-   * Send order items completed message to POS via existing socket connection
+   * Send order items completed message to POS via a NEW SEPARATE TCP connection
+   * This avoids disrupting the persistent connection used for receiving orders
+   * 
+   * @param orderId - Order ID
+   * @param orderitems - Array of order items with id, name, qty, category
+   * @returns true if message was sent successfully, false otherwise
    */
   public static async sendOrderItemsCompleted(orderId: string, orderitems: any[]): Promise<boolean> {
     try {
-      // Check if we have an active socket connection
-      if (this.clients.size === 0 && !this.posSocket) {
-        console.warn(`[TCP] No active client connections`);
+      // Get POS IP address
+      const posIP = this.masterIP || this.posIP;
+      if (!posIP) {
+        console.warn('[TCP] No POS IP available for sending completion message');
         return false;
       }
 
-      // Get the first (and only) active socket
-      let activeSocket = null;
-      for (const [key, socket] of this.clients.entries()) {
-        if (!socket.destroyed) {
-          activeSocket = socket;
-          break;
-        }
-      }
-      
-      // If no socket found in clients map, try posSocket as fallback
-      if (!activeSocket && this.posSocket && !this.posSocket.destroyed) {
-        activeSocket = this.posSocket;
-      }
+      console.log(`[TCP] Creating temporary connection to ${posIP}:${this.tcpPort} to send order completion`);
 
-      if (!activeSocket) {
-        console.warn(`[TCP] No valid socket found`);
-        return false;
-      }
+      // Create a new temporary connection (separate from the persistent one)
+      const tempSocket = TcpSocket.createConnection({ 
+        port: this.tcpPort, 
+        host: posIP 
+      }, () => {
+        // Connection callback
+      });
 
-      const timestamp = new Date().toISOString();
-      
-      // Build completion message
-      const completionMessage = {
-        type: 'order_items_completed',
-        id: orderId,
-        orderitems: orderitems,
-        timestamp: timestamp,
-      };
+      return new Promise((resolve) => {
+        let responseTimeout: ReturnType<typeof setTimeout> | null = null;
+        let connectionEstablished = false;
 
-      const messageBody = JSON.stringify(completionMessage);
-      const contentLength = new TextEncoder().encode(messageBody).length;
+        tempSocket.on('connect', () => {
+          console.log(`[TCP] Temporary connection established to ${posIP}:${this.tcpPort}`);
+          connectionEstablished = true;
 
-      // Use masterIP if available, otherwise fall back to posIP
-      const hostIP = this.masterIP || this.posIP;
-      
-      // Build HTTP request
-      const httpRequest = 
-        'POST / HTTP/1.1\r\n' +
-        `Host: ${hostIP}:${this.tcpPort}\r\n` +
-        'Content-Type: application/json\r\n' +
-        `Content-Length: ${contentLength}\r\n` +
-        'Connection: keep-alive\r\n' +
-        '\r\n' +
-        messageBody;
+          const timestamp = new Date().toISOString();
 
-      // Send via existing socket
-      try {
-        activeSocket.write(httpRequest);
-        console.log('[TCP] Order completion message sent successfully');
-        return true;
-      } catch (error) {
-        console.error('[TCP] Failed to write completion message:', error);
-        return false;
-      }
+          // Build completion message
+          const completionMessage = {
+            type: 'order_items_completed',
+            id: orderId,
+            orderitems: orderitems,
+            timestamp: timestamp,
+          };
 
+          const messageBody = JSON.stringify(completionMessage);
+          const contentLength = new TextEncoder().encode(messageBody).length;
+
+          // Build HTTP request with Connection: close to close after response
+          const httpRequest =
+            'POST / HTTP/1.1\r\n' +
+            `Host: ${posIP}:${this.tcpPort}\r\n` +
+            'Content-Type: application/json\r\n' +
+            `Content-Length: ${contentLength}\r\n` +
+            'Connection: close\r\n' +
+            '\r\n' +
+            messageBody;
+
+          try {
+            tempSocket.write(httpRequest);
+            console.log(`[TCP] Order completion message sent to ${posIP} for order ${orderId}`);
+
+            // Set timeout to wait for response
+            responseTimeout = setTimeout(() => {
+              console.log('[TCP] Response timeout, closing temporary connection');
+              tempSocket.destroy();
+              resolve(true); // Consider it success even if we didn't get response
+            }, 3000);
+          } catch (error) {
+            console.error('[TCP] Failed to write completion message:', error);
+            if (responseTimeout) clearTimeout(responseTimeout);
+            tempSocket.destroy();
+            resolve(false);
+          }
+        });
+
+        tempSocket.on('data', (data: Buffer | string) => {
+          const dataStr = typeof data === 'string' ? data : data.toString('utf-8');
+          console.log(`[TCP] Received response from POS for order completion: ${dataStr.substring(0, 100)}`);
+
+          if (responseTimeout) clearTimeout(responseTimeout);
+          tempSocket.destroy();
+          resolve(true);
+        });
+
+        tempSocket.on('error', (error: any) => {
+          console.error(`[TCP] Error sending completion message to ${posIP}:`, error);
+          if (responseTimeout) clearTimeout(responseTimeout);
+          resolve(false);
+        });
+
+        tempSocket.on('close', () => {
+          console.log('[TCP] Temporary connection closed');
+          if (responseTimeout) clearTimeout(responseTimeout);
+        });
+
+        // Set connection timeout
+        tempSocket.setTimeout(5000, () => {
+          console.error('[TCP] Temporary connection timeout');
+          if (responseTimeout) clearTimeout(responseTimeout);
+          if (connectionEstablished) {
+            tempSocket.destroy();
+          }
+          resolve(false);
+        });
+      });
     } catch (error) {
-      console.error('[TCP] Error sending order completion:', error);
+      console.error('[TCP] Error in sendOrderItemsCompleted:', error);
       return false;
     }
   }

@@ -146,7 +146,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
     // 设置选中的商品信息
     setSelectedProduct({
-      id: item.id || order.id, // 使用产品ID
+      id: item.id,
       name: item.name,
     });
     setShowProductDetail(true);
@@ -156,7 +156,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     setShowDoneConfirm(false);
 
     // 发送API请求更新订单状态为"ready"
-    // 注意：使用 order._id (实际订单ID)，不是 order.id (订单号)
     updateOrderStatusToReady(order._id, order.source || "");
 
     // 如果是TCP订单，发送完成消息回POS
@@ -170,7 +169,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         qty: item.qty,
         category: item.category,
       })) || [];
-      // 注意：使用 order._id (实际订单ID)，不是 order.id (订单号)
       TCPSocketService.sendOrderItemsCompleted(order._id, orderitems);
     }
 
@@ -398,8 +396,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           visible={showDoneConfirm}
           title={t("complete")}
           message={`${t("confirmComplete")} #${
-            typeof order.order_num === 'string' || typeof order.order_num === 'number' 
-              ? order.order_num 
+            typeof order.num === 'string' || typeof order.num === 'number' 
+              ? order.num 
               : order.id || 'N/A'
           }?`}
           confirmText={t("complete")}
@@ -438,9 +436,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               <View style={styles.leftColumn}>
                 {/* 左1：Order Number */}
                 <Text style={styles.orderId}>
-                  #{typeof order.order_num === 'string' || typeof order.order_num === 'number' 
-                    ? order.order_num 
-                    : order.orderId || 'N/A'}
+                  #{typeof order.num === 'string' || typeof order.num === 'number' 
+                    ? order.num 
+                    : order.id || 'N/A'}
                 </Text>
                 
                 {/* 左2：Pickup Method - 仅内容 */}

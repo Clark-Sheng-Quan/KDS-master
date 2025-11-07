@@ -66,20 +66,20 @@ export interface OrderItem {
 }
 
 export interface FormattedOrder {
-  _id: string;
-  id: string;
-  orderId?: string;
+  _id: string;                           // MongoDB ObjectId (实际订单ID，用于API)
+  id: string;                            // 同 _id (保留兼容性)
+  orderId?: string;                      // 可选：同 _id
+  num: number | string;                  // 订单号 (用于显示，来自order_num)
   orderTime: string;
   pickupMethod: string;
   pickupTime: string;
   tableNumber?: string;
-  order_num?: number | string;
   status?: string;
   source?: string;
   products: OrderItem[];
   total_prepare_time?: number;
   targetCategory?: string;
-  isUpdated?: boolean; // 标记订单是否为更新
-  updatedAt?: number; // 更新时间戳
-  updateCount?: number; // 更新次数
+  isUpdated?: boolean;                   // 标记订单是否为更新
+  updatedAt?: number;                    // 更新时间戳
+  updateCount?: number;                  // 更新次数
 } 
