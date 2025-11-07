@@ -184,38 +184,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       // 获取token
       const token = await AsyncStorage.getItem("token");
       if (!token) {
+        console.warn('[updateOrderStatusToReady] 没有token，无法更新状态');
         return;
       }
 
       // 只有网络订单才需要更新状态
       if (source.toLowerCase() === "network") {
-        // 构建请求体
-        // 根据当前订单状态决定下一个状态
-        let targetStatus = "ready";
-        
-        // 订单状态流转逻辑
-        switch (order.status?.toLowerCase()) {
-          case "unpaid":
-            targetStatus = "paid";
-            break;
-          case "paid":
-            targetStatus = "processing";
-            break;
-          case "processing":
-            targetStatus = "ready";
-            break;
-          case "dispatch":
-            targetStatus = "ready";
-            break;
-          default:
-            targetStatus = "ready";
-        }
-        
-        // 构建请求体 - 根据后端 API 文档
+
         const requestBody = {
-          order_id: orderId,
-          //status: "ready",
-          status: targetStatus,
+          order_id: order._id,
+          status: "ready",
           source: source,
         };
 
@@ -235,7 +213,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         const result = await response.json();
       }
     } catch (error) {
-      // Error silently handled
+      console.error('更新订单状态异常:', error);
     }
   };
 
@@ -298,7 +276,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               borderBottomRightRadius: 4,
             }
           ]}
-          delayLongPress={500} // 500毫秒长按触发
+          delayLongPress={100} // 500毫秒长按触发
         >
           <View style={styles.itemNameContainer}>
             <Text style={[

@@ -5,6 +5,7 @@
 
 import { FormattedOrder } from '../types';
 import AudioService from '../audioService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 导入各模块功能
 import * as StorageService from './storageService';
@@ -12,7 +13,7 @@ import * as NetworkService from './networkService';
 import * as TCPService from './tcpService';
 import * as TimeUtils from './timeUtils';
 import * as Formatters from './formatters';
-import { POLLING_INTERVAL } from './constants';
+import { POLLING_INTERVAL, API_BASE_URL } from './constants';
 import { DistributionService } from '../distributionService';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
@@ -107,6 +108,33 @@ export class OrderService {
       // 添加到处理缓存
       this.addToProcessedCache(order.id);
 
+      // 将新订单状态从 confirmed 更新为 processing
+      try {
+        const token = await AsyncStorage.getItem("token");
+        if (!token) {
+          console.warn('[addNetworkOrder] 没有token，跳过状态更新');
+        } else {
+
+          const updateResponse = await fetch(`${API_BASE_URL}/order/update_order_status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              order_id: order._id,
+              status: "processing",
+              source: "network",
+            }),
+          });
+          
+          if (!updateResponse.ok) {
+            console.warn(`更新订单 ${order.id} 状态为 processing 失败`);
+          }
+        }
+      } catch (error) {
+        console.error('[addNetworkOrder] 更新订单状态异常:', error);
+      }
+
       // 添加新订单到末尾
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
@@ -123,11 +151,6 @@ export class OrderService {
         this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
       }
       
-      // 如果是主KDS，分发订单到子KDS
-      // if (DistributionService.isMaster()) {
-      //   await DistributionService.processAndDistributeOrder({...order});
-      //   console.log(`网络订单 ${order.id} 已传递给分发服务`);
-      // }
     } catch (error) {
       console.error('添加网络订单失败:', error);
     }
