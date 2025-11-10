@@ -30,6 +30,10 @@ export class OrderService {
   private static tcpOrders: FormattedOrder[] = [];
   private static networkPollingInterval: ReturnType<typeof setInterval> | null = null;
   
+  // KDS 配置信息
+  private static kdsRole: 'master' | 'slave'
+  private static kdsCategory: string = 'all';
+  
   // 添加订单ID缓存，用于防止重复处理
   private static processedOrderIds: Set<string> = new Set();
   private static processedOrderIdsArray: string[] = []; // 用于维护缓存顺序
@@ -39,6 +43,15 @@ export class OrderService {
   private static tcpOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   private static combinedOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   
+  /**
+   * 设置 KDS 配置（kdsRole 和 kdsCategory）
+   */
+  public static setKDSConfig(role: 'master' | 'slave', category: string) {
+    this.kdsRole = role;
+    this.kdsCategory = category;
+    console.log(`[OrderService] 设置 KDS 配置 - 角色: ${this.kdsRole}, 分类: ${this.kdsCategory}`);
+  }
+
   /**
    * 设置订单更新回调函数
    */
@@ -78,6 +91,88 @@ export class OrderService {
    */
   private static isOrderProcessed(orderId: string): boolean {
     return this.processedOrderIds.has(orderId);
+  }
+
+  /**
+   * 比较两个 products 数组是否相同
+   */
+  private static areProductsEqual(prev: any[], current: any[]): boolean {
+    if (prev.length !== current.length) return false;
+    return prev.every((p, idx) => {
+      const c = current[idx];
+      return (
+        p.id === c.id &&
+        p.quantity === c.quantity &&
+        p.name === c.name &&
+        p.itemState === c.itemState &&
+        p.category === c.category &&
+        p.price === c.price &&
+        p.prepare_time === c.prepare_time
+      );
+    });
+  }
+
+  /**
+   * 获取订单的过滤后产品列表（基于当前 KDS 配置）
+   */
+  private static getFilteredProducts(order: FormattedOrder): any[] {
+    console.log(`[getFilteredProducts] kdsRole=${this.kdsRole}, kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
+    
+    if (this.kdsRole === 'master' || this.kdsCategory === 'all') {
+      console.log(`[getFilteredProducts] 返回全部 ${order.products.length} 个产品 (master or all)`);
+      return order.products; // Master KDS 或 category 为 all，不过滤
+    }
+
+    // Slave KDS 且 category 不为 all，过滤产品
+    const filteredProducts = order.products.filter((product) => {
+      // 检查 isValidKds 参数
+      if (product.isValidKds === false) {
+        return false;
+      }
+      // 检查分类是否匹配
+      return product.category === this.kdsCategory;
+    });
+    
+    console.log(`[getFilteredProducts] 过滤后 ${filteredProducts.length}/${order.products.length} 个产品`);
+    return filteredProducts;
+  }
+
+  /**
+   * 函数1：过滤订单产品
+   * 根据 KDS 配置（分类和 isValidKds）直接修改 order.products
+   */
+  private static filterOrderProducts(order: FormattedOrder): any[] {
+    const filteredProducts = this.getFilteredProducts(order);
+    order.products = filteredProducts;
+    return filteredProducts;
+  }
+
+  /**
+   * 存储每个订单的上一次过滤后产品
+   */
+  private static previousFilteredProducts: Map<string, any[]> = new Map();
+
+  /**
+   * 函数2：检测过滤产品变化并更新 updateCount
+   * 比较新旧 filteredProducts，如果有变化则增加 updateCount 并设置 isUpdated
+   */
+  private static updateCountIfProductsChanged(order: FormattedOrder, newFilteredProducts: any[]): void {
+    const prevFilteredProducts = this.previousFilteredProducts.get(order.id);
+    
+    if (prevFilteredProducts) {
+      // 有之前的记录，比较是否变化
+      const hasProductsChanged = !this.areProductsEqual(prevFilteredProducts, newFilteredProducts);
+      
+      if (hasProductsChanged) {
+        // 产品有变化
+        const currentUpdateCount = order.updateCount || 0;
+        order.updateCount = currentUpdateCount + 1;
+        order.isUpdated = true;
+      }
+    }
+    
+    // 保存当前的过滤产品作为下次比较的基准
+    this.previousFilteredProducts.set(order.id, newFilteredProducts);
   }
 
   /**
@@ -135,6 +230,9 @@ export class OrderService {
         console.error('[addNetworkOrder] 更新订单状态异常:', error);
       }
 
+      // 函数1：过滤产品（直接修改 order.products）
+      const filteredProducts = this.filterOrderProducts(order);
+      
       // 添加新订单到末尾
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
@@ -174,20 +272,22 @@ export class OrderService {
       const existingOrderIndex = this.tcpOrders.findIndex((o) => o.id === order.id);
       
       if (existingOrderIndex !== -1) {
-        // 获取旧订单的更新次数
+        // 获取旧订单
         const oldOrder = this.tcpOrders[existingOrderIndex];
-        const currentUpdateCount = oldOrder.updateCount || 0;
         
-        // 标记为已更新的订单，并增加更新次数
-        order.isUpdated = true;
+        // 函数1：获取新订单的过滤后产品
+        const newFilteredProducts = this.filterOrderProducts(order);
+        
+        // 函数2：检测变化并更新 updateCount
+        this.updateCountIfProductsChanged(order, newFilteredProducts);
+        
         order.updatedAt = Date.now();
-        order.updateCount = currentUpdateCount + 1;
         
-        // 替换旧订单为新订单（POS更新了订单）
+        // 替换旧订单为新订单
         this.tcpOrders[existingOrderIndex] = order;
         await StorageService.saveTCPOrders(this.tcpOrders);
         
-        // 播放更新提示音（可选）
+        // 播放更新提示音
         AudioService.playNewOrderAlert();
         
         // 触发回调通知订单已更新
@@ -202,7 +302,10 @@ export class OrderService {
         return;
       }
 
-      // 新订单：添加到列表末尾
+      // 新订单：函数1 过滤产品（直接修改 order.products）
+      const filteredProducts = this.filterOrderProducts(order);
+      
+      // 添加到列表末尾
       this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
      
@@ -267,6 +370,19 @@ export class OrderService {
       
       console.log(`已加载 ${this.networkOrders.length} 个网络订单和 ${this.tcpOrders.length} 个TCP订单`);
       
+      // 初始化 KDS 配置
+      try {
+        const role = await AsyncStorage.getItem("kds_role");
+        const categoryStr = await AsyncStorage.getItem("kds_category");
+        
+        this.kdsRole = role === "slave" ? 'slave' : 'master';
+        this.kdsCategory = categoryStr || "all";
+        
+        console.log(`[OrderService] 初始化 KDS 配置 - 角色: ${this.kdsRole}, 分类: ${this.kdsCategory}`);
+      } catch (error) {
+        console.error('读取 KDS 配置失败:', error);
+      }
+      
       // 初始化已处理订单缓存
       // 将所有已加载的订单ID添加到处理缓存中，防止重复处理
       this.networkOrders.forEach(order => {
@@ -281,10 +397,6 @@ export class OrderService {
         }
       });
       
-      // ⚠️ 不要绑定TCP服务器！TCP由DistributionService管理
-      // 原生模块 (orderModule) 已被弃用，改用 TCPSocketService (4322端口)
-      
-      // 启动网络轮询
       this.startNetworkPolling();
       
       // 监听来自原生模块的事件（Android后台服务）

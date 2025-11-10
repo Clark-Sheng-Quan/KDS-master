@@ -86,5 +86,4 @@ export interface FormattedOrder {
   updateCount?: number;                  // 全局更新次数 (所有分类)
   _hasFilteredItems?: boolean;           // 标记products是否已被kitchen category过滤
   _filterCategory?: string;              // 记录过滤的kitchen category
-  _updateCountForKitchen?: number;       // 该kitchen分类对应的更新次数
 } 

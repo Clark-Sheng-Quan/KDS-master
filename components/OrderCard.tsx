@@ -396,7 +396,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         ]}
       >
         {/* 订单更新指示器 - 左上角 */}
-        {shouldShowUpdatedBadge() && (
+        {order.updateCount && (
           <View style={styles.updateBadge}>
             <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.updateBadgeText}>
