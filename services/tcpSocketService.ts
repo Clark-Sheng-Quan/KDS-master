@@ -136,31 +136,12 @@ export class TCPSocketService {
           const clientKey = `${remoteIP}:${remotePort}`;
           console.log(`[TCP] Client connection request: ${remoteIP}`);
           
-          // Check if there's an existing connection from a DIFFERENT IP
-          let hasDifferentConnection = false;
-          for (const [key] of this.clients.entries()) {
-            const existingIP = key.split(':')[0];
-            if (existingIP !== remoteIP) {
-              hasDifferentConnection = true;
-              break;
-            }
-          }
-          
-          // Only reject if connection is from a different POS
-          if (hasDifferentConnection) {
-            console.log(`[TCP] Rejected - already have an active connection from different POS`);
-            socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
-            socket.destroy();
-            return;
-          }
-          
-          // Allow multiple connections from the same IP (don't close old ones)
-          // This allows POS to maintain multiple simultaneous connections for different operations
-          console.log(`[TCP] Total connections from ${remoteIP}: ${Array.from(this.clients.keys()).filter(k => k.startsWith(remoteIP + ':')).length + 1}`);
+          // Allow multiple connections from different POS machines
+          console.log(`[TCP] Total connections: ${this.clients.size + 1}`);
           
           // Save client connection
           this.clients.set(clientKey, socket);
-          console.log(`[TCP] Saved client connection: clients.size=${this.clients.size}`);
+          console.log(`[TCP] Saved client connection: ${clientKey}, total clients=${this.clients.size}`);
           // Save POS socket reference for later completion messages
           this.posSocket = socket;
           
@@ -182,6 +163,49 @@ export class TCPSocketService {
           let dataBuffer = '';
           let incompleteDataTimeout: ReturnType<typeof setTimeout> | null = null;
           
+          // 响应发送缓冲队列 - 和接收数据一样处理
+          let responseQueue: string[] = [];
+          let isWriting = false;
+          
+          /**
+           * 队列式发送响应 - 确保响应完整发出
+           */
+          const queueResponse = (response: string) => {
+            responseQueue.push(response);
+            processResponseQueue();
+          };
+          
+          const processResponseQueue = () => {
+            if (isWriting || responseQueue.length === 0) {
+              return;
+            }
+            
+            isWriting = true;
+            const response = responseQueue.shift();
+            
+            if (response) {
+              try {
+                const canContinue = socket.write(response);
+                console.log(`[TCP] Response sent successfully (${response.length} bytes)`);
+                
+                if (!canContinue) {
+                  // 缓冲区满，等待 drain 事件
+                  socket.once('drain', () => {
+                    isWriting = false;
+                    processResponseQueue();
+                  });
+                } else {
+                  isWriting = false;
+                  processResponseQueue();
+                }
+              } catch (error) {
+                console.error(`[TCP] Failed to write response:`, error);
+                isWriting = false;
+                processResponseQueue();
+              }
+            }
+          };
+          
           // Receive data
           socket.on('data', (data: string | Buffer) => {
             try {
@@ -196,115 +220,118 @@ export class TCPSocketService {
                 incompleteDataTimeout = null;
               }
               
-              // Filter out data that is only whitespace
-              if (dataBuffer.trim() === '') {
-                console.warn(`[TCP] Buffer is empty/whitespace, ignoring`);
-                return;
-              }
-              
-              // Try to find complete HTTP message
-              const headerEndIndex = dataBuffer.indexOf('\r\n\r\n');
-              if (headerEndIndex === -1) {
-                // Headers not complete yet, wait for more data
-            
-                // Set timeout to clear buffer if no more data comes (5 seconds)
-                incompleteDataTimeout = setTimeout(() => {
-                  console.error(`[TCP] Timeout waiting for complete headers. Clearing buffer.`);
+              // 处理缓冲区中的所有完整消息 - 使用循环而不是 return
+              while (true) {
+                // Filter out data that is only whitespace
+                if (dataBuffer.trim() === '') {
                   dataBuffer = '';
-                  incompleteDataTimeout = null;
-                }, 5000);
-                return;
-              }
-              
-              // Parse headers to get Content-Length
-              const headerPart = dataBuffer.substring(0, headerEndIndex);
-              const contentLengthMatch = headerPart.match(/Content-Length:\s*(\d+)/i);
-              
-              if (!contentLengthMatch) {
-                console.warn(`[TCP] No Content-Length header found`);
-                dataBuffer = '';
-                return;
-              }
-              
-              const contentLength = parseInt(contentLengthMatch[1], 10);
-              const bodyStart = headerEndIndex + 4;
-              const totalNeeded = bodyStart + contentLength;
-              
-              // IMPORTANT: Content-Length is in BYTES, but JavaScript string length is in CHARACTERS
-              // We need to check actual byte length, not character length
-              const currentBodyBytes = new TextEncoder().encode(dataBuffer.substring(bodyStart)).length;
-              const expectedBodyBytes = contentLength;
-              // Check if we have the complete body (using BYTE count, not character count)
-              if (currentBodyBytes < expectedBodyBytes) {
-                // Body not complete yet, wait for more data
-                const missing = expectedBodyBytes - currentBodyBytes;
-                console.log(`[TCP] Incomplete body: have ${currentBodyBytes} bytes, need ${expectedBodyBytes} bytes (missing ${missing} bytes)`);
-                
-                // Set timeout to clear buffer if no more data comes (10 seconds)
-                incompleteDataTimeout = setTimeout(() => {
-                  console.error(`[TCP] Timeout waiting for complete body. Expected ${totalNeeded}, got ${dataBuffer.length}. Clearing buffer.`);
-                  console.error(`[TCP] Last 100 chars of buffer: ${dataBuffer.slice(-100)}`);
-                  dataBuffer = '';
-                  incompleteDataTimeout = null;
-                }, 10000);
-                return;
-              }
-              
-              // Clear timeout - we have complete message
-              if (incompleteDataTimeout) {
-                clearTimeout(incompleteDataTimeout);
-                incompleteDataTimeout = null;
-              }
-              
-              // Extract body - need to find exact byte boundary
-              // Since Content-Length is in bytes, we need to extract exactly that many bytes
-              const fullBufferBytes = new TextEncoder().encode(dataBuffer);
-              
-              // Extract body bytes (from bodyStart byte position, take contentLength bytes)
-              const extractedBodyBytes = fullBufferBytes.slice(bodyStart, bodyStart + contentLength);
-              const jsonBody = new TextDecoder('utf-8').decode(extractedBodyBytes).trim();
-              
-              // Calculate where next message starts (in character positions)
-              // We need to convert byte count back to character count
-              const totalBytesConsumed = bodyStart + contentLength;
-              let charPosition = 0;
-              let byteCount = 0;
-              const encoder = new TextEncoder();
-              
-              while (byteCount < totalBytesConsumed && charPosition < dataBuffer.length) {
-                byteCount += encoder.encode(dataBuffer[charPosition]).length;
-                charPosition++;
-              }
-              
-              console.log(`[HTTP] ========== COMPLETE HTTP MESSAGE RECEIVED ==========`);
-
-              
-              // Reset buffer for next request (keep any excess data)
-              const excessData = dataBuffer.substring(charPosition);
-              dataBuffer = excessData;
-              
-              try {
-                // Parse JSON data
-                if (jsonBody) {
-                  const jsonData = JSON.parse(jsonBody);
-                  
-                  // Process HTTP request and send response
-                  this.handleHttpRequest(jsonData, socket, clientKey);
-                } else {
-                  console.error(`[TCP] Empty JSON body`);
+                  break;
                 }
-              } catch (parseError: any) {
-                console.error(`[TCP] JSON parse error:`, parseError.message);
-                console.error(`[TCP] Body content: ${jsonBody.substring(0, 500)}`);
-                const errorResponse = 
-                  'HTTP/1.1 400 Bad Request\r\n' +
-                  'Content-Type: application/json\r\n' +
-                  'Connection: keep-alive\r\n' +
-                  '\r\n' +
-                  `{"status":"error","message":"Invalid JSON: ${parseError.message}"}\n`;
-                socket.write(errorResponse);
+                
+                // Try to find complete HTTP message
+                const headerEndIndex = dataBuffer.indexOf('\r\n\r\n');
+                if (headerEndIndex === -1) {
+                  // Headers not complete yet, wait for more data
+                  // Set timeout to clear buffer if no more data comes (5 seconds)
+                  incompleteDataTimeout = setTimeout(() => {
+                    console.error(`[TCP] Timeout waiting for complete headers. Clearing buffer.`);
+                    dataBuffer = '';
+                    incompleteDataTimeout = null;
+                  }, 5000);
+                  break; // 退出循环，等待更多数据
+                }
+                
+                // Parse headers to get Content-Length
+                const headerPart = dataBuffer.substring(0, headerEndIndex);
+                const contentLengthMatch = headerPart.match(/Content-Length:\s*(\d+)/i);
+                
+                if (!contentLengthMatch) {
+                  console.warn(`[TCP] No Content-Length header found`);
+                  dataBuffer = '';
+                  break; // 退出循环
+                }
+                
+                const contentLength = parseInt(contentLengthMatch[1], 10);
+                const bodyStart = headerEndIndex + 4;
+                const totalNeeded = bodyStart + contentLength;
+                
+                // IMPORTANT: Content-Length is in BYTES, but JavaScript string length is in CHARACTERS
+                // We need to check actual byte length, not character length
+                const currentBodyBytes = new TextEncoder().encode(dataBuffer.substring(bodyStart)).length;
+                const expectedBodyBytes = contentLength;
+                // Check if we have the complete body (using BYTE count, not character count)
+                if (currentBodyBytes < expectedBodyBytes) {
+                  // Body not complete yet, wait for more data
+                  const missing = expectedBodyBytes - currentBodyBytes;
+                  console.log(`[TCP] Incomplete body: have ${currentBodyBytes} bytes, need ${expectedBodyBytes} bytes (missing ${missing} bytes)`);
+                  
+                  // Set timeout to clear buffer if no more data comes (10 seconds)
+                  incompleteDataTimeout = setTimeout(() => {
+                    console.error(`[TCP] Timeout waiting for complete body. Expected ${totalNeeded}, got ${dataBuffer.length}. Clearing buffer.`);
+                    console.error(`[TCP] Last 100 chars of buffer: ${dataBuffer.slice(-100)}`);
+                    dataBuffer = '';
+                    incompleteDataTimeout = null;
+                  }, 10000);
+                  break; // 退出循环，等待更多数据
+                }
+                
+                // Clear timeout - we have complete message
+                if (incompleteDataTimeout) {
+                  clearTimeout(incompleteDataTimeout);
+                  incompleteDataTimeout = null;
+                }
+                
+                // Extract body - need to find exact byte boundary
+                // Since Content-Length is in bytes, we need to extract exactly that many bytes
+                const fullBufferBytes = new TextEncoder().encode(dataBuffer);
+                
+                // Extract body bytes (from bodyStart byte position, take contentLength bytes)
+                const extractedBodyBytes = fullBufferBytes.slice(bodyStart, bodyStart + contentLength);
+                const jsonBody = new TextDecoder('utf-8').decode(extractedBodyBytes).trim();
+                
+                // Calculate where next message starts (in character positions)
+                // We need to convert byte count back to character count
+                const totalBytesConsumed = bodyStart + contentLength;
+                let charPosition = 0;
+                let byteCount = 0;
+                const encoder = new TextEncoder();
+                
+                while (byteCount < totalBytesConsumed && charPosition < dataBuffer.length) {
+                  byteCount += encoder.encode(dataBuffer[charPosition]).length;
+                  charPosition++;
+                }
+                
+                console.log(`[HTTP] ========== COMPLETE HTTP MESSAGE RECEIVED ==========`);
+                
+                // Reset buffer for next request (keep any excess data)
+                const excessData = dataBuffer.substring(charPosition);
+                dataBuffer = excessData;
+                
+                try {
+                  // Parse JSON data
+                  if (jsonBody) {
+                    const jsonData = JSON.parse(jsonBody);
+                    
+                    // Process HTTP request and send response (通过队列)
+                    this.handleHttpRequest(jsonData, socket, clientKey, queueResponse);
+                  } else {
+                    console.error(`[TCP] Empty JSON body`);
+                  }
+                } catch (parseError: any) {
+                  console.error(`[TCP] JSON parse error:`, parseError.message);
+                  console.error(`[TCP] Body content: ${jsonBody.substring(0, 500)}`);
+                  const errorResponse = 
+                    'HTTP/1.1 400 Bad Request\r\n' +
+                    'Content-Type: application/json\r\n' +
+                    'Connection: keep-alive\r\n' +
+                    '\r\n' +
+                    `{"status":"error","message":"Invalid JSON: ${parseError.message}"}`;
+                  queueResponse(errorResponse);
+                }
+                console.log(`[HTTP] ========== HTTP REQUEST PROCESSING COMPLETE ==========`);
+                
+                // 循环继续处理缓冲区中的下一个消息
               }
-              console.log(`[HTTP] ========== HTTP REQUEST PROCESSING COMPLETE ==========`);
               
             } catch (error) {
               console.error(`[TCP] Error processing data:`, error);
@@ -378,9 +405,36 @@ export class TCPSocketService {
   }
 
   /**
-   * Handle single HTTP request and send HTTP response
+   * 安全发送HTTP响应 - 处理缓冲区问题
    */
-  private static handleHttpRequest(jsonData: any, socket: any, clientKey: string): void {
+  private static sendHttpResponse(socket: any, responseData: any): void {
+    const responseBody = JSON.stringify(responseData);
+    const contentLength = new TextEncoder().encode(responseBody).length;
+    
+    const httpResponse = 
+      'HTTP/1.1 200 OK\r\n' +
+      'Content-Type: application/json\r\n' +
+      `Content-Length: ${contentLength}\r\n` +
+      'Connection: keep-alive\r\n' +
+      '\r\n' +
+      responseBody;
+    
+    try {
+      const canContinue = socket.write(httpResponse);
+      
+      if (!canContinue) {
+        // 缓冲区满了，等待 drain 事件
+        console.warn(`[TCP] Socket write buffer full, waiting for drain...`);
+        socket.once('drain', () => {
+          console.log(`[TCP] Socket drain event fired, buffer cleared`);
+        });
+      }
+    } catch (error) {
+      console.error(`[TCP] Failed to send response:`, error);
+    }
+  }
+
+  private static handleHttpRequest(jsonData: any, socket: any, clientKey: string, queueResponse: (response: string) => void): void {
     const messageType = jsonData.type || jsonData.orderType || 'unknown';
     console.log(`[TCP] ${this.getSocketIP(socket)} - Message: ${messageType}`);
     
@@ -394,19 +448,17 @@ export class TCPSocketService {
     const responseBody = JSON.stringify(responseData);
     const contentLength = new TextEncoder().encode(responseBody).length;
     
-    // All messages keep connection (keep-alive)
+    // Build HTTP response
     const httpResponse = 
       'HTTP/1.1 200 OK\r\n' +
       'Content-Type: application/json\r\n' +
       `Content-Length: ${contentLength}\r\n` +
       'Connection: keep-alive\r\n' +
       '\r\n' +
-      responseBody + '\n';
+      responseBody;
     
-    
-    socket.write(httpResponse, () => {
-      console.log(`[TCP] Sent response (${contentLength} bytes):`, responseBody);
-    });
+    // 通过队列发送响应
+    queueResponse(httpResponse);
     
     // Then handle different message types
     if (jsonData.type === 'registration') {
@@ -426,11 +478,10 @@ export class TCPSocketService {
         this.connectionStatusCallback('connected');
       }
       
-    } else if (jsonData.orderType === 'POS' && jsonData.orderitems && jsonData.id) {
+    } else if ((jsonData.type === 'POS' || jsonData.orderType === 'POS') && jsonData.orderitems && jsonData.id) {
       // Handle POS order format (contains orderitems array, needs formatting)
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
-      // console.log('[TCP] Formatted order:', formattedOrder);
       this.executeOrderCallbacks(formattedOrder);
       
     } else {

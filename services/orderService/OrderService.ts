@@ -116,10 +116,10 @@ export class OrderService {
    * 获取订单的过滤后产品列表（基于当前 KDS 配置）
    */
   private static getFilteredProducts(order: FormattedOrder): any[] {
-    console.log(`[getFilteredProducts] kdsRole=${this.kdsRole}, kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
+    // console.log(`[getFilteredProducts] kdsRole=${this.kdsRole}, kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
     
     if (this.kdsRole === 'master' || this.kdsCategory === 'all') {
-      console.log(`[getFilteredProducts] 返回全部 ${order.products.length} 个产品 (master or all)`);
+      // console.log(`[getFilteredProducts] 返回全部 ${order.products.length} 个产品 (master or all)`);
       return order.products; // Master KDS 或 category 为 all，不过滤
     }
 
@@ -133,7 +133,7 @@ export class OrderService {
       return product.category === this.kdsCategory;
     });
     
-    console.log(`[getFilteredProducts] 过滤后 ${filteredProducts.length}/${order.products.length} 个产品`);
+    // console.log(`[getFilteredProducts] 过滤后 ${filteredProducts.length}/${order.products.length} 个产品`);
     return filteredProducts;
   }
 
