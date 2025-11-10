@@ -38,9 +38,9 @@ export default function HomeScreen() {
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
   const [selectedShopName, setSelectedShopName] = useState<string>("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  // const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  // const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  // const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
 
   // 监听屏幕尺寸变化
@@ -105,42 +105,42 @@ export default function HomeScreen() {
   );
 
   // 提取所有可用的商品分类
-  useEffect(() => {
-    if (orders && orders.length > 0) {
-      const categories = new Set<string>();
-      categories.add("all"); // 添加"全部"选项
+  // useEffect(() => {
+  //   if (orders && orders.length > 0) {
+  //     const categories = new Set<string>();
+  //     categories.add("all"); // 添加"全部"选项
 
-      orders.forEach((order) => {
-        if (order.products && order.products.length > 0) {
-          order.products.forEach((product) => {
-            if (product.category) {
-              categories.add(product.category);
-            }
-          });
-        }
-      });
+  //     orders.forEach((order) => {
+  //       if (order.products && order.products.length > 0) {
+  //         order.products.forEach((product) => {
+  //           if (product.category) {
+  //             categories.add(product.category);
+  //           }
+  //         });
+  //       }
+  //     });
 
-      const categoryArray = Array.from(categories);
-      setAvailableCategories(categoryArray);
-    }
-  }, [orders]);
+  //     const categoryArray = Array.from(categories);
+  //     setAvailableCategories(categoryArray);
+  //   }
+  // }, [orders]);
 
   // 根据分类筛选订单
-  useEffect(() => {
-    if (categoryFilter === "all") {
-      setFilteredOrders(orders);
-    } else {
-      const filtered = orders.filter((order) => {
-        // 检查订单中是否有至少一个产品属于所选类别
-        return order.products.some(
-          (product) => product.category === categoryFilter
-        );
-      });
-      setFilteredOrders(filtered);
-    }
-  }, [categoryFilter, orders]);
+  // useEffect(() => {
+  //   if (categoryFilter === "all") {
+  //     setFilteredOrders(orders);
+  //   } else {
+  //     const filtered = orders.filter((order) => {
+  //       // 检查订单中是否有至少一个产品属于所选类别
+  //       return order.products.some(
+  //         (product) => product.category === categoryFilter
+  //       );
+  //     });
+  //     setFilteredOrders(filtered);
+  //   }
+  // }, [categoryFilter, orders]);
 
-  // 子KDS根据目标分类过滤显示
+  // 子KDS根据目标分类过滤显示 (自动根据kitchen category配置过滤)
   useEffect(() => {
     const checkKDSRole = async () => {
       try {
@@ -152,10 +152,8 @@ export default function HomeScreen() {
           const categoryStr = await AsyncStorage.getItem("kds_category");
           const kdsCategory = categoryStr || "all";
 
-          // 自动设置分类过滤器
+          // 自动根据kitchen category过滤订单和商品
           if (kdsCategory !== "all") {
-            setCategoryFilter(kdsCategory);
-
             // 过滤订单中的商品，只保留匹配当前分类的商品
             const ordersWithFilteredProducts = orders
               .map((order) => {
@@ -169,9 +167,16 @@ export default function HomeScreen() {
                 }
 
                 // 过滤订单中的商品，只保留匹配分类的
+                // 同时检查 isValidKds 参数（如果存在且为false则跳过）
                 const filteredProducts = order.products.filter(
-                  (product) =>
-                    product.category === kdsCategory || kdsCategory === "all"
+                  (product) => {
+                    // 检查 isValidKds 参数：如果显式设置为false则跳过，否则继续处理
+                    if (product.isValidKds === false) {
+                      return false;
+                    }
+                    // 检查分类是否匹配
+                    return product.category === kdsCategory || kdsCategory === "all";
+                  }
                 );
 
                 // 如果过滤后没有商品，则不显示此订单
@@ -179,10 +184,12 @@ export default function HomeScreen() {
                   return null;
                 }
 
-                // 返回带有过滤后商品的订单
+                // 返回带有过滤后商品的订单，并标记为已过滤
                 return {
                   ...order,
                   products: filteredProducts,
+                  _hasFilteredItems: true, // 标记这个订单的items已被过滤
+                  _filterCategory: kdsCategory, // 记录过滤的分类
                 };
               })
               .filter((order) => order !== null) as FormattedOrder[];
@@ -203,6 +210,9 @@ export default function HomeScreen() {
           });
 
           setFilteredOrders(filteredByTarget);
+        } else {
+          // 主KDS显示所有订单
+          setFilteredOrders(orders);
         }
       } catch (error) {
         console.error("检查KDS角色失败:", error);
@@ -283,8 +293,8 @@ export default function HomeScreen() {
               {t("newOrders")} ({filteredOrders.length})
             </Text>
 
-            {/* 分类筛选下拉列表 */}
-            <TouchableOpacity
+            {/* 分类筛选下拉列表 - 已注释，使用设置中的kitchen category配置 */}
+            {/* <TouchableOpacity
               style={styles.filterButton}
               onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
             >
@@ -296,10 +306,10 @@ export default function HomeScreen() {
                 size={16}
                 color="white"
               />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
-            {/* 分类下拉选项 */}
-            <Modal
+            {/* 分类下拉选项 - 已注释，使用设置中的kitchen category配置 */}
+            {/* <Modal
               visible={showCategoryDropdown}
               transparent={true}
               animationType="fade"
@@ -334,7 +344,7 @@ export default function HomeScreen() {
                   />
                 </View>
               </TouchableOpacity>
-            </Modal>
+            </Modal> */}
           </View>
 
           <View style={styles.viewModeContainer}>

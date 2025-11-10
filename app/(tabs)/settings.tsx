@@ -24,13 +24,11 @@ import { TCPSocketService } from "@/services/tcpSocketService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
 
-// 本地定义 CategoryType（Master-Slave 功能已移除，仅用于设置界面）
+// 本地定义 CategoryType - 厨房分类设置
 enum CategoryType {
   ALL = "all",
-  DRINKS = "Drinks",
-  HOT_FOOD = "hot_food",
-  COLD_FOOD = "cold_food",
-  DESSERT = "dessert"
+  MILK_TEA = "Milk Tea",
+  FOOD = "Food"
 }
 
 // 设置相关的常量
@@ -177,57 +175,57 @@ export default function SettingsScreen() {
   }, [port, compactCardsPerRow, kdsCategory, editingDeviceName]);
 
   // 处理从Device Discovery连接目标设备
-  const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
-    try {
-        // 如果当前是Slave，则连接到Master KDS (在当前方案中，POS作为客户端连接到KDS)
+  // const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
+  //   try {
+  //       // 如果当前是Slave，则连接到Master KDS (在当前方案中，POS作为客户端连接到KDS)
         
-        Alert.alert(
-          t("connectToDevice"),
-          t("connectToMasterKDS"),
-          [
-            { text: t("cancel"), onPress: () => {
-              setShowDeviceDiscovery(false);
-            }, style: 'cancel' },
-            {
-              text: t("connect"),
-              onPress: async () => {
-                setMasterIP(device.ip);
+  //       Alert.alert(
+  //         t("connectToDevice"),
+  //         t("connectToMasterKDS"),
+  //         [
+  //           { text: t("cancel"), onPress: () => {
+  //             setShowDeviceDiscovery(false);
+  //           }, style: 'cancel' },
+  //           {
+  //             text: t("connect"),
+  //             onPress: async () => {
+  //               setMasterIP(device.ip);
                 
-                try {
-                  // 立即连接到POS/Master，不需要重启
-                  const connected = await TCPSocketService.connectToMaster(device.ip);
+  //               try {
+  //                 // 立即连接到POS/Master，不需要重启
+  //                 const connected = await TCPSocketService.connectToMaster(device.ip);
                   
-                  if (connected) {
-                    // 保存IP到本地存储
-                    await AsyncStorage.setItem("master_ip", device.ip);
+  //                 if (connected) {
+  //                   // 保存IP到本地存储
+  //                   await AsyncStorage.setItem("master_ip", device.ip);
                     
-                    // 关闭Device Discovery面板
-                    setShowDeviceDiscovery(false);
+  //                   // 关闭Device Discovery面板
+  //                   setShowDeviceDiscovery(false);
                     
-                    Alert.alert(
-                      t("success"),
-                      `${t("connectionEstablished")}\nPOS IP: ${device.ip}\n\n等待接收心跳以确认连接状态...`
-                    );
-                  } else {
-                    setMasterIP(""); // 重置IP
-                    Alert.alert(t("error"), t("connectionFailed"));
-                  }
-                } catch (error: any) {
-                  console.error('[Settings] 连接过程出错:', error);
-                  setMasterIP(""); // 重置IP
-                  Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
-                }
-              },
-              style: 'default',
-            },
-          ]
-        );
-      /* } */ // Master模式块结束
-    } catch (error) {
-      console.error('[Settings] handleConnectToDevice错误:', error);
-      Alert.alert("错误", "连接设备失败");
-    }
-  }, [t, setShowDeviceDiscovery]);
+  //                   Alert.alert(
+  //                     t("success"),
+  //                     `${t("connectionEstablished")}\nPOS IP: ${device.ip}\n\n等待接收心跳以确认连接状态...`
+  //                   );
+  //                 } else {
+  //                   setMasterIP(""); // 重置IP
+  //                   Alert.alert(t("error"), t("connectionFailed"));
+  //                 }
+  //               } catch (error: any) {
+  //                 console.error('[Settings] 连接过程出错:', error);
+  //                 setMasterIP(""); // 重置IP
+  //                 Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
+  //               }
+  //             },
+  //             style: 'default',
+  //           },
+  //         ]
+  //       );
+  //     /* } */ // Master模式块结束
+  //   } catch (error) {
+  //     console.error('[Settings] handleConnectToDevice错误:', error);
+  //     Alert.alert("错误", "连接设备失败");
+  //   }
+  // }, [t, setShowDeviceDiscovery]);
 
   // 保存手动输入的Master IP
   const saveManualMasterIP = useCallback(async () => {
@@ -240,7 +238,7 @@ export default function SettingsScreen() {
       console.log('[Settings] 开始手动连接到Master IP:', manualMasterIP);
       
       // 立即连接到Master，不需要重启
-      const connected = await TCPSocketService.connectToMaster(manualMasterIP);
+      // const connected = await TCPSocketService.connectToMaster(manualMasterIP);
       
       if (connected) {
         console.log('[Settings] 成功连接到Master KDS');
@@ -262,18 +260,14 @@ export default function SettingsScreen() {
   // 获取品类显示名称
   const getCategoryDisplayName = useCallback((category: CategoryType) => {
     switch (category) {
-      case CategoryType.DRINKS:
-        return "饮料drinks";
-      case CategoryType.HOT_FOOD:
-        return "热食hot food";
-      case CategoryType.COLD_FOOD:
-        return "冷食cold food";
-      case CategoryType.DESSERT:
-        return "甜点dessert";
+      case CategoryType.MILK_TEA:
+        return "Milk Tea";
+      case CategoryType.FOOD:
+        return "Food";
       case CategoryType.ALL:
-        return "全部all";
+        return "All";
       default:
-        return "未知unknown";
+        return "Unknown";
     }
   }, []);
 
@@ -422,20 +416,12 @@ export default function SettingsScreen() {
                   value={CategoryType.ALL}
                 />
                 <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.DRINKS)}
-                  value={CategoryType.DRINKS}
+                  label={getCategoryDisplayName(CategoryType.MILK_TEA)}
+                  value={CategoryType.MILK_TEA}
                 />
                 <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.HOT_FOOD)}
-                  value={CategoryType.HOT_FOOD}
-                />
-                <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.COLD_FOOD)}
-                  value={CategoryType.COLD_FOOD}
-                />
-                <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.DESSERT)}
-                  value={CategoryType.DESSERT}
+                  label={getCategoryDisplayName(CategoryType.FOOD)}
+                  value={CategoryType.FOOD}
                 />
               </Picker>
             </View>
@@ -621,7 +607,7 @@ export default function SettingsScreen() {
       <DeviceDiscoveryPanel
         visible={showDeviceDiscovery}
         onClose={() => setShowDeviceDiscovery(false)}
-        onSelectAsMaster={handleConnectToDevice}
+        // onSelectAsMaster={handleConnectToDevice}
         currentDeviceIP={ipAddress}
       />
     </>

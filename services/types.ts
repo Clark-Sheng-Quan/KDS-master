@@ -63,6 +63,8 @@ export interface OrderItem {
   options?: OrderOption[];
   prepare_time?: number;
   itemState?: 'PROCESSED' | 'VOIDED'; // POS item state
+  isUpdated?: boolean;                 // 标记此item是否在本次订单更新中被修改或新增
+  isValidKds?: boolean;                // POS标记：此item是否对当前KDS有效 (true才处理，false或无值则跳过)
 }
 
 export interface FormattedOrder {
@@ -81,5 +83,8 @@ export interface FormattedOrder {
   targetCategory?: string;
   isUpdated?: boolean;                   // 标记订单是否为更新
   updatedAt?: number;                    // 更新时间戳
-  updateCount?: number;                  // 更新次数
+  updateCount?: number;                  // 全局更新次数 (所有分类)
+  _hasFilteredItems?: boolean;           // 标记products是否已被kitchen category过滤
+  _filterCategory?: string;              // 记录过滤的kitchen category
+  _updateCountForKitchen?: number;       // 该kitchen分类对应的更新次数
 } 

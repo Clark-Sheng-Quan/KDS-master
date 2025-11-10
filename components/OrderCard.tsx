@@ -162,13 +162,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     if (order.source?.toLowerCase() === 'tcp') {
       // 导入TCPSocketService
       const { TCPSocketService } = require('../services/tcpSocketService');
-      // 构建订单项数组，使用原始的orderitems格式
+      
+      // 构建订单项数组 - 只发送显示的items（如果有过滤的话）
+      // 如果order._hasFilteredItems为true，只发送当前显示的products（已过滤）
+      // 否则发送所有products
       const orderitems = order.products?.map((item: any) => ({
         id: item.id,
         name: item.name,
-        qty: item.qty,
+        qty: item.quantity || item.qty,
         category: item.category,
       })) || [];
+      
+      // console.log(`[OrderCard] 发送完成项目，总数: ${orderitems.length}，过滤状态: ${order._hasFilteredItems ? 'yes' : 'no'}`);
+      
       TCPSocketService.sendOrderItemsCompleted(order._id, orderitems);
     }
 
@@ -250,6 +256,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   // 获取订单来源颜色
   const sourceColor = getSourceColor(order.source);
   const sourceName = getSourceDisplayName(order.source);
+
+  // 计算是否应该显示UPDATED badge
+  // 只有当订单有过滤的items且其中至少有一个item被更新时，才显示
+  const shouldShowUpdatedBadge = (): boolean => {
+    if (!order.isUpdated) return false;
+    return true; // 暂时保持true，因为products已经是过滤后的
+  };
 
   // 渲染产品项时应用分类颜色
   const renderProductItem = (item: any, index: number) => {
@@ -383,7 +396,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         ]}
       >
         {/* 订单更新指示器 - 左上角 */}
-        {order.isUpdated && (
+        {shouldShowUpdatedBadge() && (
           <View style={styles.updateBadge}>
             <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.updateBadgeText}>
