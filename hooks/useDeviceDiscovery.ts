@@ -19,9 +19,6 @@ interface UseDeviceDiscoveryReturn {
   initialize: () => Promise<void>;
   refreshDevices: () => Promise<void>;
   setDeviceName: (deviceName: string) => Promise<void>;
-  modifyDevice: (deviceId: string, name: string, ip: string, port: number) => Promise<void>;
-  lockDevice: (deviceId: string, locked: boolean) => Promise<void>;
-  removeDevice: (deviceId: string) => Promise<void>;
   stopDiscovery: () => Promise<void>;
 }
 
@@ -74,7 +71,6 @@ export const useDeviceDiscovery = (): UseDeviceDiscoveryReturn => {
     try {
       setError(null);
       await DeviceDiscoveryModule.setDeviceServiceName(deviceName);
-      console.log('✅ Device name set to:', deviceName);
     } catch (err: any) {
       const errorMsg = err.message || '设置设备名称失败';
       setError(errorMsg);
@@ -83,67 +79,12 @@ export const useDeviceDiscovery = (): UseDeviceDiscoveryReturn => {
     }
   }, []);
 
-  // 修改设备信息
-  const modifyDevice = useCallback(
-    async (deviceId: string, name: string, ip: string, port: number) => {
-      try {
-        setError(null);
-        await DeviceDiscoveryModule.modifyDevice(deviceId, name, ip, port);
-        await refreshDevices();
-        console.log('✅ Device modified:', deviceId);
-      } catch (err: any) {
-        const errorMsg = err.message || '修改设备失败';
-        setError(errorMsg);
-        console.error('❌ Error modifying device:', errorMsg);
-        throw err;
-      }
-    },
-    [refreshDevices]
-  );
-
-  // 锁定/解锁设备
-  const lockDevice = useCallback(
-    async (deviceId: string, locked: boolean) => {
-      try {
-        setError(null);
-        await DeviceDiscoveryModule.setDeviceLocked(deviceId, locked);
-        await refreshDevices();
-        console.log(`✅ Device ${locked ? 'locked' : 'unlocked'}:`, deviceId);
-      } catch (err: any) {
-        const errorMsg = err.message || '锁定/解锁设备失败';
-        setError(errorMsg);
-        console.error('❌ Error locking device:', errorMsg);
-        throw err;
-      }
-    },
-    [refreshDevices]
-  );
-
-  // 移除设备
-  const removeDevice = useCallback(
-    async (deviceId: string) => {
-      try {
-        setError(null);
-        await DeviceDiscoveryModule.removeDevice(deviceId);
-        await refreshDevices();
-        console.log('✅ Device removed:', deviceId);
-      } catch (err: any) {
-        const errorMsg = err.message || '移除设备失败';
-        setError(errorMsg);
-        console.error('❌ Error removing device:', errorMsg);
-        throw err;
-      }
-    },
-    [refreshDevices]
-  );
-
   // 停止发现服务
   const stopDiscovery = useCallback(async () => {
     try {
       setError(null);
       await DeviceDiscoveryModule.stopDiscoveryService();
       setInitialized(false);
-      console.log('✅ Discovery service stopped');
     } catch (err: any) {
       const errorMsg = err.message || '停止发现服务失败';
       setError(errorMsg);
@@ -175,9 +116,6 @@ export const useDeviceDiscovery = (): UseDeviceDiscoveryReturn => {
     initialize,
     refreshDevices,
     setDeviceName,
-    modifyDevice,
-    lockDevice,
-    removeDevice,
     stopDiscovery,
   };
 };

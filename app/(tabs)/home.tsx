@@ -140,80 +140,9 @@ export default function HomeScreen() {
   //   }
   // }, [categoryFilter, orders]);
 
-  // 根据 KDS category 过滤订单商品
+  // 直接使用来自 OrderService 的已过滤订单，无需在 home 中重复过滤
   useEffect(() => {
-    const filterOrdersByCategory = async () => {
-      try {
-        const categoryStr = await AsyncStorage.getItem("kds_category");
-        const kdsCategory = categoryStr || "all";
-
-        // 如果分类不是"all"，则过滤订单和商品
-        if (kdsCategory !== "all") {
-          // 过滤订单中的商品，只保留匹配当前分类的商品
-          const ordersWithFilteredProducts = orders
-            .map((order) => {
-              // 过滤订单中的商品，只保留匹配分类的
-              // 同时检查 isValidKds 参数（如果存在且为false则跳过）
-              const filteredProducts = order.products.filter(
-                (product) => {
-                  // 检查 isValidKds 参数：如果显式设置为false则跳过，否则继续处理
-                  if (product.isValidKds === false) {
-                    return false;
-                  }
-                  // 检查分类是否匹配
-                  return product.category === kdsCategory;
-                }
-              );
-
-              // 如果过滤后没有商品，则不显示此订单
-              if (filteredProducts.length === 0) {
-                return null;
-              }
-
-              // 返回带有过滤后商品的订单
-              return {
-                ...order,
-                products: filteredProducts,
-              };
-            })
-            .filter((order) => order !== null) as FormattedOrder[];
-
-          setFilteredOrders(ordersWithFilteredProducts);
-        } else {
-          // 如果分类是"all"，则只排除 isValidKds === false 的产品
-          const filteredByIsValid = orders
-            .map((order) => {
-              // 过滤产品：排除 isValidKds === false
-              const filteredProducts = order.products.filter(
-                (product) => {
-                  if (product.isValidKds === false) {
-                    return false;
-                  }
-                  return true;
-                }
-              );
-
-              // 如果过滤后没有商品，则不显示此订单
-              if (filteredProducts.length === 0) {
-                return null;
-              }
-
-              return {
-                ...order,
-                products: filteredProducts,
-              };
-            })
-            .filter((order) => order !== null) as FormattedOrder[];
-
-          setFilteredOrders(filteredByIsValid);
-        }
-      } catch (error) {
-        console.error("过滤订单失败:", error);
-        setFilteredOrders(orders);
-      }
-    };
-
-    filterOrdersByCategory();
+    setFilteredOrders(orders);
   }, [orders]);
 
   // 切换视图模式

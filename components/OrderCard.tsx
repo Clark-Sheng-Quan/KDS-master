@@ -228,6 +228,22 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     return text || "null";
   };
 
+  // 获取订单显示号码（优先使用 num，否则使用 id 的前 8 位）
+  const getOrderDisplayNumber = () => {
+    // 如果 num 存在且不等于完整的 id（表示是真正的订单号）
+    if (typeof order.num === 'string' || typeof order.num === 'number') {
+      const numStr = String(order.num);
+      // 检查 num 是否就是完整的 id（长度超过 20 位的 UUID）
+      if (numStr.length > 20) {
+        // 这是完整的 id，只显示前 8 位
+        return numStr.substring(0, 8);
+      }
+      // 这是真正的订单号，直接返回
+      return numStr;
+    }
+    return order.id.substring(0, 8) || 'N/A';
+  };
+
   // 格式化时间为澳洲格式 (HH:MM-DD-MMM-YYYY)
   const formatAustralianTime = (timeString: string) => {
     try {
@@ -390,11 +406,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         ]}
       >
         {/* 订单更新指示器 - 左上角 */}
-        {order.updateCount && (
+        {order.updateCount && order.updateCount >= 1 && (
           <View style={styles.updateBadge}>
             <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.updateBadgeText}>
-              UPDATED{order.updateCount && order.updateCount > 1 ? ` ${order.updateCount}` : ''}
+              UPDATED{order.updateCount > 1 ? ` ${order.updateCount}` : ''}
             </Text>
           </View>
         )}
@@ -402,11 +418,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <ConfirmModal
           visible={showDoneConfirm}
           title={t("complete")}
-          message={`${t("confirmComplete")} #${
-            typeof order.num === 'string' || typeof order.num === 'number' 
-              ? order.num 
-              : order.id || 'N/A'
-          }?`}
+          message={`${t("confirmComplete")} #${getOrderDisplayNumber()}?`}
           confirmText={t("complete")}
           cancelText={t("cancel")}
           onConfirm={handleDoneConfirm}
@@ -443,9 +455,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               <View style={styles.leftColumn}>
                 {/* 左1：Order Number */}
                 <Text style={styles.orderId}>
-                  #{typeof order.num === 'string' || typeof order.num === 'number' 
-                    ? order.num 
-                    : order.id || 'N/A'}
+                  #{getOrderDisplayNumber()}
                 </Text>
                 
                 {/* 左2：Pickup Method - 仅内容 */}

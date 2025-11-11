@@ -60,6 +60,7 @@ export default function SettingsScreen() {
 
   // TCP 连接状态管理
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  const [connectedDevices, setConnectedDevices] = useState<Array<{ ip: string; port: number; deviceName: string; status: 'connected' | 'disconnected' }>>([]);
 
   // 加载保存的设置
   useEffect(() => {
@@ -108,6 +109,10 @@ export default function SettingsScreen() {
         // 获取初始连接状态
         const currentStatus = TCPSocketService.getConnectionStatus();
         setConnectionStatus(currentStatus);
+        
+        // 获取初始连接的设备列表
+        const devices = TCPSocketService.getConnectedPOSDevices();
+        setConnectedDevices(devices);
 
         setLoading(false);
       } catch (error) {
@@ -124,9 +129,11 @@ export default function SettingsScreen() {
     const intervalId = setInterval(() => {
       const currentStatus = TCPSocketService.getConnectionStatus();
       const currentMasterIP = TCPSocketService.getMasterIP();
+      const devices = TCPSocketService.getConnectedPOSDevices();
       
       setConnectionStatus(currentStatus);
       setMasterIP(currentMasterIP);
+      setConnectedDevices(devices);
     }, 2000); // 每2秒检查一次
 
     return () => clearInterval(intervalId);
@@ -228,34 +235,34 @@ export default function SettingsScreen() {
   // }, [t, setShowDeviceDiscovery]);
 
   // 保存手动输入的Master IP
-  const saveManualMasterIP = useCallback(async () => {
-    if (!manualMasterIP.trim()) {
-      Alert.alert(t("error"), t("pleaseEnterIPAddress"));
-      return;
-    }
+  // const saveManualMasterIP = useCallback(async () => {
+  //   if (!manualMasterIP.trim()) {
+  //     Alert.alert(t("error"), t("pleaseEnterIPAddress"));
+  //     return;
+  //   }
 
-    try {
-      console.log('[Settings] 开始手动连接到Master IP:', manualMasterIP);
+  //   try {
+  //     console.log('[Settings] 开始手动连接到Master IP:', manualMasterIP);
       
-      // 立即连接到Master，不需要重启
-      // const connected = await TCPSocketService.connectToMaster(manualMasterIP);
+  //     // 立即连接到Master，不需要重启
+  //     // const connected = await TCPSocketService.connectToMaster(manualMasterIP);
       
-      if (connected) {
-        console.log('[Settings] 成功连接到Master KDS');
-        setMasterIP(manualMasterIP);
-        // 保存IP到本地存储
-        await AsyncStorage.setItem("master_ip", manualMasterIP);
-        Alert.alert(t("success"), `${t("masterKDSIPAddress")} ${t("saved")}: ${manualMasterIP}`);
-        setManualMasterIP(""); // Clear input field
-      } else {
-        console.log('[Settings] 连接到Master KDS失败');
-        Alert.alert(t("error"), t("connectionFailed"));
-      }
-    } catch (error: any) {
-      console.error('[Settings] 手动连接过程出错:', error);
-      Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
-    }
-  }, [manualMasterIP, t]);
+  //     if (connected) {
+  //       console.log('[Settings] 成功连接到Master KDS');
+  //       setMasterIP(manualMasterIP);
+  //       // 保存IP到本地存储
+  //       await AsyncStorage.setItem("master_ip", manualMasterIP);
+  //       Alert.alert(t("success"), `${t("masterKDSIPAddress")} ${t("saved")}: ${manualMasterIP}`);
+  //       setManualMasterIP(""); // Clear input field
+  //     } else {
+  //       console.log('[Settings] 连接到Master KDS失败');
+  //       Alert.alert(t("error"), t("connectionFailed"));
+  //     }
+  //   } catch (error: any) {
+  //     console.error('[Settings] 手动连接过程出错:', error);
+  //     Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
+  //   }
+  // }, [manualMasterIP, t]);
 
   // 获取品类显示名称
   const getCategoryDisplayName = useCallback((category: CategoryType) => {
@@ -439,95 +446,91 @@ export default function SettingsScreen() {
 
         {/* ========== 设备连接 - POS System ========== */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>{t("deviceConnection")}</Text>
+          <Text style={styles.sectionTitle}>{t("posConnection")}</Text>
 
-          {/* Master IP 地址 */}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("masterKDSIPAddress")}</Text>
-            <Text style={styles.infoValue}>{masterIP || t("notSet")}</Text>
-          </View>
+          {/* POS 连接列表 */}
+          {connectedDevices && connectedDevices.length > 0 ? (
+            <View>
+              {connectedDevices.map((device, index) => (
+                <View key={`${device.ip}-${index}`} style={styles.posDeviceRow}>
+                  {/* 设备信息 - 名称、IP和状态在同一行 */}
+                  <View style={styles.posDeviceInfo}>
+                    <View style={styles.posDeviceMainContent}>
+                      <View style={styles.posDeviceNameIP}>
+                        <Text style={styles.posDeviceName}>{device.deviceName}</Text>
+                        <Text style={styles.posDeviceIP}>{device.ip}</Text>
+                      </View>
+                      <View style={styles.statusBadgeSmall}>
+                        <Ionicons 
+                          name={device.status === 'connected' ? 'checkmark-circle' : 'close-circle'} 
+                          size={14} 
+                          color={device.status === 'connected' ? '#4CAF50' : '#d32f2f'} 
+                        />
+                        <Text style={[
+                          styles.statusTextSmall,
+                          device.status === 'connected' 
+                            ? styles.statusConnectedSmall 
+                            : styles.statusDisconnectedSmall
+                        ]}>
+                          {device.status === 'connected' 
+                            ? t("connectionEstablished") 
+                            : t("disconnected")}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
 
-          {/* 连接状态 */}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("connectionStatus")}</Text>
-            <View style={styles.statusAndButtonContainer}>
-              <View style={styles.statusBadge}>
-                <Ionicons 
-                  name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
-                  size={16} 
-                  color={connectionStatus === 'connected' ? '#4CAF50' : '#d32f2f'} 
-                />
-                <Text style={[
-                  styles.statusText,
-                  connectionStatus === 'connected' 
-                    ? styles.statusConnected 
-                    : styles.statusDisconnected
-                ]}>
-                  {connectionStatus === 'connected' 
-                    ? t("connectionEstablished") 
-                    : t("disconnected")}
-                </Text>
-              </View>
-
-              {masterIP && (
-                <TouchableOpacity 
-                  style={styles.resetConnectionButton}
-                  onPress={() => {
-                    Alert.alert(
-                      t("confirm"),
-                      t("confirmResetMasterConnection"),
-                      [
-                        { 
-                          text: t("cancel"), 
-                          onPress: () => {
-                            console.log('[Settings] 用户取消重置Master');
-                          }, 
-                          style: 'cancel' 
-                        },
-                        {
-                          text: t("confirm"),
-                          onPress: async () => {
-                            console.log('[Settings] 重置Master连接');
-                            try {
-                              // 断开TCP连接
-                              console.log('[Settings] 断开Master连接');
-                              TCPSocketService.disconnect();
-                              
-                              // 清空Master IP
-                              setMasterIP("");
-                              await AsyncStorage.removeItem("master_ip");
-                              
-                              Alert.alert(t("success"), t("masterConnectionReset"));
-                            } catch (error: any) {
-                              console.error('[Settings] 重置连接出错:', error);
-                              Alert.alert(t("error"), `${t("failed")}: ${error.message}`);
-                            }
-                          },
-                          style: 'destructive',
-                        },
-                      ]
-                    );
-                  }}
-                >
-                  <Ionicons name="refresh-circle" size={18} color="white" />
-                  <Text style={styles.resetConnectionButtonText}>{t("resetConnection")}</Text>
-                </TouchableOpacity>
-              )}
+                  {/* 断开连接按钮 */}
+                  {(
+                    <TouchableOpacity 
+                      style={styles.disconnectButton}
+                      onPress={() => {
+                        Alert.alert(
+                          t("confirm"),
+                          `${t("confirmResetMasterConnection")}?\n(${device.ip})`,
+                          [
+                            { 
+                              text: t("cancel"), 
+                              onPress: () => {
+                                console.log('[Settings] 用户取消断开连接');
+                              }, 
+                              style: 'cancel' 
+                            },
+                            {
+                              text: t("confirm"),
+                              onPress: async () => {
+                                console.log('[Settings] 重置连接:', device.ip);
+                                try {
+                                  // 从历史记录中移除设备
+                                  TCPSocketService.removeDeviceFromHistory(device.ip);
+                                  
+                                  // 同时尝试断开TCP连接
+                                  TCPSocketService.disconnect(device.ip);
+                                  
+                                  Alert.alert(t("success"), t("masterConnectionReset"));
+                                } catch (error: any) {
+                                  console.error('[Settings] 重置连接出错:', error);
+                                  Alert.alert(t("error"), `${t("failed")}: ${error.message}`);
+                                }
+                              },
+                              style: 'destructive',
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={18} color="white" />
+                      <Text style={styles.disconnectButtonText}>{t("resetConnection")}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
             </View>
-          </View>
-
-          {/* 手动添加 IP */}
-          <View style={styles.addKdsContainer}>
-            <TextInput
-              style={[styles.textInput, { flex: 1, marginRight: 10 }]}
-              value={manualMasterIP}
-              onChangeText={setManualMasterIP}
-              placeholder={t("enterMasterKDSIPAddress")}
-            />
-            <TouchableOpacity style={styles.addButton} onPress={saveManualMasterIP}>
-              <Text style={styles.addButtonText}>{t("save")}</Text>
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={styles.noConnectionsContainer}>
+              <Text style={styles.noConnectionsText}>{t("noConnections")}</Text>
+            </View>
+          )}
 
           {/* Device Discovery 按钮 */}
           <TouchableOpacity
@@ -906,6 +909,87 @@ const styles = StyleSheet.create({
   },
   switchThumbActive: {
     alignSelf: "flex-end",
+  },
+  posDeviceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginVertical: 8,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#2196F3",
+  },
+  posDeviceInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  posDeviceMainContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  posDeviceNameIP: {
+    flexDirection: "column",
+    gap: 4,
+  },
+  posDeviceName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  posDeviceIP: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  statusBadgeSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#f5f5f5",
+    gap: 4,
+  },
+  statusTextSmall: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  statusConnectedSmall: {
+    color: "#4CAF50",
+  },
+  statusDisconnectedSmall: {
+    color: "#d32f2f",
+  },
+  disconnectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d32f2f",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+    minWidth: 50,
+  },
+  disconnectButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  noConnectionsContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noConnectionsText: {
+    fontSize: 14,
+    color: "#999",
+    fontStyle: "italic",
   },
 });
 

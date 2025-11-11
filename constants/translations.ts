@@ -199,6 +199,9 @@ export const translations = {
     slaveDevices: "厨房显示屏设备",
     masterDevice: "POS系统",
     connectionStatus: "连接状态",
+    posConnection: "POS连接",
+    posConnections: "POS连接列表",
+    noConnections: "暂无连接的POS系统",
     
     // 设备发现相关
     deviceName: "设备名称",
@@ -460,6 +463,9 @@ export const translations = {
     slaveDevices: "Kitchen Display Devices",
     masterDevice: "POS System",
     connectionStatus: "Connection Status",
+    posConnection: "POS Connection",
+    posConnections: "POS Connections",
+    noConnections: "No Connected POS Systems",
     
     // Device Discovery related
     deviceName: "Device Name",

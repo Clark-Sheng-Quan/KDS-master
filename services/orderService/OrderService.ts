@@ -56,7 +56,7 @@ export class OrderService {
   public static setOrderUpdateCallback(callback: (orders: FormattedOrder[]) => void) {
     this.combinedOrderUpdateCallback = callback;
     
-    // 立即发送当前合并的订单列表
+    // 立即发送当前合并的订单列表（已经是过滤后的）
     if (callback) {
       callback([...this.networkOrders, ...this.tcpOrders]);
     }
@@ -161,11 +161,11 @@ export class OrderService {
     let hasProductsChanged = false;
     
     if (prevFilteredProducts) {
-      // 有之前的记录，比较是否变化
+      // 比较新旧产品是否相同
       hasProductsChanged = !this.areProductsEqual(prevFilteredProducts, newFilteredProducts);
       
       if (hasProductsChanged) {
-        // 产品有变化
+        // 产品有变化，增加 updateCount
         const currentUpdateCount = order.updateCount || 0;
         order.updateCount = currentUpdateCount + 1;
       }
@@ -235,14 +235,23 @@ export class OrderService {
       // 函数1：过滤产品（直接修改 order.products）
       const filteredProducts = this.filterOrderProducts(order);
       
-      // 添加新订单到末尾
+      // 如果过滤后没有产品，不存储此订单（对当前 KDS 无关）
+      if (filteredProducts.length === 0) {
+        console.log(`[addNetworkOrder] 订单 ${order.id} 过滤后无产品，不存储`);
+        return;
+      }
+      
+      // 添加新订单到末尾（已经是过滤后的）
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
+      
+      // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
+      this.previousFilteredProducts.set(order.id, [...filteredProducts]);
      
       // 播放新订单提示音
       AudioService.playNewOrderAlert();
       
-      // 触发网络订单和合并订单回调
+      // 触发网络订单和合并订单回调（直接传递已过滤的订单）
       if (this.networkOrderUpdateCallback) {
         this.networkOrderUpdateCallback(this.networkOrders);
       }
@@ -280,12 +289,25 @@ export class OrderService {
         // 函数1：获取新订单的过滤后产品
         const newFilteredProducts = this.filterOrderProducts(order);
         
+        // 如果过滤后没有产品，则删除此订单
+        if (newFilteredProducts.length === 0) {
+          this.tcpOrders.splice(existingOrderIndex, 1);
+          await StorageService.saveTCPOrders(this.tcpOrders);
+          console.log(`[addTCPOrder] 订单 ${order.id} 更新后无产品，已删除`);
+          
+          // 触发回调通知订单已删除
+          if (this.combinedOrderUpdateCallback) {
+            this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
+          }
+          return;
+        }
+        
         // 函数2：检测变化并更新 updateCount（返回是否有变化）
         const hasChanged = this.updateCountIfProductsChanged(order, newFilteredProducts);
         
         order.updatedAt = Date.now();
         
-        // 替换旧订单为新订单
+        // 替换旧订单为新订单（已经是过滤后的）
         this.tcpOrders[existingOrderIndex] = order;
         await StorageService.saveTCPOrders(this.tcpOrders);
         
@@ -294,7 +316,7 @@ export class OrderService {
           AudioService.playNewOrderAlert();
         }
         
-        // 触发回调通知订单已更新
+        // 触发回调通知订单已更新（直接传递已过滤的订单）
         if (this.tcpOrderUpdateCallback) {
           this.tcpOrderUpdateCallback(this.tcpOrders);
         }
@@ -309,14 +331,23 @@ export class OrderService {
       // 新订单：函数1 过滤产品（直接修改 order.products）
       const filteredProducts = this.filterOrderProducts(order);
       
-      // 添加到列表末尾
+      // 如果过滤后没有产品，不存储此订单（对当前 KDS 无关）
+      if (filteredProducts.length === 0) {
+        console.log(`[addTCPOrder] 订单 ${order.id} 过滤后无产品，不存储`);
+        return;
+      }
+      
+      // 添加到列表末尾（已经是过滤后的）
       this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
+      
+      // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
+      this.previousFilteredProducts.set(order.id, [...filteredProducts]);
      
       // 播放新订单提示音
       AudioService.playNewOrderAlert();
       
-      // 触发TCP订单和合并订单回调
+      // 触发TCP订单和合并订单回调（直接传递已过滤的订单）
       if (this.tcpOrderUpdateCallback) {
         this.tcpOrderUpdateCallback(this.tcpOrders);
       }
@@ -354,7 +385,7 @@ export class OrderService {
         this.tcpOrders = await StorageService.removeTCPOrder(orderId, this.tcpOrders);
       }
       
-      // 触发更新回调
+      // 触发更新回调（直接传递已过滤的订单）
       if (this.combinedOrderUpdateCallback) {
         this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
       }

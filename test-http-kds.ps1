@@ -138,7 +138,7 @@ try {
             "id": "85ec9786-a780-4dcb-bf90-b70572bf0255",
             "itemState": "PROCESSED",
             "orderItems": [],
-            "isValidKds": false,
+            "isValidKds": true,
             "product": {
                 "active": true,
                 "calories": 0,

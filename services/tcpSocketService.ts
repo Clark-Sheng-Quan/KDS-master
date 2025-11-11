@@ -31,6 +31,8 @@ export class TCPSocketService {
   private static connectionStatus: Map<string, boolean> = new Map(); // Track connection status by IP
   private static connectionStatusCallback: ((status: 'connected' | 'disconnected') => void) | null = null;
   private static connectionErrorCallback: ((error: string, ip?: string) => void) | null = null;
+  // Track all devices that have ever connected (history)
+  private static connectedDeviceHistory: Map<string, { ip: string; port: number; deviceName: string; timestamp: number }> = new Map();
   
   /**
    * Get TCP port (from AsyncStorage or default value)
@@ -42,7 +44,6 @@ export class TCPSocketService {
         const port = parseInt(savedPort, 10);
         if (port > 0 && port < 65536) {
           this.tcpPort = port;
-          console.log(`[TCP] Port loaded from storage: ${port}`);
           return port;
         }
       }
@@ -51,7 +52,6 @@ export class TCPSocketService {
     }
     
     this.tcpPort = DEFAULT_TCP_PORT;
-    console.log(`[TCP] Using default port: ${DEFAULT_TCP_PORT}`);
     return DEFAULT_TCP_PORT;
   }
 
@@ -67,7 +67,6 @@ export class TCPSocketService {
 
       await AsyncStorage.setItem('kds_port', port.toString());
       this.tcpPort = port;
-      console.log(`[TCP] Port updated to ${port}`);
       return true;
     } catch (error) {
       console.error('[TCP] Failed to save port:', error);
@@ -137,11 +136,9 @@ export class TCPSocketService {
           console.log(`[TCP] Client connection request: ${remoteIP}`);
           
           // Allow multiple connections from different POS machines
-          console.log(`[TCP] Total connections: ${this.clients.size + 1}`);
           
           // Save client connection
           this.clients.set(clientKey, socket);
-          console.log(`[TCP] Saved client connection: ${clientKey}, total clients=${this.clients.size}`);
           // Save POS socket reference for later completion messages
           this.posSocket = socket;
           
@@ -153,6 +150,13 @@ export class TCPSocketService {
           
           // Update connection status - mark as connected
           this.connectionStatus.set(remoteIP, true);
+          // Add to device history
+          this.connectedDeviceHistory.set(remoteIP, {
+            ip: remoteIP,
+            port: this.tcpPort,
+            deviceName: 'POS System',
+            timestamp: Date.now()
+          });
           
           // Call connection status callback
           if (this.connectionStatusCallback) {
@@ -464,14 +468,25 @@ export class TCPSocketService {
     if (jsonData.type === 'registration') {
       // Handle registration
       const clientIP = this.getSocketIP(socket);
+      // Try to get device name from multiple sources
+      const deviceName = jsonData.deviceName 
+        || jsonData.name 
+        || jsonData.deviceId 
+        || `POS`;
       this.masterIP = clientIP;
       
       // Update connection status
       this.connectionStatus.set(clientIP, true);
+      // Add to device history
+      this.connectedDeviceHistory.set(clientIP, {
+        ip: clientIP,
+        port: this.tcpPort,
+        deviceName: deviceName,
+        timestamp: Date.now()
+      });
       
       // Add to persistent connection pool, keep connection
       this.persistentConnections.set(clientIP, socket);
-      console.log(`[TCP] Registration received from: ${clientIP}`);
       
       // Call connection status callback
       if (this.connectionStatusCallback) {
@@ -482,6 +497,19 @@ export class TCPSocketService {
       // Handle POS order format (contains orderitems array, needs formatting)
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
+      
+      // Also try to capture device name from order if this is first connection
+      const clientIP = this.getSocketIP(socket);
+      if (!this.connectedDeviceHistory.has(clientIP)) {
+        const deviceName = jsonData.deviceName || jsonData.name || jsonData.deviceId || `POS`;
+        this.connectedDeviceHistory.set(clientIP, {
+          ip: clientIP,
+          port: this.tcpPort,
+          deviceName: deviceName,
+          timestamp: Date.now()
+        });
+      }
+      
       this.executeOrderCallbacks(formattedOrder);
       
     } else {
@@ -656,6 +684,39 @@ export class TCPSocketService {
   }
   public static getMasterIP(): string {
     return this.masterIP;
+  }
+
+  /**
+   * Get all connected POS devices with their connection status and IP
+   */
+  public static getConnectedPOSDevices(): Array<{ ip: string; port: number; deviceName: string; status: 'connected' | 'disconnected' }> {
+    const devices: Array<{ ip: string; port: number; deviceName: string; status: 'connected' | 'disconnected' }> = [];
+    
+    // Return all devices from history, regardless of current connection status
+    for (const [ip, deviceInfo] of this.connectedDeviceHistory.entries()) {
+      const status = this.connectionStatus.get(ip) ? 'connected' : 'disconnected';
+      devices.push({
+        ip: deviceInfo.ip,
+        port: deviceInfo.port,
+        deviceName: deviceInfo.deviceName,
+        status: status
+      });
+    }
+    
+    return devices;
+  }
+
+  /**
+   * Remove a device from the device history (when user clicks Reset Connection)
+   */
+  public static removeDeviceFromHistory(ip: string): void {
+    this.connectedDeviceHistory.delete(ip);
+    this.connectionStatus.delete(ip);
+    
+    // If removing the masterIP, clear it
+    if (this.masterIP === ip) {
+      this.masterIP = "";
+    }
   }
 
   /**
