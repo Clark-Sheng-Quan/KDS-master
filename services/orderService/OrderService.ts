@@ -118,20 +118,21 @@ export class OrderService {
   private static getFilteredProducts(order: FormattedOrder): any[] {
     // console.log(`[getFilteredProducts] kdsRole=${this.kdsRole}, kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
     
-    if (this.kdsRole === 'master' || this.kdsCategory === 'all') {
-      // console.log(`[getFilteredProducts] 返回全部 ${order.products.length} 个产品 (master or all)`);
-      return order.products; // Master KDS 或 category 为 all，不过滤
-    }
-
-    // Slave KDS 且 category 不为 all，过滤产品
-    const filteredProducts = order.products.filter((product) => {
-      // 检查 isValidKds 参数
+    // 总是要排除 isValidKds === false 的产品
+    let filteredProducts = order.products.filter((product) => {
+      // 检查 isValidKds 参数 - 这个条件对所有 KDS 都适用
       if (product.isValidKds === false) {
         return false;
       }
-      // 检查分类是否匹配
-      return product.category === this.kdsCategory;
+      return true;
     });
+    
+    // 如果是 Slave KDS 且 category 不为 all，还要再按分类过滤
+    if (this.kdsRole === 'slave' && this.kdsCategory !== 'all') {
+      filteredProducts = filteredProducts.filter((product) => {
+        return product.category === this.kdsCategory;
+      });
+    }
     
     // console.log(`[getFilteredProducts] 过滤后 ${filteredProducts.length}/${order.products.length} 个产品`);
     return filteredProducts;
@@ -155,13 +156,15 @@ export class OrderService {
   /**
    * 函数2：检测过滤产品变化并更新 updateCount
    * 比较新旧 filteredProducts，如果有变化则增加 updateCount 并设置 isUpdated
+   * @returns true 如果产品有变化，false 如果没有变化
    */
-  private static updateCountIfProductsChanged(order: FormattedOrder, newFilteredProducts: any[]): void {
+  private static updateCountIfProductsChanged(order: FormattedOrder, newFilteredProducts: any[]): boolean {
     const prevFilteredProducts = this.previousFilteredProducts.get(order.id);
+    let hasProductsChanged = false;
     
     if (prevFilteredProducts) {
       // 有之前的记录，比较是否变化
-      const hasProductsChanged = !this.areProductsEqual(prevFilteredProducts, newFilteredProducts);
+      hasProductsChanged = !this.areProductsEqual(prevFilteredProducts, newFilteredProducts);
       
       if (hasProductsChanged) {
         // 产品有变化
@@ -173,6 +176,8 @@ export class OrderService {
     
     // 保存当前的过滤产品作为下次比较的基准
     this.previousFilteredProducts.set(order.id, newFilteredProducts);
+    
+    return hasProductsChanged;
   }
 
   /**
@@ -278,8 +283,8 @@ export class OrderService {
         // 函数1：获取新订单的过滤后产品
         const newFilteredProducts = this.filterOrderProducts(order);
         
-        // 函数2：检测变化并更新 updateCount
-        this.updateCountIfProductsChanged(order, newFilteredProducts);
+        // 函数2：检测变化并更新 updateCount（返回是否有变化）
+        const hasChanged = this.updateCountIfProductsChanged(order, newFilteredProducts);
         
         order.updatedAt = Date.now();
         
@@ -287,8 +292,10 @@ export class OrderService {
         this.tcpOrders[existingOrderIndex] = order;
         await StorageService.saveTCPOrders(this.tcpOrders);
         
-        // 播放更新提示音
-        AudioService.playNewOrderAlert();
+        // 只在确定有变化时才播放更新提示音
+        if (hasChanged) {
+          AudioService.playNewOrderAlert();
+        }
         
         // 触发回调通知订单已更新
         if (this.tcpOrderUpdateCallback) {

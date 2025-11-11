@@ -199,15 +199,36 @@ export default function HomeScreen() {
           }
 
           // 如果分类是"all"，则只根据targetCategory过滤
-          const filteredByTarget = orders.filter((order) => {
-            // 如果是"all"分类或没有targetCategory，显示所有订单
-            if (kdsCategory === "all" || !order.targetCategory) {
-              return true;
+          const filteredByTarget = orders.map((order) => {
+            // 检查 targetCategory 是否匹配
+            if (
+              order.targetCategory &&
+              order.targetCategory !== kdsCategory &&
+              kdsCategory !== "all"
+            ) {
+              return null; // 不显示不匹配的订单
             }
 
-            // 检查订单的targetCategory是否与KDS分类匹配
-            return order.targetCategory === kdsCategory;
-          });
+            // 过滤产品：总是要排除 isValidKds === false
+            const filteredProducts = order.products.filter(
+              (product) => {
+                if (product.isValidKds === false) {
+                  return false;
+                }
+                return true;
+              }
+            );
+
+            // 如果过滤后没有商品，则不显示此订单
+            if (filteredProducts.length === 0) {
+              return null;
+            }
+
+            return {
+              ...order,
+              products: filteredProducts,
+            };
+          }).filter((order) => order !== null) as FormattedOrder[];
 
           setFilteredOrders(filteredByTarget);
         } else {
