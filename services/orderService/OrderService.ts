@@ -31,7 +31,6 @@ export class OrderService {
   private static networkPollingInterval: ReturnType<typeof setInterval> | null = null;
   
   // KDS 配置信息
-  private static kdsRole: 'master' | 'slave'
   private static kdsCategory: string = 'all';
   
   // 添加订单ID缓存，用于防止重复处理
@@ -44,12 +43,11 @@ export class OrderService {
   private static combinedOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   
   /**
-   * 设置 KDS 配置（kdsRole 和 kdsCategory）
+   * 设置 KDS 配置（kdsCategory）
    */
-  public static setKDSConfig(role: 'master' | 'slave', category: string) {
-    this.kdsRole = role;
+  public static setKDSConfig(category: string) {
     this.kdsCategory = category;
-    console.log(`[OrderService] 设置 KDS 配置 - 角色: ${this.kdsRole}, 分类: ${this.kdsCategory}`);
+    console.log(`[OrderService] 设置 KDS 配置 - 分类: ${this.kdsCategory}`);
   }
 
   /**
@@ -116,7 +114,7 @@ export class OrderService {
    * 获取订单的过滤后产品列表（基于当前 KDS 配置）
    */
   private static getFilteredProducts(order: FormattedOrder): any[] {
-    // console.log(`[getFilteredProducts] kdsRole=${this.kdsRole}, kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
+    // console.log(`[getFilteredProducts] kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
     
     // 总是要排除 isValidKds === false 的产品
     let filteredProducts = order.products.filter((product) => {
@@ -127,8 +125,8 @@ export class OrderService {
       return true;
     });
     
-    // 如果是 Slave KDS 且 category 不为 all，还要再按分类过滤
-    if (this.kdsRole === 'slave' && this.kdsCategory !== 'all') {
+    // 如果 category 不为 all，还要再按分类过滤
+    if (this.kdsCategory !== 'all') {
       filteredProducts = filteredProducts.filter((product) => {
         return product.category === this.kdsCategory;
       });
@@ -170,7 +168,6 @@ export class OrderService {
         // 产品有变化
         const currentUpdateCount = order.updateCount || 0;
         order.updateCount = currentUpdateCount + 1;
-        order.isUpdated = true;
       }
     }
     
@@ -379,13 +376,10 @@ export class OrderService {
       
       // 初始化 KDS 配置
       try {
-        const role = await AsyncStorage.getItem("kds_role");
         const categoryStr = await AsyncStorage.getItem("kds_category");
-        
-        this.kdsRole = role === "slave" ? 'slave' : 'master';
         this.kdsCategory = categoryStr || "all";
         
-        console.log(`[OrderService] 初始化 KDS 配置 - 角色: ${this.kdsRole}, 分类: ${this.kdsCategory}`);
+        console.log(`[OrderService] 初始化 KDS 配置 - 分类: ${this.kdsCategory}`);
       } catch (error) {
         console.error('读取 KDS 配置失败:', error);
       }

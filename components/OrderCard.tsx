@@ -257,12 +257,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const sourceColor = getSourceColor(order.source);
   const sourceName = getSourceDisplayName(order.source);
 
-  // 计算是否应该显示UPDATED badge
-  // 只有当订单有过滤的items且其中至少有一个item被更新时，才显示
-  const shouldShowUpdatedBadge = (): boolean => {
-    if (!order.isUpdated) return false;
-    return true; // 暂时保持true，因为products已经是过滤后的
-  };
 
   // 渲染产品项时应用分类颜色
   const renderProductItem = (item: any, index: number) => {

@@ -81,9 +81,6 @@ export interface FormattedOrder {
   products: OrderItem[];
   total_prepare_time?: number;
   targetCategory?: string;
-  isUpdated?: boolean;                   // 标记订单是否为更新
   updatedAt?: number;                    // 更新时间戳
   updateCount?: number;                  // 全局更新次数 (所有分类)
-  _hasFilteredItems?: boolean;           // 标记products是否已被kitchen category过滤
-  _filterCategory?: string;              // 记录过滤的kitchen category
 } 

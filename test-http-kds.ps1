@@ -1,6 +1,6 @@
 # PowerShell script to test KDS HTTP-only protocol with persistent connections
 
-$KDS_IP = "192.168.0.179"
+$KDS_IP = "192.168.0.156"
 $KDS_PORT = 4322
 
 Write-Host "========================================" -ForegroundColor Cyan

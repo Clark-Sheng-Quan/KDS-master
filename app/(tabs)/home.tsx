@@ -140,107 +140,80 @@ export default function HomeScreen() {
   //   }
   // }, [categoryFilter, orders]);
 
-  // 子KDS根据目标分类过滤显示 (自动根据kitchen category配置过滤)
+  // 根据 KDS category 过滤订单商品
   useEffect(() => {
-    const checkKDSRole = async () => {
+    const filterOrdersByCategory = async () => {
       try {
-        const role = await AsyncStorage.getItem("kds_role");
-        const isSlaveKDS = role === "slave";
+        const categoryStr = await AsyncStorage.getItem("kds_category");
+        const kdsCategory = categoryStr || "all";
 
-        if (isSlaveKDS) {
-          // 获取子KDS的分类设置
-          const categoryStr = await AsyncStorage.getItem("kds_category");
-          const kdsCategory = categoryStr || "all";
-
-          // 自动根据kitchen category过滤订单和商品
-          if (kdsCategory !== "all") {
-            // 过滤订单中的商品，只保留匹配当前分类的商品
-            const ordersWithFilteredProducts = orders
-              .map((order) => {
-                // 首先检查订单是否应该显示（基于targetCategory）
-                if (
-                  order.targetCategory &&
-                  order.targetCategory !== kdsCategory &&
-                  kdsCategory !== "all"
-                ) {
-                  return null; // 不显示不匹配的订单
-                }
-
-                // 过滤订单中的商品，只保留匹配分类的
-                // 同时检查 isValidKds 参数（如果存在且为false则跳过）
-                const filteredProducts = order.products.filter(
-                  (product) => {
-                    // 检查 isValidKds 参数：如果显式设置为false则跳过，否则继续处理
-                    if (product.isValidKds === false) {
-                      return false;
-                    }
-                    // 检查分类是否匹配
-                    return product.category === kdsCategory || kdsCategory === "all";
+        // 如果分类不是"all"，则过滤订单和商品
+        if (kdsCategory !== "all") {
+          // 过滤订单中的商品，只保留匹配当前分类的商品
+          const ordersWithFilteredProducts = orders
+            .map((order) => {
+              // 过滤订单中的商品，只保留匹配分类的
+              // 同时检查 isValidKds 参数（如果存在且为false则跳过）
+              const filteredProducts = order.products.filter(
+                (product) => {
+                  // 检查 isValidKds 参数：如果显式设置为false则跳过，否则继续处理
+                  if (product.isValidKds === false) {
+                    return false;
                   }
-                );
-
-                // 如果过滤后没有商品，则不显示此订单
-                if (filteredProducts.length === 0) {
-                  return null;
+                  // 检查分类是否匹配
+                  return product.category === kdsCategory;
                 }
+              );
 
-                // 返回带有过滤后商品的订单，并标记为已过滤
-                return {
-                  ...order,
-                  products: filteredProducts,
-                  _hasFilteredItems: true, // 标记这个订单的items已被过滤
-                  _filterCategory: kdsCategory, // 记录过滤的分类
-                };
-              })
-              .filter((order) => order !== null) as FormattedOrder[];
-
-            setFilteredOrders(ordersWithFilteredProducts);
-            return; // 提前返回，不再执行下面的过滤逻辑
-          }
-
-          // 如果分类是"all"，则只根据targetCategory过滤
-          const filteredByTarget = orders.map((order) => {
-            // 检查 targetCategory 是否匹配
-            if (
-              order.targetCategory &&
-              order.targetCategory !== kdsCategory &&
-              kdsCategory !== "all"
-            ) {
-              return null; // 不显示不匹配的订单
-            }
-
-            // 过滤产品：总是要排除 isValidKds === false
-            const filteredProducts = order.products.filter(
-              (product) => {
-                if (product.isValidKds === false) {
-                  return false;
-                }
-                return true;
+              // 如果过滤后没有商品，则不显示此订单
+              if (filteredProducts.length === 0) {
+                return null;
               }
-            );
 
-            // 如果过滤后没有商品，则不显示此订单
-            if (filteredProducts.length === 0) {
-              return null;
-            }
+              // 返回带有过滤后商品的订单
+              return {
+                ...order,
+                products: filteredProducts,
+              };
+            })
+            .filter((order) => order !== null) as FormattedOrder[];
 
-            return {
-              ...order,
-              products: filteredProducts,
-            };
-          }).filter((order) => order !== null) as FormattedOrder[];
-
-          setFilteredOrders(filteredByTarget);
+          setFilteredOrders(ordersWithFilteredProducts);
         } else {
-          // 主KDS显示所有订单
-          setFilteredOrders(orders);
+          // 如果分类是"all"，则只排除 isValidKds === false 的产品
+          const filteredByIsValid = orders
+            .map((order) => {
+              // 过滤产品：排除 isValidKds === false
+              const filteredProducts = order.products.filter(
+                (product) => {
+                  if (product.isValidKds === false) {
+                    return false;
+                  }
+                  return true;
+                }
+              );
+
+              // 如果过滤后没有商品，则不显示此订单
+              if (filteredProducts.length === 0) {
+                return null;
+              }
+
+              return {
+                ...order,
+                products: filteredProducts,
+              };
+            })
+            .filter((order) => order !== null) as FormattedOrder[];
+
+          setFilteredOrders(filteredByIsValid);
         }
       } catch (error) {
-        console.error("检查KDS角色失败:", error);
+        console.error("过滤订单失败:", error);
+        setFilteredOrders(orders);
       }
     };
 
-    checkKDSRole();
+    filterOrdersByCategory();
   }, [orders]);
 
   // 切换视图模式
