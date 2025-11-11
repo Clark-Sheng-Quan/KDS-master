@@ -18,7 +18,7 @@ import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCategoryColors } from "../contexts/CategoryColorContext";
 import { theme } from "../styles/theme";
-import { ProductDetailPopup } from "./ProductDetailPopup";
+import { ProductDetailPopup, checkProductHasRecipe } from "./ProductDetailPopup";
 import { TCPSocketService } from "../services/tcpSocketService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_API } from "../config/api";
@@ -141,8 +141,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   };
 
   // 处理商品长按
-  const handleItemLongPress = (item: any) => {
+  const handleItemLongPress = async (item: any) => {
     if (disabled) return;
+
+    // 检查商品是否有配方信息
+    const hasRecipe = await checkProductHasRecipe(item.id);
+    
+    // 只有有配方信息才打开弹窗
+    if (!hasRecipe) {
+      return;
+    }
 
     // 设置选中的商品信息
     setSelectedProduct({
@@ -299,7 +307,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               borderBottomRightRadius: 4,
             }
           ]}
-          delayLongPress={100} // 500毫秒长按触发
+          delayLongPress={500} // 500毫秒长按触发
         >
           <View style={styles.itemNameContainer}>
             <Text style={[

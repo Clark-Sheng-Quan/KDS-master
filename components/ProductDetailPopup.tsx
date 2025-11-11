@@ -31,54 +31,54 @@ interface ProductDetailPopupProps {
 }
 
 // 示例数据
-const MOCK_PRODUCT_DETAILS: Record<string, ProductDetail> = {
-  default: {
-    id: "default",
-    name: "未知商品",
-    ingredients: ["未找到配料信息"],
-    instructions: ["未找到制作说明"],
-  },
-  p1: {
-    id: "p1",
-    name: "椰子奶茶",
-    ingredients: ["茶叶", "椰奶", "糖浆", "奶精", "珍珠", "椰果"],
-    instructions: [
-      "1. 用95°C热水冲泡茶叶3分钟",
-      "2. 加入20ml椰奶和15ml糖浆",
-      "3. 混合均匀后加入10g奶精",
-      "4. 倒入煮好的珍珠和椰果",
-      "5. 加入冰块摇匀后装杯",
-    ],
-    prepare_time: 180,
-  },
-  p2: {
-    id: "p2",
-    name: "香煎牛排",
-    ingredients: ["牛排", "黑胡椒", "盐", "迷迭香", "黄油", "蒜片"],
-    instructions: [
-      "1. 牛排室温静置20分钟",
-      "2. 撒盐和黑胡椒腌制",
-      "3. 热锅倒油至七成热",
-      "4. 放入牛排煎至两面金黄",
-      "5. 加入黄油、迷迭香和蒜片增香",
-      "6. 取出静置5分钟后切片",
-    ],
-    prepare_time: 600,
-  },
-  p3: {
-    id: "p3",
-    name: "草莓蛋糕",
-    ingredients: ["面粉", "鸡蛋", "牛奶", "草莓", "糖", "奶油", "黄油"],
-    instructions: [
-      "1. 预热烤箱至180°C",
-      "2. 混合面粉、鸡蛋、牛奶和糖搅拌均匀",
-      "3. 倒入烤盘烘烤25分钟",
-      "4. 等待蛋糕冷却",
-      "5. 涂抹奶油并装饰草莓",
-    ],
-    prepare_time: 1800,
-  },
-};
+// const MOCK_PRODUCT_DETAILS: Record<string, ProductDetail> = {
+//   default: {
+//     id: "default",
+//     name: "未知商品",
+//     ingredients: ["未找到配料信息"],
+//     instructions: ["未找到制作说明"],
+//   },
+//   p1: {
+//     id: "p1",
+//     name: "椰子奶茶",
+//     ingredients: ["茶叶", "椰奶", "糖浆", "奶精", "珍珠", "椰果"],
+//     instructions: [
+//       "1. 用95°C热水冲泡茶叶3分钟",
+//       "2. 加入20ml椰奶和15ml糖浆",
+//       "3. 混合均匀后加入10g奶精",
+//       "4. 倒入煮好的珍珠和椰果",
+//       "5. 加入冰块摇匀后装杯",
+//     ],
+//     prepare_time: 180,
+//   },
+//   p2: {
+//     id: "p2",
+//     name: "香煎牛排",
+//     ingredients: ["牛排", "黑胡椒", "盐", "迷迭香", "黄油", "蒜片"],
+//     instructions: [
+//       "1. 牛排室温静置20分钟",
+//       "2. 撒盐和黑胡椒腌制",
+//       "3. 热锅倒油至七成热",
+//       "4. 放入牛排煎至两面金黄",
+//       "5. 加入黄油、迷迭香和蒜片增香",
+//       "6. 取出静置5分钟后切片",
+//     ],
+//     prepare_time: 600,
+//   },
+//   p3: {
+//     id: "p3",
+//     name: "草莓蛋糕",
+//     ingredients: ["面粉", "鸡蛋", "牛奶", "草莓", "糖", "奶油", "黄油"],
+//     instructions: [
+//       "1. 预热烤箱至180°C",
+//       "2. 混合面粉、鸡蛋、牛奶和糖搅拌均匀",
+//       "3. 倒入烤盘烘烤25分钟",
+//       "4. 等待蛋糕冷却",
+//       "5. 涂抹奶油并装饰草莓",
+//     ],
+//     prepare_time: 1800,
+//   },
+// };
 
 // 获取商品详情的函数
 const getProductDetail = async (productId: string): Promise<ProductDetail> => {
@@ -145,6 +145,54 @@ const getProductDetail = async (productId: string): Promise<ProductDetail> => {
       instructions: ["error"],
       prepare_time: 0,
     };
+  }
+};
+
+/**
+ * 检查商品是否有配方信息（配料或制作说明）
+ * @param productId 商品ID
+ * @returns 如果有配方信息返回true，否则返回false
+ */
+export const checkProductHasRecipe = async (productId: string): Promise<boolean> => {
+  try {
+    const token = await getToken();
+    if (!token) {
+      return false;
+    }
+
+    const requestBody = {
+      token,
+      product_id: productId,
+    };
+
+    const response = await fetch(`${API_BASE_URL}/product/get_recipe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return false;
+    }
+
+    if (data.status_code !== 200) {
+      return false;
+    }
+
+    // 检查是否有配料或制作说明
+    const hasIngredients = Array.isArray(data.recipe) && data.recipe.length > 0;
+    const hasInstructions = data.instruction && data.instruction.length > 0;
+
+    return hasIngredients || hasInstructions;
+  } catch (error) {
+    console.error("检查商品配方信息失败:", error);
+    return false;
   }
 };
 
