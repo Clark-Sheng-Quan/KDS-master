@@ -28,19 +28,20 @@ const DEFAULT_COMPACT_CARDS_PER_ROW = 6;
 
 // 设置相关的常量
 const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
+const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
+const DEFAULT_CARDS_PER_COLUMN = "1.5";
 
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder } = useOrders();
-  const [viewMode, setViewMode] = useState<"standard" | "compact">("standard");
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
-  const [compactCardsPerRow, setCompactCardsPerRow] = useState<number>(
+  const [cardsPerRow, setCardsPerRow] = useState<number>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
+  const [cardsPerColumn, setCardsPerColumn] = useState<string>(
+    DEFAULT_CARDS_PER_COLUMN
+  );
   const [selectedShopName, setSelectedShopName] = useState<string>("");
-  // const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  // const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  // const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
 
   // 监听屏幕尺寸变化
@@ -54,26 +55,31 @@ export default function HomeScreen() {
 
   // 根据屏幕方向计算卡片数和可用宽度
   const isLandscape = dimensions.width > dimensions.height;
-  const cardsPerRowStandard = isLandscape ? LANDSCAPE_CARDS_PER_ROW : PORTRAIT_CARDS_PER_ROW;
   const availableWidth = dimensions.width - PADDING * 2;
-
+  
+  // 计算卡片高度：基于 cardsPerColumn 计算
+  // 假设屏幕可用高度大约为 dimensions.height - 200（扣除顶部导航栏等）
+  const availableHeight = dimensions.height;
+  const cardHeight = Math.floor(availableHeight / parseFloat(cardsPerColumn));
   // 每次页面获得焦点时加载设置
   useFocusEffect(
     useCallback(() => {
       const loadSettings = async () => {
         try {
-          // 加载视图模式
-          const savedMode = await AsyncStorage.getItem("viewMode");
-          if (savedMode === "compact" || savedMode === "standard") {
-            setViewMode(savedMode);
-          }
-
-          // 加载Compact模式每行卡片数量
-          const savedCompactCardsPerRow = await AsyncStorage.getItem(
+          // 加载每行卡片数量
+          const savedCardsPerRow = await AsyncStorage.getItem(
             STORAGE_KEY_COMPACT_CARDS_PER_ROW
           );
-          if (savedCompactCardsPerRow) {
-            setCompactCardsPerRow(parseInt(savedCompactCardsPerRow));
+          if (savedCardsPerRow) {
+            setCardsPerRow(parseInt(savedCardsPerRow));
+          }
+
+          // 加载垂直卡片数量
+          const savedCardsPerColumn = await AsyncStorage.getItem(
+            STORAGE_KEY_CARDS_PER_COLUMN
+          );
+          if (savedCardsPerColumn) {
+            setCardsPerColumn(savedCardsPerColumn);
           }
         } catch (error) {
           console.error("加载设置失败:", error);
@@ -85,14 +91,24 @@ export default function HomeScreen() {
       // 设置一个定时器，每秒检查一次设置变化
       const intervalId = setInterval(async () => {
         try {
-          const savedCompactCardsPerRow = await AsyncStorage.getItem(
+          const savedCardsPerRow = await AsyncStorage.getItem(
             STORAGE_KEY_COMPACT_CARDS_PER_ROW
           );
           if (
-            savedCompactCardsPerRow &&
-            parseInt(savedCompactCardsPerRow) !== compactCardsPerRow
+            savedCardsPerRow &&
+            parseInt(savedCardsPerRow) !== cardsPerRow
           ) {
-            setCompactCardsPerRow(parseInt(savedCompactCardsPerRow));
+            setCardsPerRow(parseInt(savedCardsPerRow));
+          }
+
+          const savedCardsPerColumn = await AsyncStorage.getItem(
+            STORAGE_KEY_CARDS_PER_COLUMN
+          );
+          if (
+            savedCardsPerColumn &&
+            savedCardsPerColumn !== cardsPerColumn
+          ) {
+            setCardsPerColumn(savedCardsPerColumn);
           }
         } catch (error) {
           console.error("检查设置变化失败:", error);
@@ -101,7 +117,7 @@ export default function HomeScreen() {
 
       // 清理函数
       return () => clearInterval(intervalId);
-    }, [compactCardsPerRow])
+    }, [cardsPerRow, cardsPerColumn])
   );
 
   // 提取所有可用的商品分类
@@ -144,20 +160,6 @@ export default function HomeScreen() {
   useEffect(() => {
     setFilteredOrders(orders);
   }, [orders]);
-
-  // 切换视图模式
-  const toggleViewMode = async (mode: "standard" | "compact") => {
-    setViewMode(mode);
-    try {
-      await AsyncStorage.setItem("viewMode", mode);
-    } catch (error) {
-      console.error("保存视图模式失败:", error);
-    }
-  };
-
-  // 根据视图模式计算每行卡片数
-  const cardsPerRow =
-    viewMode === "compact" ? compactCardsPerRow : cardsPerRowStandard;
 
   // 添加这个适配器函数
   const handleOrderRemove = (order: FormattedOrder) => {
@@ -269,41 +271,6 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </Modal> */}
           </View>
-
-          <View style={styles.viewModeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.viewModeButton,
-                viewMode === "standard" && styles.activeViewModeButton,
-              ]}
-              onPress={() => toggleViewMode("standard")}
-            >
-              <Text
-                style={[
-                  styles.viewModeButtonText,
-                  viewMode === "standard" && styles.activeViewModeButtonText,
-                ]}
-              >
-                Standard
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.viewModeButton,
-                viewMode === "compact" && styles.activeViewModeButton,
-              ]}
-              onPress={() => toggleViewMode("compact")}
-            >
-              <Text
-                style={[
-                  styles.viewModeButtonText,
-                  viewMode === "compact" && styles.activeViewModeButtonText,
-                ]}
-              >
-                Compact ({compactCardsPerRow})
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <View style={styles.cardsContainer}>
@@ -317,6 +284,7 @@ export default function HomeScreen() {
                   width:
                     (availableWidth - CARD_MARGIN * (cardsPerRow - 1)) /
                     cardsPerRow,
+                  height: cardHeight,
                   marginRight:
                     (filteredOrders.indexOf(order) + 1) % cardsPerRow === 0
                       ? 0
@@ -416,29 +384,6 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 16,
     color: "#333",
-  },
-  viewModeContainer: {
-    flexDirection: "row",
-    borderRadius: 8,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  viewModeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#f5f5f5",
-  },
-  activeViewModeButton: {
-    backgroundColor: colors.primary,
-  },
-  viewModeButtonText: {
-    color: "#555",
-    fontWeight: "500",
-    fontSize: 14,
-  },
-  activeViewModeButtonText: {
-    color: "white",
   },
   cardsContainer: {
     flexDirection: "row",

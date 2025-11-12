@@ -124,13 +124,23 @@ try {
     # Start-Sleep -Seconds 1
     
     # Test 3: Real POS Order (from actual system with full product details)
-    $realOrderBody = '{
+    # 初始化订单计数器和基础ID
+    $orderCounter = 0
+    $baseId = "a086cc75-1b75-443d-a73b-a8049a294c0"
+    
+    function Generate-OrderBody {
+        param([int]$counter)
+        
+        # 生成新的 ID：基础 ID + 计数器的最后一位
+        $orderId = $baseId + ($counter % 10).ToString()
+        
+        $orderBody = '{
         "PickMethod": {},
         "createdAt": "Nov 10, 2025 10:47:00 PM",
-        "id": "a086cc75-1b75-443d-a73b-a8049a294c08",
+        "id": "' + $orderId + '",
         "member": {},
         "modifiedTotalCost": {},
-        "notes": "",
+        "notes": "Order #' + $counter + '",
         "orderNumber": {},
         "orderType": "POS",
         "orderitems": [
@@ -190,8 +200,15 @@ try {
         "tableOrder": {},
         "tableSize": 1,
         "userID": {}
-        }';
-    $success = Send-HttpRequest -client $tcpClient -writer $writer -reader $reader -body $realOrderBody -testName "TEST 2 - Real POS Order (2 items)"
+        }'
+        
+        return $orderBody
+    }
+    
+    # 发送初始订单
+    $orderCounter = 0
+    $realOrderBody = Generate-OrderBody -counter $orderCounter
+    $success = Send-HttpRequest -client $tcpClient -writer $writer -reader $reader -body $realOrderBody -testName "TEST 2 - Real POS Order (2 items) #0"
     Write-Host ""
     Start-Sleep -Seconds 1
     
@@ -221,12 +238,16 @@ try {
             Write-Host "[CONNECTION] Disconnecting..." -ForegroundColor Cyan
             $keepConnection = $false
         } elseif ($command -eq 'o') {
-            Write-Host "[ORDER] Sending order..." -ForegroundColor Cyan
+            Write-Host "[ORDER] Sending new order..." -ForegroundColor Cyan
             
-            $success = Send-HttpRequest -client $tcpClient -writer $writer -reader $reader -body $realOrderBody -testName "Order"
+            # 增加计数器并生成新订单
+            $orderCounter++
+            $realOrderBody = Generate-OrderBody -counter $orderCounter
+            
+            $success = Send-HttpRequest -client $tcpClient -writer $writer -reader $reader -body $realOrderBody -testName "Order #$orderCounter"
         } else {
             Write-Host "Unknown command: $command" -ForegroundColor Red
-            Write-Host "Use 'order' or 'quit'" -ForegroundColor Yellow
+            Write-Host "Use 'o' for order or 'q' for quit" -ForegroundColor Yellow
         }
     }
     

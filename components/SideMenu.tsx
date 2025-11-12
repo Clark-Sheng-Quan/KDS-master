@@ -31,7 +31,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const { networkStatus } = useOrders();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedShopName, setSelectedShopName] = useState<string>("");
-  const [screenOrientation, setScreenOrientation] = useState<"portrait" | "landscape">("portrait");
+  const [screenOrientation, setScreenOrientation] = useState<"portrait" | "landscape">("landscape");
   const { width, height } = Dimensions.get("window");
 
   // 检测初始屏幕方向
@@ -136,6 +136,21 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
       }
       
       setScreenOrientation(newOrientation);
+      
+      // 立即保存到 AsyncStorage，并同时保存对应方向的卡片设置
+      console.log("保存屏幕方向到 AsyncStorage:", newOrientation);
+      await AsyncStorage.setItem("screenOrientation", newOrientation);
+      
+      // 根据新方向立即设置卡片默认值
+      if (newOrientation === "landscape") {
+        console.log("Landscape 模式：保存卡片设置 cardsPerRow=5, cardsPerColumn=2");
+        await AsyncStorage.setItem("compact_cards_per_row", "5");
+        await AsyncStorage.setItem("cards_per_column", "2");
+      } else {
+        console.log("Portrait 模式：保存卡片设置 cardsPerRow=4, cardsPerColumn=3.5");
+        await AsyncStorage.setItem("compact_cards_per_row", "4");
+        await AsyncStorage.setItem("cards_per_column", "3.5");
+      }
     } catch (error) {
       console.error("无法切换屏幕方向:", error);
     }

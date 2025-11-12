@@ -10,6 +10,7 @@ import {
   TextInput,
   Platform,
   NativeModules,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../styles/theme";
@@ -23,6 +24,7 @@ import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
+import { useFocusEffect } from "@react-navigation/native";
 
 // 本地定义 CategoryType - 厨房分类设置
 enum CategoryType {
@@ -34,6 +36,8 @@ enum CategoryType {
 // 设置相关的常量
 const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 const DEFAULT_COMPACT_CARDS_PER_ROW = "5";
+const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
+const DEFAULT_CARDS_PER_COLUMN = "1.5";
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 
 export default function SettingsScreen() {
@@ -48,9 +52,10 @@ export default function SettingsScreen() {
   const [editingDeviceName, setEditingDeviceName] = useState<string>("KDS:Device");
 
   // 添加Compact模式下每行卡片数量状态
-  const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>(
-    DEFAULT_COMPACT_CARDS_PER_ROW
-  );
+  const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>("5");
+
+  // 添加垂直卡片数量状态
+  const [cardsPerColumn, setCardsPerColumn] = useState<string>("2");
 
   // 添加显示打印按钮开关状态
   const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
@@ -62,6 +67,9 @@ export default function SettingsScreen() {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [connectedDevices, setConnectedDevices] = useState<Array<{ ip: string; port: number; deviceName: string; status: 'connected' | 'disconnected' }>>([]);
 
+  // 屏幕方向状态 - 从 SideMenu 的 switch 按键控制，初始值为 landscape
+  const [screenOrientation, setScreenOrientation] = useState<"landscape" | "portrait">("landscape");
+
   // 加载保存的设置
   useEffect(() => {
     async function loadSettings() {
@@ -72,14 +80,6 @@ export default function SettingsScreen() {
 
         const savedPort = await AsyncStorage.getItem("kds_port");
         if (savedPort) setPort(savedPort);
-
-        // 加载Compact模式每行卡片数量
-        const savedCompactCardsPerRow = await AsyncStorage.getItem(
-          STORAGE_KEY_COMPACT_CARDS_PER_ROW
-        );
-        if (savedCompactCardsPerRow) {
-          setCompactCardsPerRow(savedCompactCardsPerRow);
-        }
 
         // 加载打印按钮显示设置
         const savedShowPrintButton = await AsyncStorage.getItem(
@@ -124,6 +124,41 @@ export default function SettingsScreen() {
     loadSettings();
   }, []); // 只在组件挂载时执行一次
 
+  // 监听页面获得焦点时重新加载 screenOrientation（来自 SideMenu 的改变）
+  // 当 screenOrientation 改变时自动调整卡片数量到该方向的默认值
+  useFocusEffect(
+    useCallback(() => {
+      const loadOrientationAndApplySettings = async () => {
+        try {
+          const savedOrientation = await AsyncStorage.getItem("screenOrientation");
+          if (savedOrientation === "portrait" || savedOrientation === "landscape") {
+            console.log("从 AsyncStorage 加载屏幕方向:", savedOrientation);
+            setScreenOrientation(savedOrientation);
+
+            // // 根据方向自动调整卡片数量
+            // if (savedOrientation === "landscape") {
+            //   console.log("切换到 Landscape 模式，设置 cardsPerRow 为 5，cardsPerColumn 为 2");
+            //   setCompactCardsPerRow("5");
+            //   setCardsPerColumn("2");
+            //   await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, "5");
+            //   await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "2");
+            // } else {
+            //   console.log("切换到 Portrait 模式，设置 cardsPerRow 为 4，cardsPerColumn 为 3.5");
+            //   setCompactCardsPerRow("4");
+            //   setCardsPerColumn("3.5");
+            //   await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, "4");
+            //   await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "3.5");
+            // }
+          }
+        } catch (error) {
+          console.error("加载屏幕方向失败:", error);
+        }
+      };
+
+      loadOrientationAndApplySettings();
+    }, [])
+  );
+
   // 使用定时器定期检查连接状态（避免设置回调冲突）
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -157,6 +192,12 @@ export default function SettingsScreen() {
         compactCardsPerRow
       );
 
+      // 保存垂直卡片数量
+      await AsyncStorage.setItem(
+        STORAGE_KEY_CARDS_PER_COLUMN,
+        cardsPerColumn
+      );
+
       // 保存分类设置
       await AsyncStorage.setItem("kds_category", kdsCategory);
 
@@ -179,7 +220,7 @@ export default function SettingsScreen() {
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
     }
-  }, [port, compactCardsPerRow, kdsCategory, editingDeviceName]);
+  }, [port, compactCardsPerRow, cardsPerColumn, kdsCategory, editingDeviceName]);
 
   // 处理从Device Discovery连接目标设备
   // const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
@@ -287,6 +328,12 @@ export default function SettingsScreen() {
   const handleCompactCardsPerRowChange = useCallback(async (value: string) => {
     setCompactCardsPerRow(value);
     await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, value);
+  }, []);
+
+  // 处理垂直卡片数量变更
+  const handleCardsPerColumnChange = useCallback(async (value: string) => {
+    setCardsPerColumn(value);
+    await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, value);
   }, []);
 
   // 处理打印按钮显示开关
@@ -548,17 +595,60 @@ export default function SettingsScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
             <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={compactCardsPerRow}
-                style={styles.textPicker}
-                onValueChange={handleCompactCardsPerRowChange}
-                dropdownIconColor="#666"
-              >
-                <Picker.Item label="3" value="3" />
-                <Picker.Item label="4" value="4" />
-                <Picker.Item label="5" value="5" />
-                <Picker.Item label="6" value="6" />
-              </Picker>
+              {screenOrientation === "landscape" && (
+                <Picker
+                  selectedValue={compactCardsPerRow || "5"}
+                  style={styles.textPicker}
+                  onValueChange={handleCompactCardsPerRowChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label="4" value="4" />
+                  <Picker.Item label="5" value="5" />
+                  <Picker.Item label="6" value="6" />
+                </Picker>
+              )}
+              {screenOrientation === "portrait" && (
+                <Picker
+                  selectedValue={compactCardsPerRow || "4"}
+                  style={styles.textPicker}
+                  onValueChange={handleCompactCardsPerRowChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label="3" value="3" />
+                  <Picker.Item label="4" value="4" />
+                  <Picker.Item label="5" value="5" />
+                </Picker>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Cards Per Column</Text>
+            <View style={styles.pickerContainer}>
+              {screenOrientation === "landscape" && (
+                <Picker
+                  selectedValue={cardsPerColumn || "2"}
+                  style={styles.textPicker}
+                  onValueChange={handleCardsPerColumnChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label="1.75" value="1.75" />
+                  <Picker.Item label="2" value="2" />
+                  <Picker.Item label="2.25" value="2.25" />
+                </Picker>
+              )}
+              {screenOrientation === "portrait" && (
+                <Picker
+                  selectedValue={cardsPerColumn || "3.5"}
+                  style={styles.textPicker}
+                  onValueChange={handleCardsPerColumnChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label="3.25" value="3.25" />
+                  <Picker.Item label="3.5" value="3.5" />
+                  <Picker.Item label="3.75" value="3.75" />
+                </Picker>
+              )}
             </View>
           </View>
 
