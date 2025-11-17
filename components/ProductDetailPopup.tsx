@@ -80,50 +80,58 @@ interface ProductDetailPopupProps {
 //   },
 // };
 
+/**
+ * 从API获取原始的配方数据
+ */
+const fetchRecipeData = async (productId: string) => {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("未获取到有效的token");
+  }
+
+  const requestBody = {
+    token,
+    product_id: productId,
+  };
+
+  console.log("请求商品详情:", {
+    url: `${API_BASE_URL}/product/get_recipe`,
+    body: requestBody,
+  });
+
+  const response = await fetch(`${API_BASE_URL}/product/get_recipe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  // 获取响应文本
+  const responseText = await response.text();
+  console.log("服务器响应:", responseText);
+
+  // 尝试解析JSON
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error("JSON解析错误:", responseText);
+    throw new Error("服务器返回的数据格式不正确");
+  }
+
+  // 检查响应状态码
+  if (data.status_code !== 200) {
+    throw new Error(data.message || "获取商品详情失败");
+  }
+
+  return data;
+};
+
 // 获取商品详情的函数
 const getProductDetail = async (productId: string): Promise<ProductDetail> => {
   try {
-    const token = await getToken();
-    if (!token) {
-      throw new Error("未获取到有效的token");
-    }
-
-    const requestBody = {
-      token,
-      product_id: productId,
-    };
-
-    console.log("请求商品详情:", {
-      url: `${API_BASE_URL}/product/get_recipe`,
-      body: requestBody,
-    });
-
-    const response = await fetch(`${API_BASE_URL}/product/get_recipe`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    // 获取响应文本
-    const responseText = await response.text();
-    console.log("服务器响应:", responseText);
-
-    // 尝试解析JSON
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error("JSON解析错误:", responseText);
-      throw new Error("服务器返回的数据格式不正确");
-    }
-
-    // 检查响应状态码
-    if (data.status_code !== 200) {
-      throw new Error(data.message || "获取商品详情失败");
-    }
-
+    const data = await fetchRecipeData(productId);
     const prepTime = await getProductPrepareTime(productId);
 
     // 适配新的API返回数据格式
@@ -155,35 +163,7 @@ const getProductDetail = async (productId: string): Promise<ProductDetail> => {
  */
 export const checkProductHasRecipe = async (productId: string): Promise<boolean> => {
   try {
-    const token = await getToken();
-    if (!token) {
-      return false;
-    }
-
-    const requestBody = {
-      token,
-      product_id: productId,
-    };
-
-    const response = await fetch(`${API_BASE_URL}/product/get_recipe`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const responseText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      return false;
-    }
-
-    if (data.status_code !== 200) {
-      return false;
-    }
+    const data = await fetchRecipeData(productId);
 
     // 检查是否有配料或制作说明
     const hasIngredients = Array.isArray(data.recipe) && data.recipe.length > 0;

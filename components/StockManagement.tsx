@@ -849,7 +849,7 @@ const StockManagementScreen = () => {
             styles.actionButton,
             {
               backgroundColor: selectedCategory && selectedCategory !== SOLD_OUT_CATEGORY && selectedCategory !== LOW_STOCK_CATEGORY 
-                ? getCategoryColor(selectedCategory) 
+                ? "#e0e0e0"
                 : "#E8E8E8",
             },
             (!selectedCategory || selectedCategory === SOLD_OUT_CATEGORY || selectedCategory === LOW_STOCK_CATEGORY) && styles.disabledColorButton,

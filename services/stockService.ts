@@ -82,6 +82,7 @@ export class StockService {
       throw new Error('没有找到令牌');
     }
 
+    
     try {
       const response = await fetch(`${API_BASE_URL}/warehouse/get_sotck`, {
         method: 'POST',
@@ -180,7 +181,6 @@ export class StockService {
         console.error("token不存在或为空");
         return null;
       }
-      console.log("成功获取token:", token.substring(0, 10) + "...");
       return token;
     } catch (error) {
       console.error("获取token错误:", error);
