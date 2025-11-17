@@ -225,38 +225,47 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
           <View style={styles.header}>
             <Text style={styles.title}>{productDetail.name}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close-circle" size={28} color="#666" />
+              <Ionicons name="close-circle" size={45} color="#666" />
             </TouchableOpacity>
           </View>
 
-          {productDetail.prepare_time && (
-            <View style={styles.prepTimeContainer}>
-              <Text style={styles.sectionTitle}>{t("prepTime")}</Text>
-              <Text style={styles.prepTimeValue}>
-                {productDetail.prepare_time}{" "}
-                {productDetail.prepare_time >= 60 ? t("minutes") : t("seconds")}
-              </Text>
-            </View>
-          )}
-
           <ScrollView style={styles.contentScroll}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("ingredients")}</Text>
-              {productDetail.ingredients.map((ingredient, index) => (
-                <Text key={`ingredient-${index}`} style={styles.listItem}>
-                  • {ingredient}
-                </Text>
-              ))}
-            </View>
+            {productDetail.prepare_time && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("prepTime")}</Text>
+                <View style={styles.contentContainer}>
+                  <Text style={styles.prepTimeValue}>
+                    {productDetail.prepare_time}{" "}{t("minutes")}
+                  </Text>
+                </View>
+              </View>
+            )}
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("instructions")}</Text>
-              {productDetail.instructions.map((instruction, index) => (
-                <Text key={`instruction-${index}`} style={styles.listItem}>
-                  {instruction}
-                </Text>
-              ))}
-            </View>
+            {productDetail.ingredients && productDetail.ingredients.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("ingredients")}</Text>
+                <View style={styles.contentContainer}>
+                  {productDetail.ingredients.map((ingredient, index) => (
+                    <Text key={`ingredient-${index}`} style={styles.listItem}>
+                      {ingredient}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {productDetail.instructions && productDetail.instructions.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("instructions")}</Text>
+                <View style={styles.contentContainer}>
+                  {productDetail.instructions.map((instruction, index) => (
+                    <Text key={`instruction-${index}`} style={styles.listItem}>
+                      {instruction}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -272,8 +281,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContainer: {
-    width: "80%",
-    maxHeight: "80%",
+    height: "80%",
+    width: "40%",
+    // maxWidth: "80%",
     backgroundColor: "white",
     borderRadius: 10,
     padding: 20,
@@ -305,28 +315,27 @@ const styles = StyleSheet.create({
     maxHeight: "85%",
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#444",
+    color: "#555",
     marginBottom: 10,
   },
-  listItem: {
-    fontSize: 16,
-    color: "#333",
-    marginBottom: 6,
-    paddingLeft: 5,
-  },
-  prepTimeContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  contentContainer: {
     backgroundColor: "#f5f5f5",
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 15,
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.activeColor || "#4CAF50",
+  },
+  listItem: {
+    fontSize: 15,
+    color: "#333",
+    marginBottom: 8,
+    paddingLeft: 5,
+    lineHeight: 22,
   },
   prepTimeValue: {
     fontSize: 16,

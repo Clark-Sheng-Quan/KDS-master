@@ -23,8 +23,8 @@ import { ProductDetailPopup } from "../components/ProductDetailPopup";
 // 仓库ID常量
 
 // 特殊分类常量
-const SOLD_OUT_CATEGORY = "Sold Out";
 const LOW_STOCK_CATEGORY = "Limited Stock";
+const SOLD_OUT_CATEGORY = "Sold Out";
 
 const StockManagementScreen = () => {
   const { t } = useLanguage();
@@ -126,8 +126,8 @@ const StockManagementScreen = () => {
       const categoryList = Object.keys(stockData.products);
       const enhancedCategories = [
         ...categoryList,
-        SOLD_OUT_CATEGORY,
         LOW_STOCK_CATEGORY,
+        SOLD_OUT_CATEGORY,
       ];
       setCategories(enhancedCategories);
 
@@ -248,8 +248,8 @@ const StockManagementScreen = () => {
         const categoryList = Object.keys(stockData.products);
         const enhancedCategories = [
           ...categoryList,
-          SOLD_OUT_CATEGORY,
           LOW_STOCK_CATEGORY,
+          SOLD_OUT_CATEGORY,
         ];
         setCategories(enhancedCategories);
 
@@ -572,13 +572,13 @@ const StockManagementScreen = () => {
               {item.qty}
             </Text>
           </Text>
-          {item.prepare_time !== undefined && (
+          {/* {item.prepare_time !== undefined && (
             <Text style={styles.prepTimeText}>
               {" | "}
               {t("prepTime")}:{" "}
-              <Text style={styles.prepTimeValue}>{item.prepare_time}min</Text>
+              <Text style={styles.prepTimeValue}>{item.prepare_time} {t("minutes")}</Text>
             </Text>
-          )}
+          )} */}
         </View>
       </View>
     </TouchableOpacity>
@@ -982,25 +982,67 @@ const StockManagementScreen = () => {
   );
 };
 
+// 颜色常量
+const COLORS = {
+  white: "#fff",
+  black: "#000",
+  lightGray: "#f8f8f8",
+  gray: "#f0f0f0",
+  borderGray: "#e0e0e0",
+  darkGray: "#555",
+  textGray: "#888",
+  errorRed: "#e53935",
+  soldOutRed: "#f44336",
+  lowStockOrange: "#ff9800",
+  primaryBlue: "#0066cc",
+  lightBlue: "#e3f2fd",
+  borderBlue: "#2196f3",
+  textBlack: "#333",
+};
+
 const styles = StyleSheet.create({
+  // ========== Container Styles ==========
   container: {
     flex: 1,
-    backgroundColor: "#f8f8f8",
+    backgroundColor: COLORS.lightGray,
   },
+  content: {
+    flex: 1,
+    flexDirection: "row",
+  },
+
+  // ========== Header & Controls ==========
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.borderGray,
     elevation: 2,
   },
-  headerTitle: {
-    fontSize: 20,
+  warehouseSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    width: "20%",
+  },
+  warehouseLabel: {
+    fontSize: 14,
+    marginRight: 10,
+    color: COLORS.textBlack,
     fontWeight: "bold",
-    color: "#333",
+  },
+  pickerContainer: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 5,
+    backgroundColor: COLORS.white,
+    height: 60,
+    width: "70%",
   },
   thresholdContainer: {
     flexDirection: "row",
@@ -1009,7 +1051,7 @@ const styles = StyleSheet.create({
   thresholdLabel: {
     fontSize: 14,
     marginRight: 5,
-    color: "#555",
+    color: COLORS.darkGray,
   },
   thresholdInput: {
     borderWidth: 1,
@@ -1021,15 +1063,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 14,
   },
+  selectedCount: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.darkGray,
+  },
+
+  // ========== Action Buttons ==========
   actionButtons: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.borderGray,
     elevation: 1,
     gap: 20,
   },
@@ -1047,92 +1096,67 @@ const styles = StyleSheet.create({
     minWidth: 90,
     alignItems: "center",
   },
-  refillButton: {
-    backgroundColor: colors.primary,
-  },
-  disabledColorButton: {
-    opacity: 0.6,
-  },
   actionButtonText: {
-    color: "#fff",
+    color: COLORS.white,
     fontWeight: "bold",
     fontSize: 14,
   },
   colorCustomizeText: {
-    color: "#000",
+    color: COLORS.black,
     fontWeight: "bold",
     fontSize: 14,
   },
   disabledButton: {
     opacity: 0.5,
   },
-  selectedCount: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#555",
+  disabledColorButton: {
+    opacity: 0.6,
   },
-  content: {
-    flex: 1,
-    flexDirection: "row",
+  prepTimeButton: {
+    backgroundColor: colors.secondary || "#4CAF50",
   },
+  refillButton: {
+    backgroundColor: colors.primary,
+  },
+
+  // ========== Categories Section ==========
   categoriesContainer: {
     width: "30%",
-    backgroundColor: "#f0f0f0",
+    backgroundColor: COLORS.gray,
     padding: 10,
     borderRightWidth: 1,
-    borderRightColor: "#e0e0e0",
-  },
-  productsContainer: {
-    width: "70%",
-    padding: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "#333",
+    borderRightColor: COLORS.borderGray,
   },
   categoryList: {
     flex: 1,
   },
-  colorCustomButton: {
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: "#4CAF50",
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-  },
-  colorCustomButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
   categoryItem: {
     padding: 12,
     marginBottom: 8,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     borderRadius: 6,
     elevation: 1,
   },
   selectedCategoryItem: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.lightBlue,
+    borderWidth: 2,
+    borderColor: COLORS.borderBlue,
   },
   soldOutCategoryItem: {
     borderLeftWidth: 3,
-    borderLeftColor: "#f44336",
+    borderLeftColor: COLORS.soldOutRed,
   },
   lowStockCategoryItem: {
     borderLeftWidth: 3,
-    borderLeftColor: "#ff9800",
+    borderLeftColor: COLORS.lowStockOrange,
   },
   categoryText: {
     fontSize: 14,
     fontWeight: "500",
+    color: COLORS.textBlack,
   },
   selectedCategoryText: {
-    color: "#000",
+    color: COLORS.primaryBlue,
     fontWeight: "bold",
   },
   soldOutCategoryText: {
@@ -1141,13 +1165,31 @@ const styles = StyleSheet.create({
   lowStockCategoryText: {
     fontWeight: "bold",
   },
+
+  // ========== Products Section ==========
+  productsContainer: {
+    width: "70%",
+    padding: 10,
+  },
+  productHeaderContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: COLORS.textBlack,
+  },
   productList: {
     flex: 1,
   },
   productItem: {
     padding: 12,
     marginBottom: 8,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     borderRadius: 6,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1155,9 +1197,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   selectedProduct: {
-    backgroundColor: "#e3f2fd",
+    backgroundColor: COLORS.lightBlue,
     borderWidth: 1,
-    borderColor: "#2196f3",
+    borderColor: COLORS.borderBlue,
   },
   productInfo: {
     flexDirection: "row",
@@ -1176,65 +1218,52 @@ const styles = StyleSheet.create({
   stockText: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#333",
+    color: COLORS.textBlack,
   },
   stockCount: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#333",
+    color: COLORS.textBlack,
   },
   lowStock: {
-    color: "#e53935",
+    color: COLORS.errorRed,
   },
   soldOutText: {
-    color: "#f44336",
+    color: COLORS.soldOutRed,
   },
-  prepTimeText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#333",
-    marginLeft: 8,
+
+  // ========== Select All Checkbox ==========
+  selectAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
   },
-  prepTimeValue: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  emptyContainer: {
-    flex: 1,
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: COLORS.primaryBlue,
+    borderRadius: 3,
+    marginRight: 8,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
   },
-  emptyText: {
-    fontSize: 16,
-    color: "#888",
+  checkboxSelected: {
+    backgroundColor: COLORS.primaryBlue,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#e53935",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  retryButton: {
-    backgroundColor: "#0066cc",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    color: "#fff",
+  checkmark: {
+    color: COLORS.white,
+    fontSize: 14,
     fontWeight: "bold",
   },
-  loader: {
-    marginTop: 20,
+  selectAllText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "600",
   },
+
+  // ========== Modal Styles ==========
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -1242,7 +1271,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "white",
+    backgroundColor: COLORS.white,
     borderRadius: 10,
     padding: 20,
     width: "80%",
@@ -1252,7 +1281,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 10,
-    color: "#333",
+    color: COLORS.textBlack,
   },
   modalSubtitle: {
     fontSize: 14,
@@ -1284,51 +1313,22 @@ const styles = StyleSheet.create({
   cancelButton: {
     backgroundColor: "#f5f5f5",
   },
+  cancelButtonText: {
+    color: COLORS.textBlack,
+    fontWeight: "bold",
+  },
   confirmButton: {
     backgroundColor: colors.buttonActionColor,
   },
   modalButtonText: {
     fontWeight: "bold",
     fontSize: 14,
-    color: "#333",
+    color: COLORS.textBlack,
   },
-  productHeaderContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  selectAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: "#0066cc",
-    borderRadius: 3,
-    marginRight: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxSelected: {
-    backgroundColor: "#0066cc",
-  },
-  checkmark: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  selectAllText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: "600",
-  },
+
+  // ========== Color Picker Modal ==========
   colorPickerModal: {
-    backgroundColor: "white",
+    backgroundColor: COLORS.white,
     borderRadius: 8,
     padding: 16,
     width: "80%",
@@ -1348,34 +1348,42 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
   },
-  cancelButtonText: {
-    color: "#333",
-    fontWeight: "bold",
-  },
-  prepTimeButton: {
-    backgroundColor: colors.secondary || "#4CAF50",
-  },
-  warehouseSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    width: "20%",
-  },
-  warehouseLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginRight: 10,
-    color: "#333",
-  },
-  pickerContainer: {
+
+  // ========== Empty & Error States ==========
+  emptyContainer: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    backgroundColor: "#fff",
-    height: 60,
-    width: "70%",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: COLORS.textGray,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: COLORS.errorRed,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: COLORS.primaryBlue,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontWeight: "bold",
+  },
+  loader: {
+    marginTop: 20,
   },
 });
 
