@@ -36,7 +36,7 @@ interface OrderCardProps {
   hideActions?: boolean;
 }
 
-export const OrderCard: React.FC<OrderCardProps> = ({
+export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   order,
   style,
   disabled = false,
@@ -547,7 +547,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       </View>
     </CardWrapper>
   );
-};
+})
+
+export default OrderCard;
 
 const styles = StyleSheet.create({
   orderCard: {

@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
-  StyleSheet,
   ScrollView,
   Text,
   Dimensions,
@@ -16,14 +15,22 @@ import { useFocusEffect } from "@react-navigation/native";
 import { theme } from "../../styles/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { colors } from "@/styles/color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  PADDING,
+  CARD_MARGIN,
+  DEFAULT_CARDS_PER_ROW,
+  DEFAULT_CARDS_PER_COLUMN,
+  STORAGE_KEY_CARDS_PER_ROW,
+  STORAGE_KEY_CARDS_PER_COLUMN,
+  cardStyles,
+  calculateCardWidth,
+  calculateCardHeight,
+  calculateMarginRight,
+  formatTime,
+} from "../../constants/cardConfig";
 
 const { width } = Dimensions.get("window");
-const PADDING = 16;
-const CARD_MARGIN = 6;
-const DEFAULT_COMPACT_CARDS_PER_ROW = 6;
-const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 
 export default function HistoryScreen() {
   const { t } = useLanguage();
@@ -34,17 +41,48 @@ export default function HistoryScreen() {
     null
   );
   const [cardsPerRow, setCardsPerRow] = useState<number>(
-    DEFAULT_COMPACT_CARDS_PER_ROW
+    DEFAULT_CARDS_PER_ROW
   );
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
+  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
 
-  // 更新当前时间
+  // 处理订单选择 - 使用 useCallback 避免在每次渲染时创建新函数
+  const handleOrderSelect = useCallback((order: FormattedOrder) => {
+    setSelectedOrder((prevSelected) =>
+      prevSelected && prevSelected.id === order.id ? null : order
+    );
+  }, []);
+
+  // 计算卡片尺寸
+  const availableWidth = dimensions.width - PADDING * 2;
+  const cardWidth = calculateCardWidth(availableWidth, cardsPerRow);
+  const cardHeight = 600; // 固定高度
+
+  // 加载历史订单
+  const loadHistoryOrders = useCallback(async () => {
+    try {
+      const startTime = Date.now();
+      console.log("开始加载历史订单...");
+      setLoading(true);
+      const orders = await OrderService.getHistoryOrderDetails();
+      setHistoryOrders(orders);
+      const endTime = Date.now();
+      console.log(`历史订单加载完成，耗时: ${endTime - startTime}ms，订单数: ${orders.length}`);
+    } catch (error) {
+      setError("Failed to load history orders");
+      console.error("加载历史订单失败:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions(window);
+    });
 
-    return () => clearInterval(timer);
+    return () => subscription?.remove();
   }, []);
 
   useFocusEffect(
@@ -58,7 +96,7 @@ export default function HistoryScreen() {
       const loadSettings = async () => {
         try {
           const savedCardsPerRow = await AsyncStorage.getItem(
-            STORAGE_KEY_COMPACT_CARDS_PER_ROW
+            STORAGE_KEY_CARDS_PER_ROW
           );
           if (savedCardsPerRow) {
             setCardsPerRow(parseInt(savedCardsPerRow));
@@ -70,48 +108,10 @@ export default function HistoryScreen() {
 
       loadSettings();
 
-      // 设置一个定时器，每秒检查一次设置变化
-      const intervalId = setInterval(async () => {
-        try {
-          const savedCardsPerRow = await AsyncStorage.getItem(
-            STORAGE_KEY_COMPACT_CARDS_PER_ROW
-          );
-          if (
-            savedCardsPerRow &&
-            parseInt(savedCardsPerRow) !== cardsPerRow
-          ) {
-            setCardsPerRow(parseInt(savedCardsPerRow));
-          }
-        } catch (error) {
-          console.error("检查设置变化失败:", error);
-        }
-      }, 1000);
-
-      return () => clearInterval(intervalId);
-    }, [cardsPerRow])
+      // 返回一个空的清理函数
+      return () => {};
+    }, [loadHistoryOrders])
   );
-
-  const loadHistoryOrders = async () => {
-    try {
-      setLoading(true);
-      const orders = await OrderService.getHistoryOrderDetails();
-      setHistoryOrders(orders);
-    } catch (error) {
-      setError("Failed to load history orders");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOrderSelect = (order: FormattedOrder) => {
-    if (selectedOrder && selectedOrder.id === order.id) {
-      // 如果点击的是已选中的订单，取消选择
-      setSelectedOrder(null);
-    } else {
-      // 否则选择这个订单
-      setSelectedOrder(order);
-    }
-  };
 
   const handleRecallOrder = async () => {
     if (!selectedOrder) {
@@ -169,53 +169,47 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.scrollContainer}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+      >
         <View style={styles.cardsContainer}>
-          {historyOrders.map((order, index) => {
-            const availableWidth = width - PADDING * 2;
-            return (
-              <OrderCard
-                key={order.id}
-                order={order}
-                style={[
-                  styles.cardStyle,
-                  {
-                    width:
-                      (availableWidth - CARD_MARGIN * (cardsPerRow - 1)) /
-                      cardsPerRow,
-                    marginRight:
-                      (index + 1) % cardsPerRow === 0 ? 0 : CARD_MARGIN,
-                  },
-                ]}
-                disabled={false}
-                selectable={true}
-                selected={selectedOrder?.id === order.id}
-                onSelect={() => handleOrderSelect(order)}
-                hideTimer={true}
-                hideActions={true}
-              />
-            );
-          })}
+          {historyOrders.map((order, index) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              style={[
+                styles.cardStyle,
+                {
+                  width: cardWidth,
+                  height: cardHeight,
+                  marginRight: calculateMarginRight(index, cardsPerRow),
+                },
+              ]}
+              disabled={false}
+              selectable={true}
+              selected={selectedOrder?.id === order.id}
+              onSelect={() => handleOrderSelect(order)}
+              hideTimer={true}
+              hideActions={true}
+            />
+          ))}
         </View>
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const historyStyles = {
   mainContainer: {
     flex: 1,
     backgroundColor: theme.colors.backgroundColor,
   },
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
-    padding: PADDING,
-  },
   headerContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
     paddingHorizontal: PADDING,
     paddingVertical: 12,
     backgroundColor: theme.colors.backgroundColor,
@@ -224,35 +218,33 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
   },
-  cardsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
-    paddingBottom: 20,
-  },
-  cardStyle: {
-    marginBottom: CARD_MARGIN,
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.backgroundColor,
+    padding: PADDING,
   },
   recallButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.colors.primaryColor,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#FF6B35",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
   },
   disabledButton: {
-    backgroundColor: "#cccccc",
-    opacity: 0.7,
+    backgroundColor: "#CCCCCC",
+    opacity: 0.6,
   },
   buttonIcon: {
     marginRight: 6,
   },
   recallButtonText: {
     color: "white",
-    fontWeight: "600",
+    fontWeight: "600" as const,
     fontSize: 14,
   },
-});
+};
+
+const styles = { ...cardStyles, ...historyStyles };
