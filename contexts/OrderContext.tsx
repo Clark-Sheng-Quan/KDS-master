@@ -55,8 +55,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     getKDSRole();
   }, []);
 
-  // 网络状态监控
+  // 网络状态监控 - 实时监听 + 定期检查
   useEffect(() => {
+    let networkSubscription: any;
     let networkCheckInterval: ReturnType<typeof setInterval>;
 
     // 检查网络状态的函数
@@ -77,11 +78,27 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     // 初始检查
     checkNetworkStatus();
 
-    // 设置定期检查 (每10秒检查一次)
-    networkCheckInterval = setInterval(checkNetworkStatus, 10000);
+    // 设置实时网络状态监听
+    try {
+      networkSubscription = Network.addNetworkStateListener(({ isConnected, isInternetReachable }) => {
+        if (isConnected && isInternetReachable) {
+          setNetworkStatus("connected");
+        } else {
+          setNetworkStatus("disconnected");
+        }
+      });
+    } catch (error) {
+      console.error("设置网络监听失败:", error);
+    }
+
+    // 设置定期检查 (每5秒检查一次作为备份) 
+    networkCheckInterval = setInterval(checkNetworkStatus, 5000);
 
     return () => {
-      // 清理定时器
+      // 清理订阅和定时器
+      if (networkSubscription) {
+        networkSubscription.remove();
+      }
       if (networkCheckInterval) {
         clearInterval(networkCheckInterval);
       }

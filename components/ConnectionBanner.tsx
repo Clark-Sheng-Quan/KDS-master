@@ -11,32 +11,32 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ConnectionBannerProps {
-  connectionStatus?: 'connected' | 'disconnected';
+  networkStatus?: 'connected' | 'disconnected' | 'unknown';
   onDismiss?: () => void;
   autoHideDuration?: number; // 毫秒，默认 30000ms (30秒)
 }
 
 export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
-  connectionStatus,
+  networkStatus,
   onDismiss,
   autoHideDuration = 30000,
 }) => {
   const { t } = useLanguage();
   const [isDismissed, setIsDismissed] = useState(false);
   const [heightAnim] = useState(new Animated.Value(0));
-  const previousStatusRef = useRef<'connected' | 'disconnected'>('disconnected');
+  const previousStatusRef = useRef<'connected' | 'disconnected' | 'unknown'>('unknown');
 
   // 当连接状态从 connected 变为 disconnected 时，重置 isDismissed
   useEffect(() => {
-    if (previousStatusRef.current === 'connected' && connectionStatus === 'disconnected') {
+    if (previousStatusRef.current === 'connected' && networkStatus === 'disconnected') {
       setIsDismissed(false);
     }
-    previousStatusRef.current = connectionStatus || 'disconnected';
-  }, [connectionStatus]);
+    previousStatusRef.current = networkStatus || 'unknown';
+  }, [networkStatus]);
 
   // 处理显示/隐藏
   useEffect(() => {
-    const shouldShowBanner = connectionStatus === 'disconnected' && !isDismissed;
+    const shouldShowBanner = networkStatus === 'disconnected' && !isDismissed;
 
     if (shouldShowBanner) {
       // 显示横幅
@@ -67,7 +67,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
         useNativeDriver: false,
       }).start();
     }
-  }, [connectionStatus, isDismissed, heightAnim, autoHideDuration, onDismiss]);
+  }, [networkStatus, isDismissed, heightAnim, autoHideDuration, onDismiss]);
 
   const handleDismiss = () => {
     setIsDismissed(true);
@@ -80,7 +80,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
     });
   };
 
-  const shouldShow = connectionStatus === 'disconnected' && !isDismissed;
+  const shouldShow = networkStatus === 'disconnected' && !isDismissed;
 
   return (
     <Animated.View
@@ -105,7 +105,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
             style={styles.icon}
           />
           <Text style={styles.message} numberOfLines={2}>
-            {t('posNotConnected')}
+            {t('internetDisconnected')}
           </Text>
           <TouchableOpacity
             onPress={handleDismiss}

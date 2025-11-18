@@ -89,7 +89,9 @@ const StockManagementScreen = () => {
           if (firstWarehouseName) {
             console.log("设置默认选中的仓库...");
             setSelectedWarehouseName(firstWarehouseName);
-            setSelectedWarehouseId(warehouseIds[firstWarehouseName]);
+            const warehouseId = warehouseIds[firstWarehouseName];
+            console.log(`选择仓库: ${firstWarehouseName}, Warehouse ID: ${warehouseId}`);
+            setSelectedWarehouseId(warehouseId);
           } else {
             console.log("没有找到可用的仓库");
           }
@@ -120,7 +122,6 @@ const StockManagementScreen = () => {
       const stockData = await StockService.getWarehouseStock(
         selectedWarehouseId
       );
-      console.log("stockData", stockData);
 
       // 提取分类列表并添加特殊分类
       const categoryList = Object.keys(stockData.products);
@@ -812,7 +813,9 @@ const StockManagementScreen = () => {
               selectedValue={selectedWarehouseName}
               onValueChange={(itemValue: string) => {
                 setSelectedWarehouseName(itemValue);
-                setSelectedWarehouseId(warehouses[itemValue]);
+                const warehouseId = warehouses[itemValue];
+                console.log(`用户选择仓库: ${itemValue}, Warehouse ID: ${warehouseId}`);
+                setSelectedWarehouseId(warehouseId);
                 // 重新加载数据
                 loadStockData();
               }}

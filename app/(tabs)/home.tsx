@@ -43,6 +43,7 @@ export default function HomeScreen() {
   );
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // 监听屏幕尺寸变化
   useEffect(() => {
@@ -52,6 +53,23 @@ export default function HomeScreen() {
 
     return () => subscription?.remove();
   }, []);
+
+  // 更新当前时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // 格式化时间
+  const formatTime = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const seconds = date.getSeconds().toString().padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  };
 
   // 根据屏幕方向计算卡片数和可用宽度
   const isLandscape = dimensions.width > dimensions.height;
@@ -217,60 +235,8 @@ export default function HomeScreen() {
             <Text style={styles.title}>
               {t("newOrders")} ({filteredOrders.length})
             </Text>
-
-            {/* 分类筛选下拉列表 - 已注释，使用设置中的kitchen category配置 */}
-            {/* <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
-            >
-              <Text style={styles.filterButtonText}>
-                {categoryFilter === "all" ? t("allCategories") : categoryFilter}
-              </Text>
-              <Ionicons
-                name={showCategoryDropdown ? "chevron-up" : "chevron-down"}
-                size={16}
-                color="white"
-              />
-            </TouchableOpacity> */}
-
-            {/* 分类下拉选项 - 已注释，使用设置中的kitchen category配置 */}
-            {/* <Modal
-              visible={showCategoryDropdown}
-              transparent={true}
-              animationType="fade"
-              onRequestClose={() => setShowCategoryDropdown(false)}
-            >
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowCategoryDropdown(false)}
-              >
-                <View style={styles.dropdownContainer}>
-                  <FlatList
-                    data={availableCategories}
-                    keyExtractor={(item) => item}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.dropdownItem,
-                          categoryFilter === item &&
-                            styles.selectedDropdownItem,
-                        ]}
-                        onPress={() => {
-                          setCategoryFilter(item);
-                          setShowCategoryDropdown(false);
-                        }}
-                      >
-                        <Text style={styles.dropdownItemText}>
-                          {item === "all" ? t("allCategories") : item}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
-              </TouchableOpacity>
-            </Modal> */}
           </View>
+          <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
         </View>
 
         <View style={styles.cardsContainer}>
@@ -339,6 +305,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#1a1a1a",
     marginRight: 15,
+  },
+  timeDisplay: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#333",
+    paddingHorizontal: 12,
+    paddingVertical: 0,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 6,
   },
   filterButton: {
     backgroundColor: colors.primary,

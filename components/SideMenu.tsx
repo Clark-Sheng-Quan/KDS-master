@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useOrders } from "../contexts/OrderContext";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 
@@ -29,7 +29,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const router = useRouter();
   const { t } = useLanguage();
   const { networkStatus } = useOrders();
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [screenOrientation, setScreenOrientation] = useState<"portrait" | "landscape">("landscape");
   const { width, height } = Dimensions.get("window");
@@ -52,23 +51,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
     return () => subscription?.remove();
   }, []);
 
-  // 更新当前时间
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // 格式化时间
-  const formatTime = (date: Date) => {
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    const seconds = date.getSeconds().toString().padStart(2, "0");
-    return `${hours}:${minutes}:${seconds}`;
-  };
-
   // 加载店铺信息
   useEffect(() => {
     const loadShopInfo = async () => {
@@ -85,13 +67,9 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
     loadShopInfo();
   }, []);
 
-  // 获取网络状态图标
-  const getNetworkStatusIcon = () => {
-    if (networkStatus === "connected") {
-      return require("../assets/icon/wifiConnected.png");
-    } else {
-      return require("../assets/icon/wifiDisconnected.png");
-    }
+  // 获取网络状态图标名称（用于 MaterialCommunityIcons）
+  const getNetworkStatusIconName = () => {
+    return networkStatus === "connected" ? "wifi" : "wifi-off";
   };
 
   const handleLogout = async () => {
@@ -183,12 +161,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
             <Ionicons name="close" size={28} color="white" />
           </TouchableOpacity>
 
-          {/* 时间显示 */}
-          <View style={styles.timeSection}>
-            <Text style={styles.timeLabel}>{t("currentTime") || "当前时间"}</Text>
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-          </View>
-
           {/* 店铺名称 */}
           {selectedShopName && (
             <View style={styles.shopSection}>
@@ -196,6 +168,28 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Text style={styles.shopName}>{selectedShopName}</Text>
             </View>
           )}
+
+          {/* 网络状态 */}
+          <View style={styles.networkSection}>
+            <Text style={styles.networkLabel}>Internet</Text>
+            <View style={styles.networkStatusInfo}>
+              <MaterialCommunityIcons 
+                name={getNetworkStatusIconName()} 
+                size={20} 
+                color="white" 
+              />
+              <Text style={[
+                styles.networkStatusText,
+                networkStatus === "disconnected" && styles.networkStatusDisconnected,
+              ]}>
+                {networkStatus === "connected"
+                  ? t("connected") || "已连接"
+                  : networkStatus === "disconnected"
+                  ? t("disconnected") || "已断开"
+                  : "检查中..."}
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.divider} />
 
@@ -275,16 +269,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Ionicons name="settings" size={20} color="white" />
               <Text style={styles.menuItemText}>{t("settings")}</Text>
             </TouchableOpacity>
-
-            {/* 网络状态 */}
-            <View style={styles.networkStatus}>
-              <Image source={getNetworkStatusIcon()} style={styles.networkIcon} />
-              <Text style={styles.networkStatusText}>
-                {networkStatus === "connected"
-                  ? t("connected") || "已连接"
-                  : t("disconnected") || "已断开"}
-              </Text>
-            </View>
           </View>
 
           <View style={styles.divider} />
@@ -331,23 +315,6 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 20,
   },
-  timeSection: {
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#444",
-  },
-  timeLabel: {
-    color: "#aaa",
-    fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 5,
-  },
-  timeText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
   shopSection: {
     marginBottom: 20,
     paddingBottom: 15,
@@ -364,6 +331,36 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  networkSection: {
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#444",
+  },
+  networkLabel: {
+    color: "#aaa",
+    fontSize: 12,
+    fontWeight: "500",
+    marginBottom: 5,
+  },
+  networkStatusInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  networkIcon: {
+    width: 20,
+    height: 20,
+    tintColor: "white",
+  },
+  networkStatusText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  networkStatusDisconnected: {
+    color: "#ff5252",
   },
   divider: {
     height: 1,
@@ -398,25 +395,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 12,
     flex: 1,
-  },
-  networkStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-    backgroundColor: "#333",
-  },
-  networkIcon: {
-    width: 20,
-    height: 20,
-    tintColor: "white",
-  },
-  networkStatusText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "500",
-    marginLeft: 12,
   },
   logoutButton: {
     flexDirection: "row",

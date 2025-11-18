@@ -234,6 +234,7 @@ export const translations = {
     failedToRemoveDevice: "移除设备失败",
     locked: "已锁定",
     posNotConnected: "POS系统未连接",
+    internetDisconnected: "互联网连接已断开",
     
     // 品类显示
     drinks: "饮料",
@@ -499,6 +500,7 @@ export const translations = {
     failedToRemoveDevice: "Failed to remove device",
     locked: "LOCKED",
     posNotConnected: "POS System not connected",
+    internetDisconnected: "Internet connection has been disconnected",
     
     // Category display
     drinks: "Drinks",
