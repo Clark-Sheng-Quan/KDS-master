@@ -15,6 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../styles/theme";
 import * as Network from "expo-network";
+import * as ScreenOrientationModule from "expo-screen-orientation";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -34,10 +35,10 @@ enum CategoryType {
 }
 
 // 设置相关的常量
-const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
-const DEFAULT_COMPACT_CARDS_PER_ROW = "5";
+const STORAGE_KEY_CARDS_PER_ROW = "cards_per_row";
+const DEFAULT_CARDS_PER_ROW = 5;
 const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
-const DEFAULT_CARDS_PER_COLUMN = "1.5";
+const DEFAULT_CARDS_PER_COLUMN = 1.5;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 
 export default function SettingsScreen() {
@@ -51,11 +52,11 @@ export default function SettingsScreen() {
   const [deviceName, setDeviceName] = useState<string>("KDS:Device");
   const [editingDeviceName, setEditingDeviceName] = useState<string>("KDS:Device");
 
-  // 添加Compact模式下每行卡片数量状态
-  const [compactCardsPerRow, setCompactCardsPerRow] = useState<string>("5");
+  // 添加每行卡片数量状态
+  const [cardsPerRow, setCardsPerRow] = useState<number>(5);
 
   // 添加垂直卡片数量状态
-  const [cardsPerColumn, setCardsPerColumn] = useState<string>("2");
+  const [cardsPerColumn, setCardsPerColumn] = useState<number>(2);
 
   // 添加显示打印按钮开关状态
   const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
@@ -80,6 +81,21 @@ export default function SettingsScreen() {
 
         const savedPort = await AsyncStorage.getItem("kds_port");
         if (savedPort) setPort(savedPort);
+
+        // 加载卡片数量设置
+        const savedCardsPerRow = await AsyncStorage.getItem(
+          STORAGE_KEY_CARDS_PER_ROW
+        );
+        if (savedCardsPerRow) {
+          setCardsPerRow(parseInt(savedCardsPerRow));
+        }
+
+        const savedCardsPerColumn = await AsyncStorage.getItem(
+          STORAGE_KEY_CARDS_PER_COLUMN
+        );
+        if (savedCardsPerColumn) {
+          setCardsPerColumn(parseFloat(savedCardsPerColumn));
+        }
 
         // 加载打印按钮显示设置
         const savedShowPrintButton = await AsyncStorage.getItem(
@@ -125,30 +141,13 @@ export default function SettingsScreen() {
   }, []); // 只在组件挂载时执行一次
 
   // 监听页面获得焦点时重新加载 screenOrientation（来自 SideMenu 的改变）
-  // 当 screenOrientation 改变时自动调整卡片数量到该方向的默认值
   useFocusEffect(
     useCallback(() => {
       const loadOrientationAndApplySettings = async () => {
         try {
           const savedOrientation = await AsyncStorage.getItem("screenOrientation");
           if (savedOrientation === "portrait" || savedOrientation === "landscape") {
-            console.log("从 AsyncStorage 加载屏幕方向:", savedOrientation);
             setScreenOrientation(savedOrientation);
-
-            // // 根据方向自动调整卡片数量
-            // if (savedOrientation === "landscape") {
-            //   console.log("切换到 Landscape 模式，设置 cardsPerRow 为 5，cardsPerColumn 为 2");
-            //   setCompactCardsPerRow("5");
-            //   setCardsPerColumn("2");
-            //   await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, "5");
-            //   await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "2");
-            // } else {
-            //   console.log("切换到 Portrait 模式，设置 cardsPerRow 为 4，cardsPerColumn 为 3.5");
-            //   setCompactCardsPerRow("4");
-            //   setCardsPerColumn("3.5");
-            //   await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, "4");
-            //   await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "3.5");
-            // }
           }
         } catch (error) {
           console.error("加载屏幕方向失败:", error);
@@ -157,8 +156,7 @@ export default function SettingsScreen() {
 
       loadOrientationAndApplySettings();
     }, [])
-  );
-
+  );  
   // 使用定时器定期检查连接状态（避免设置回调冲突）
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -186,16 +184,16 @@ export default function SettingsScreen() {
         return;
       }
 
-      // 保存Compact模式每行卡片数量
+      // 保存每行卡片数量
       await AsyncStorage.setItem(
-        STORAGE_KEY_COMPACT_CARDS_PER_ROW,
-        compactCardsPerRow
+        STORAGE_KEY_CARDS_PER_ROW,
+        cardsPerRow.toString()
       );
 
       // 保存垂直卡片数量
       await AsyncStorage.setItem(
         STORAGE_KEY_CARDS_PER_COLUMN,
-        cardsPerColumn
+        cardsPerColumn.toString()
       );
 
       // 保存分类设置
@@ -220,7 +218,7 @@ export default function SettingsScreen() {
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
     }
-  }, [port, compactCardsPerRow, cardsPerColumn, kdsCategory, editingDeviceName]);
+  }, [port, cardsPerRow, cardsPerColumn, kdsCategory, editingDeviceName]);
 
   // 处理从Device Discovery连接目标设备
   // const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
@@ -319,21 +317,59 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  // 处理屏幕方向切换
+  const handleToggleScreenOrientation = useCallback(async () => {
+    try {
+      const newOrientation = screenOrientation === "portrait" ? "landscape" : "portrait";
+      
+      // 使用 ScreenOrientationModule 改变屏幕方向
+      if (newOrientation === "landscape") {
+        await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.LANDSCAPE);
+      } else {
+        await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.PORTRAIT);
+      }
+      
+      setScreenOrientation(newOrientation);
+      
+      // 保存屏幕方向到 AsyncStorage
+      console.log("保存屏幕方向到 AsyncStorage:", newOrientation);
+      await AsyncStorage.setItem("screenOrientation", newOrientation);
+      
+      // 根据新方向立即设置卡片默认值并保存
+      if (newOrientation === "landscape") {
+        console.log("Landscape 模式：保存卡片设置 cardsPerRow=5, cardsPerColumn=1.5");
+        setCardsPerRow(5);
+        setCardsPerColumn(1.5);
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, "5");
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "1.5");
+      } else {
+        console.log("Portrait 模式：保存卡片设置 cardsPerRow=4, cardsPerColumn=3.5");
+        setCardsPerRow(4);
+        setCardsPerColumn(3.5);
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, "4");
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "3.5");
+      }
+    } catch (error) {
+      console.error("无法切换屏幕方向:", error);
+      Alert.alert("Error", "Failed to switch orientation");
+    }
+  }, [screenOrientation]);
+
   // 处理语言切换
   const handleLanguageChange = useCallback(async (newLanguage: SupportedLanguage) => {
     await changeLanguage(newLanguage);
   }, [changeLanguage]);
 
-  // 处理Compact模式每行卡片数量变更
-  const handleCompactCardsPerRowChange = useCallback(async (value: string) => {
-    setCompactCardsPerRow(value);
-    await AsyncStorage.setItem(STORAGE_KEY_COMPACT_CARDS_PER_ROW, value);
+  // 处理每行卡片数量变更
+  const handleCardsPerRowChange = useCallback(async (value: number) => {
+    setCardsPerRow(value);
+    await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, value.toString());
   }, []);
 
   // 处理垂直卡片数量变更
-  const handleCardsPerColumnChange = useCallback(async (value: string) => {
+  const handleCardsPerColumnChange = useCallback(async (value: number) => {
     setCardsPerColumn(value);
-    await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, value);
+    await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, value.toString());
   }, []);
 
   // 处理打印按钮显示开关
@@ -360,12 +396,12 @@ export default function SettingsScreen() {
           await changeLanguage("en");
           // 重置其他设置
           await AsyncStorage.removeItem("viewMode");
-          // 重置Compact模式每行卡片数量
+          // 重置每行卡片数量
           await AsyncStorage.setItem(
-            STORAGE_KEY_COMPACT_CARDS_PER_ROW,
-            DEFAULT_COMPACT_CARDS_PER_ROW
+            STORAGE_KEY_CARDS_PER_ROW,
+            DEFAULT_CARDS_PER_ROW.toString()
           );
-          setCompactCardsPerRow(DEFAULT_COMPACT_CARDS_PER_ROW);
+          setCardsPerRow(DEFAULT_CARDS_PER_ROW);
           // 可以添加其他需要重置的设置
         },
       },
@@ -592,31 +628,49 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
 
+          {/* 屏幕方向切换 */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Screen Orientation</Text>
+            <TouchableOpacity
+              style={styles.orientationButton}
+              onPress={handleToggleScreenOrientation}
+            >
+              <Ionicons
+                name={screenOrientation === "portrait" ? "phone-portrait" : "phone-landscape"}
+                size={20}
+                color="white"
+              />
+              <Text style={styles.orientationButtonText}>
+                {screenOrientation === "portrait" ? "Landscape" : "Portrait"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
             <View style={styles.pickerContainer}>
               {screenOrientation === "landscape" && (
                 <Picker
-                  selectedValue={compactCardsPerRow || "5"}
+                  selectedValue={cardsPerRow || 5}
                   style={styles.textPicker}
-                  onValueChange={handleCompactCardsPerRowChange}
+                  onValueChange={handleCardsPerRowChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label="4" value="4" />
-                  <Picker.Item label="5" value="5" />
-                  <Picker.Item label="6" value="6" />
+                  <Picker.Item label="4" value={4} />
+                  <Picker.Item label="5" value={5} />
+                  <Picker.Item label="6" value={6} />
                 </Picker>
               )}
               {screenOrientation === "portrait" && (
                 <Picker
-                  selectedValue={compactCardsPerRow || "4"}
+                  selectedValue={cardsPerRow || 4}
                   style={styles.textPicker}
-                  onValueChange={handleCompactCardsPerRowChange}
+                  onValueChange={handleCardsPerRowChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label="3" value="3" />
-                  <Picker.Item label="4" value="4" />
-                  <Picker.Item label="5" value="5" />
+                  <Picker.Item label="3" value={3} />
+                  <Picker.Item label="4" value={4} />
+                  <Picker.Item label="5" value={5} />
                 </Picker>
               )}
             </View>
@@ -627,26 +681,26 @@ export default function SettingsScreen() {
             <View style={styles.pickerContainer}>
               {screenOrientation === "landscape" && (
                 <Picker
-                  selectedValue={cardsPerColumn || "2"}
+                  selectedValue={cardsPerColumn || 2}
                   style={styles.textPicker}
                   onValueChange={handleCardsPerColumnChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label="1.75" value="1.75" />
-                  <Picker.Item label="2" value="2" />
-                  <Picker.Item label="2.25" value="2.25" />
+                  <Picker.Item label="1.75" value={1.75} />
+                  <Picker.Item label="2" value={2} />
+                  <Picker.Item label="2.25" value={2.25} />
                 </Picker>
               )}
               {screenOrientation === "portrait" && (
                 <Picker
-                  selectedValue={cardsPerColumn || "3.5"}
+                  selectedValue={cardsPerColumn || 3.5}
                   style={styles.textPicker}
                   onValueChange={handleCardsPerColumnChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label="3.25" value="3.25" />
-                  <Picker.Item label="3.5" value="3.5" />
-                  <Picker.Item label="3.75" value="3.75" />
+                  <Picker.Item label="3.25" value={3.25} />
+                  <Picker.Item label="3.5" value={3.5} />
+                  <Picker.Item label="3.75" value={3.75} />
                 </Picker>
               )}
             </View>
@@ -1080,6 +1134,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     fontStyle: "italic",
+  },
+  orientationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2196F3",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8,
+  },
+  orientationButtonIcon: {
+    marginRight: 4,
+  },
+  orientationButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

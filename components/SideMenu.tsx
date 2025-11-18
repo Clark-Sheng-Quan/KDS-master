@@ -9,8 +9,6 @@ import {
   ScrollView,
   Modal,
   Dimensions,
-  // OrientationLocker,
-  // ScreenOrientation,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
@@ -18,7 +16,6 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useOrders } from "../contexts/OrderContext";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ScreenOrientationModule from "expo-screen-orientation";
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -30,26 +27,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const { t } = useLanguage();
   const { networkStatus } = useOrders();
   const [selectedShopName, setSelectedShopName] = useState<string>("");
-  const [screenOrientation, setScreenOrientation] = useState<"portrait" | "landscape">("landscape");
   const { width, height } = Dimensions.get("window");
-
-  // 检测初始屏幕方向
-  useEffect(() => {
-    const detectOrientation = () => {
-      const isLandscape = width > height;
-      setScreenOrientation(isLandscape ? "landscape" : "portrait");
-    };
-
-    detectOrientation();
-
-    // 监听屏幕方向变化
-    const subscription = Dimensions.addEventListener("change", ({ window: { width, height } }) => {
-      const isLandscape = width > height;
-      setScreenOrientation(isLandscape ? "landscape" : "portrait");
-    });
-
-    return () => subscription?.remove();
-  }, []);
 
   // 加载店铺信息
   useEffect(() => {
@@ -97,41 +75,9 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
       ]
     );
   };
-
   const navigateTo = (path: any) => {
     router.push(path);
     onClose();
-  };
-
-  const toggleScreenOrientation = async () => {
-    try {
-      const newOrientation = screenOrientation === "portrait" ? "landscape" : "portrait";
-      
-      if (newOrientation === "landscape") {
-        await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.LANDSCAPE);
-      } else {
-        await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.PORTRAIT);
-      }
-      
-      setScreenOrientation(newOrientation);
-      
-      // 立即保存到 AsyncStorage，并同时保存对应方向的卡片设置
-      console.log("保存屏幕方向到 AsyncStorage:", newOrientation);
-      await AsyncStorage.setItem("screenOrientation", newOrientation);
-      
-      // 根据新方向立即设置卡片默认值
-      if (newOrientation === "landscape") {
-        console.log("Landscape 模式：保存卡片设置 cardsPerRow=5, cardsPerColumn=2");
-        await AsyncStorage.setItem("compact_cards_per_row", "5");
-        await AsyncStorage.setItem("cards_per_column", "2");
-      } else {
-        console.log("Portrait 模式：保存卡片设置 cardsPerRow=4, cardsPerColumn=3.5");
-        await AsyncStorage.setItem("compact_cards_per_row", "4");
-        await AsyncStorage.setItem("cards_per_column", "3.5");
-      }
-    } catch (error) {
-      console.error("无法切换屏幕方向:", error);
-    }
   };
 
   const menuWidth = Math.min(width * 0.4, 400); // 菜单宽度为屏幕的40%，最大400px
@@ -243,23 +189,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
           {/* 设置部分 */}
           <View style={styles.settingsSection}>
             <Text style={styles.sectionTitle}>{t("status")}</Text>
-
-            {/* 屏幕方向切换 */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={toggleScreenOrientation}
-            >
-              <Ionicons
-                name={screenOrientation === "portrait" ? "phone-portrait" : "phone-landscape"}
-                size={20}
-                color="white"
-              />
-              <Text style={styles.menuItemText}>
-                {screenOrientation === "portrait"
-                  ? t("switchToLandscape") || "切换到横屏"
-                  : t("switchToPortrait") || "切换到竖屏"}
-              </Text>
-            </TouchableOpacity>
 
             {/* 设置页面 */}
             <TouchableOpacity

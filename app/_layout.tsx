@@ -7,6 +7,7 @@ import { View } from "react-native";
 import { useState, useEffect } from "react";
 import { ConnectionBanner } from "../components/ConnectionBanner";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ScreenOrientationModule from "expo-screen-orientation";
 
 // 内部组件：显示网络连接 banner
 function NetworkConnectionBanner() {
@@ -41,6 +42,27 @@ function NetworkConnectionBanner() {
 }
 
 export default function RootLayout() {
+  // 应用启动时恢复保存的屏幕方向
+  useEffect(() => {
+    const restoreScreenOrientation = async () => {
+      try {
+        const savedOrientation = await AsyncStorage.getItem("screenOrientation");
+        if (savedOrientation) {
+          console.log("恢复保存的屏幕方向:", savedOrientation);
+          if (savedOrientation === "landscape") {
+            await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.LANDSCAPE);
+          } else if (savedOrientation === "portrait") {
+            await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.PORTRAIT);
+          }
+        }
+      } catch (error) {
+        console.error("恢复屏幕方向失败:", error);
+      }
+    };
+
+    restoreScreenOrientation();
+  }, []);
+
   return (
     <CategoryColorProvider>
       <LanguageProvider>

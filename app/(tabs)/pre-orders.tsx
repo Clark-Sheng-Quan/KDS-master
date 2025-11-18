@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
-  StyleSheet,
   ScrollView,
   ActivityIndicator,
   Text,
@@ -12,27 +11,44 @@ import { OrderCard } from "../../components/OrderCard";
 import { usePreOrders } from "../../contexts/PreOrderContext";
 import { theme } from "../../styles/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "@/styles/color";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FormattedOrder } from "@/services/types";
 import { useFocusEffect } from "@react-navigation/native";
+import {
+  PADDING,
+  CARD_MARGIN,
+  DEFAULT_CARDS_PER_ROW,
+  DEFAULT_CARDS_PER_COLUMN,
+  STORAGE_KEY_CARDS_PER_ROW,
+  STORAGE_KEY_CARDS_PER_COLUMN,
+  cardStyles,
+  calculateCardWidth,
+  calculateCardHeight,
+  calculateMarginRight,
+  formatTime,
+} from "../../constants/cardConfig";
 
 const { width } = Dimensions.get("window");
-const PADDING = 16;
-const CARD_MARGIN = 6;
-const DEFAULT_COMPACT_CARDS_PER_ROW = 6;
-
-// 设置相关的常量
-const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 
 export default function PreOrdersScreen() {
   const { orders, loading, error, removeOrder } = usePreOrders();
   const { t } = useLanguage();
   const [cardsPerRow, setCardsPerRow] = useState<number>(
-    DEFAULT_COMPACT_CARDS_PER_ROW
+    DEFAULT_CARDS_PER_ROW
   );
+  const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
+
+  // 监听屏幕尺寸变化以更新 dimensions
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions(window);
+    });
+
+    return () => subscription?.remove();
+  }, []);
 
   // 更新当前时间
   useEffect(() => {
@@ -43,14 +59,6 @@ export default function PreOrdersScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  // 格式化时间
-  const formatTime = (date: Date) => {
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    const seconds = date.getSeconds().toString().padStart(2, "0");
-    return `${hours}:${minutes}:${seconds}`;
-  };
-
   // 每次页面获得焦点时加载设置
   useFocusEffect(
     useCallback(() => {
@@ -58,10 +66,17 @@ export default function PreOrdersScreen() {
         try {
           // 加载卡片数量
           const savedCardsPerRow = await AsyncStorage.getItem(
-            STORAGE_KEY_COMPACT_CARDS_PER_ROW
+            STORAGE_KEY_CARDS_PER_ROW
           );
           if (savedCardsPerRow) {
             setCardsPerRow(parseInt(savedCardsPerRow));
+          }
+          
+          const savedCardsPerColumn = await AsyncStorage.getItem(
+            STORAGE_KEY_CARDS_PER_COLUMN
+          );
+          if (savedCardsPerColumn) {
+            setCardsPerColumn(parseFloat(savedCardsPerColumn));
           }
         } catch (error) {
           console.error("加载设置失败:", error);
@@ -69,27 +84,7 @@ export default function PreOrdersScreen() {
       };
 
       loadSettings();
-
-      // 设置一个定时器，每秒检查一次设置变化
-      const intervalId = setInterval(async () => {
-        try {
-          const savedCardsPerRow = await AsyncStorage.getItem(
-            STORAGE_KEY_COMPACT_CARDS_PER_ROW
-          );
-          if (
-            savedCardsPerRow &&
-            parseInt(savedCardsPerRow) !== cardsPerRow
-          ) {
-            setCardsPerRow(parseInt(savedCardsPerRow));
-          }
-        } catch (error) {
-          console.error("检查设置变化失败:", error);
-        }
-      }, 1000);
-
-      // 清理函数
-      return () => clearInterval(intervalId);
-    }, [cardsPerRow])
+    }, [])
   );
 
   // 添加这个适配器函数
@@ -150,82 +145,57 @@ export default function PreOrdersScreen() {
         </View>
 
         <View style={styles.cardsContainer}>
-          {orders.map((order, index) => {
-            const availableWidth = width - PADDING * 2;
-            return (
+          {(() => {
+            const availableWidth = dimensions.width - PADDING * 2;
+            const availableHeight = dimensions.height;
+            const cardWidth = calculateCardWidth(availableWidth, cardsPerRow);
+            const cardHeight = calculateCardHeight(availableHeight, cardsPerColumn);
+            
+            return orders.map((order, index) => (
               <OrderCard
                 key={order.id}
                 order={order}
                 style={[
                   styles.cardStyle,
                   {
-                    width:
-                      (availableWidth - CARD_MARGIN * (cardsPerRow - 1)) /
-                      cardsPerRow,
-                    marginRight:
-                      (index + 1) % cardsPerRow === 0 ? 0 : CARD_MARGIN,
+                    width: cardWidth,
+                    height: cardHeight,
+                    marginRight: calculateMarginRight(index, cardsPerRow),
                   },
                 ]}
                 onOrderComplete={handleOrderRemove}
                 onOrderCancel={handleOrderRemove}
               />
-            );
-          })}
+            ));
+          })()}
         </View>
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
-    padding: PADDING,
-  },
+const preOrdersStyles = {
   headerContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
     marginBottom: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     color: "#1a1a1a",
     flex: 1,
   },
   timeDisplay: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     color: "#333",
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: "#f0f0f0",
     borderRadius: 6,
   },
-  cardsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
-    paddingBottom: 20,
-  },
-  cardStyle: {
-    marginBottom: CARD_MARGIN,
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    color: "red",
-    fontSize: 16,
-    textAlign: "center",
-  },
-  noOrdersText: {
-    fontSize: 38,
-    color: "#151010",
-    textAlign: "center",
-  },
-});
+};
+
+const styles = { ...cardStyles, ...preOrdersStyles };
