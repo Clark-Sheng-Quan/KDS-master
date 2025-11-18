@@ -22,8 +22,6 @@ import { Ionicons } from "@expo/vector-icons";
 
 const PADDING = 16;
 const CARD_MARGIN = 6;
-const PORTRAIT_CARDS_PER_ROW = 3; // 竖屏每行 3 个
-const LANDSCAPE_CARDS_PER_ROW = 5; // 横屏每行 5 个
 const DEFAULT_COMPACT_CARDS_PER_ROW = 6;
 
 // 设置相关的常量
@@ -240,7 +238,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.cardsContainer}>
-          {filteredOrders.map((order) => (
+          {filteredOrders.map((order, index) => (
             <OrderCard
               key={order.id}
               order={order}
@@ -252,7 +250,7 @@ export default function HomeScreen() {
                     cardsPerRow,
                   height: cardHeight,
                   marginRight:
-                    (filteredOrders.indexOf(order) + 1) % cardsPerRow === 0
+                    (index + 1) % cardsPerRow === 0
                       ? 0
                       : CARD_MARGIN,
                 },
@@ -368,7 +366,6 @@ const styles = StyleSheet.create({
   },
   cardStyle: {
     marginBottom: CARD_MARGIN,
-    marginRight: CARD_MARGIN,
   },
   centerContent: {
     flex: 1,

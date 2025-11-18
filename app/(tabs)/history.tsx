@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -17,11 +17,13 @@ import { theme } from "../../styles/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { colors } from "@/styles/color";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 const PADDING = 16;
-const CARD_MARGIN = 8;
-const CARDS_PER_ROW = 3;
+const CARD_MARGIN = 6;
+const DEFAULT_COMPACT_CARDS_PER_ROW = 6;
+const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 
 export default function HistoryScreen() {
   const { t } = useLanguage();
@@ -31,6 +33,19 @@ export default function HistoryScreen() {
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(
     null
   );
+  const [cardsPerRow, setCardsPerRow] = useState<number>(
+    DEFAULT_COMPACT_CARDS_PER_ROW
+  );
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // 更新当前时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -38,7 +53,42 @@ export default function HistoryScreen() {
       loadHistoryOrders();
       // 重置选择
       setSelectedOrder(null);
-    }, [])
+
+      // 加载卡片数量设置
+      const loadSettings = async () => {
+        try {
+          const savedCardsPerRow = await AsyncStorage.getItem(
+            STORAGE_KEY_COMPACT_CARDS_PER_ROW
+          );
+          if (savedCardsPerRow) {
+            setCardsPerRow(parseInt(savedCardsPerRow));
+          }
+        } catch (error) {
+          console.error("加载设置失败:", error);
+        }
+      };
+
+      loadSettings();
+
+      // 设置一个定时器，每秒检查一次设置变化
+      const intervalId = setInterval(async () => {
+        try {
+          const savedCardsPerRow = await AsyncStorage.getItem(
+            STORAGE_KEY_COMPACT_CARDS_PER_ROW
+          );
+          if (
+            savedCardsPerRow &&
+            parseInt(savedCardsPerRow) !== cardsPerRow
+          ) {
+            setCardsPerRow(parseInt(savedCardsPerRow));
+          }
+        } catch (error) {
+          console.error("检查设置变化失败:", error);
+        }
+      }, 1000);
+
+      return () => clearInterval(intervalId);
+    }, [cardsPerRow])
   );
 
   const loadHistoryOrders = async () => {
@@ -121,19 +171,31 @@ export default function HistoryScreen() {
 
       <ScrollView style={styles.container}>
         <View style={styles.cardsContainer}>
-          {historyOrders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              style={styles.cardStyle}
-              disabled={false}
-              selectable={true}
-              selected={selectedOrder?.id === order.id}
-              onSelect={() => handleOrderSelect(order)}
-              hideTimer={true}
-              hideActions={true}
-            />
-          ))}
+          {historyOrders.map((order, index) => {
+            const availableWidth = width - PADDING * 2;
+            return (
+              <OrderCard
+                key={order.id}
+                order={order}
+                style={[
+                  styles.cardStyle,
+                  {
+                    width:
+                      (availableWidth - CARD_MARGIN * (cardsPerRow - 1)) /
+                      cardsPerRow,
+                    marginRight:
+                      (index + 1) % cardsPerRow === 0 ? 0 : CARD_MARGIN,
+                  },
+                ]}
+                disabled={false}
+                selectable={true}
+                selected={selectedOrder?.id === order.id}
+                onSelect={() => handleOrderSelect(order)}
+                hideTimer={true}
+                hideActions={true}
+              />
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -168,12 +230,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
-    gap: CARD_MARGIN,
     paddingBottom: 20,
   },
   cardStyle: {
-    width:
-      (width - PADDING * 2 - CARD_MARGIN * (CARDS_PER_ROW - 1)) / CARDS_PER_ROW,
     marginBottom: CARD_MARGIN,
   },
   recallButton: {

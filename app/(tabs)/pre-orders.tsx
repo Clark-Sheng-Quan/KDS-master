@@ -19,43 +19,49 @@ import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 const PADDING = 16;
-const CARD_MARGIN = 8;
-const STANDARD_CARDS_PER_ROW = 5;
+const CARD_MARGIN = 6;
 const DEFAULT_COMPACT_CARDS_PER_ROW = 6;
 
 // 设置相关的常量
 const STORAGE_KEY_COMPACT_CARDS_PER_ROW = "compact_cards_per_row";
 
-// 计算可用宽度
-const AVAILABLE_WIDTH = width - PADDING * 2; // 减去container的左右padding
-const CARD_WIDTH_ADJUSTMENT = 11; // 微调卡片宽度的值
-
 export default function PreOrdersScreen() {
   const { orders, loading, error, removeOrder } = usePreOrders();
-  const [viewMode, setViewMode] = useState<"standard" | "compact">("standard");
   const { t } = useLanguage();
-  const [compactCardsPerRow, setCompactCardsPerRow] = useState<number>(
+  const [cardsPerRow, setCardsPerRow] = useState<number>(
     DEFAULT_COMPACT_CARDS_PER_ROW
   );
   const [selectedShopName, setSelectedShopName] = useState<string>("");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // 更新当前时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // 格式化时间
+  const formatTime = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const seconds = date.getSeconds().toString().padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  };
 
   // 每次页面获得焦点时加载设置
   useFocusEffect(
     useCallback(() => {
       const loadSettings = async () => {
         try {
-          // 加载视图模式
-          const savedMode = await AsyncStorage.getItem("viewMode");
-          if (savedMode === "compact" || savedMode === "standard") {
-            setViewMode(savedMode);
-          }
-
-          // 加载Compact模式每行卡片数量
-          const savedCompactCardsPerRow = await AsyncStorage.getItem(
+          // 加载卡片数量
+          const savedCardsPerRow = await AsyncStorage.getItem(
             STORAGE_KEY_COMPACT_CARDS_PER_ROW
           );
-          if (savedCompactCardsPerRow) {
-            setCompactCardsPerRow(parseInt(savedCompactCardsPerRow));
+          if (savedCardsPerRow) {
+            setCardsPerRow(parseInt(savedCardsPerRow));
           }
         } catch (error) {
           console.error("加载设置失败:", error);
@@ -67,14 +73,14 @@ export default function PreOrdersScreen() {
       // 设置一个定时器，每秒检查一次设置变化
       const intervalId = setInterval(async () => {
         try {
-          const savedCompactCardsPerRow = await AsyncStorage.getItem(
+          const savedCardsPerRow = await AsyncStorage.getItem(
             STORAGE_KEY_COMPACT_CARDS_PER_ROW
           );
           if (
-            savedCompactCardsPerRow &&
-            parseInt(savedCompactCardsPerRow) !== compactCardsPerRow
+            savedCardsPerRow &&
+            parseInt(savedCardsPerRow) !== cardsPerRow
           ) {
-            setCompactCardsPerRow(parseInt(savedCompactCardsPerRow));
+            setCardsPerRow(parseInt(savedCardsPerRow));
           }
         } catch (error) {
           console.error("检查设置变化失败:", error);
@@ -83,22 +89,8 @@ export default function PreOrdersScreen() {
 
       // 清理函数
       return () => clearInterval(intervalId);
-    }, [compactCardsPerRow])
+    }, [cardsPerRow])
   );
-
-  // 切换视图模式
-  const toggleViewMode = async (mode: "standard" | "compact") => {
-    setViewMode(mode);
-    try {
-      await AsyncStorage.setItem("viewMode", mode);
-    } catch (error) {
-      console.error("保存视图模式失败:", error);
-    }
-  };
-
-  // 根据视图模式计算每行卡片数
-  const cardsPerRow =
-    viewMode === "compact" ? compactCardsPerRow : STANDARD_CARDS_PER_ROW;
 
   // 添加这个适配器函数
   const handleOrderRemove = (order: FormattedOrder) => {
@@ -154,65 +146,31 @@ export default function PreOrdersScreen() {
               : t("preOrders")}{" "}
             ({orders.length})
           </Text>
-
-          <View style={styles.viewModeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.viewModeButton,
-                viewMode === "standard" && styles.activeViewModeButton,
-              ]}
-              onPress={() => toggleViewMode("standard")}
-            >
-              <Text
-                style={[
-                  styles.viewModeButtonText,
-                  viewMode === "standard" && styles.activeViewModeButtonText,
-                ]}
-              >
-                Standard
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.viewModeButton,
-                viewMode === "compact" && styles.activeViewModeButton,
-              ]}
-              onPress={() => toggleViewMode("compact")}
-            >
-              <Text
-                style={[
-                  styles.viewModeButtonText,
-                  viewMode === "compact" && styles.activeViewModeButtonText,
-                ]}
-              >
-                Compact ({compactCardsPerRow})
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
         </View>
 
         <View style={styles.cardsContainer}>
-          {orders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              style={[
-                styles.cardStyle,
-                {
-                  width:
-                    (AVAILABLE_WIDTH - CARD_MARGIN * (cardsPerRow - 1)) /
-                      cardsPerRow -
-                    CARD_WIDTH_ADJUSTMENT,
-                  marginRight:
-                    (orders.indexOf(order) + 1) % cardsPerRow === 0
-                      ? 0
-                      : CARD_MARGIN,
-                },
-              ]}
-              onOrderComplete={handleOrderRemove}
-              onOrderCancel={handleOrderRemove}
-            />
-          ))}
+          {orders.map((order, index) => {
+            const availableWidth = width - PADDING * 2;
+            return (
+              <OrderCard
+                key={order.id}
+                order={order}
+                style={[
+                  styles.cardStyle,
+                  {
+                    width:
+                      (availableWidth - CARD_MARGIN * (cardsPerRow - 1)) /
+                      cardsPerRow,
+                    marginRight:
+                      (index + 1) % cardsPerRow === 0 ? 0 : CARD_MARGIN,
+                  },
+                ]}
+                onOrderComplete={handleOrderRemove}
+                onOrderCancel={handleOrderRemove}
+              />
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -237,28 +195,14 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     flex: 1,
   },
-  viewModeContainer: {
-    flexDirection: "row",
-    borderRadius: 8,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  viewModeButton: {
+  timeDisplay: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#f5f5f5",
-  },
-  activeViewModeButton: {
-    backgroundColor: colors.primary,
-  },
-  viewModeButtonText: {
-    color: "#555",
-    fontWeight: "500",
-    fontSize: 14,
-  },
-  activeViewModeButtonText: {
-    color: "white",
+    paddingVertical: 8,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 6,
   },
   cardsContainer: {
     flexDirection: "row",
@@ -268,7 +212,6 @@ const styles = StyleSheet.create({
   },
   cardStyle: {
     marginBottom: CARD_MARGIN,
-    marginRight: CARD_MARGIN,
   },
   centerContent: {
     flex: 1,
