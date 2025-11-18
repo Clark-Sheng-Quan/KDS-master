@@ -24,7 +24,7 @@ import {
   cardStyles,
   calculateCardWidth,
   calculateCardHeight,
-  calculateMarginRight,
+  preCalculateCardStyles,
   formatTime,
 } from "../../constants/cardConfig";
 
@@ -40,6 +40,7 @@ export default function PreOrdersScreen() {
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
+  const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
 
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
@@ -91,6 +92,19 @@ export default function PreOrdersScreen() {
   const handleOrderRemove = (order: FormattedOrder) => {
     removeOrder(order.id);
   };
+
+  // 当预订单、卡片尺寸改变时，重新计算卡片样式
+  useEffect(() => {
+    const availableWidth = dimensions.width - PADDING * 2;
+    const styles = preCalculateCardStyles(
+      orders.length,
+      availableWidth,
+      dimensions.height,
+      cardsPerRow,
+      cardsPerColumn
+    );
+    setCardStylesMap(styles);
+  }, [orders.length, dimensions, cardsPerRow, cardsPerColumn]);
 
   useEffect(() => {
     const loadShopInfo = async () => {
@@ -145,29 +159,15 @@ export default function PreOrdersScreen() {
         </View>
 
         <View style={styles.cardsContainer}>
-          {(() => {
-            const availableWidth = dimensions.width - PADDING * 2;
-            const availableHeight = dimensions.height;
-            const cardWidth = calculateCardWidth(availableWidth, cardsPerRow);
-            const cardHeight = calculateCardHeight(availableHeight, cardsPerColumn);
-            
-            return orders.map((order, index) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                style={[
-                  styles.cardStyle,
-                  {
-                    width: cardWidth,
-                    height: cardHeight,
-                    marginRight: calculateMarginRight(index, cardsPerRow),
-                  },
-                ]}
-                onOrderComplete={handleOrderRemove}
-                onOrderCancel={handleOrderRemove}
-              />
-            ));
-          })()}
+          {orders.map((order, index) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              style={[styles.cardStyle, cardStylesMap[index]]}
+              onOrderComplete={handleOrderRemove}
+              onOrderCancel={handleOrderRemove}
+            />
+          ))}
         </View>
       </ScrollView>
     </View>

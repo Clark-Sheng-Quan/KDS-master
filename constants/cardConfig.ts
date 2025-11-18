@@ -122,6 +122,53 @@ export const calculateMarginRight = (
 };
 
 /**
+ * 计算卡片完整样式对象
+ * @param index 卡片索引
+ * @param availableWidth 可用宽度
+ * @param cardsPerRow 每行卡片数
+ * @param cardHeight 卡片高度
+ * @returns 卡片完整样式对象
+ */
+export const calculateCardStyle = (
+  index: number,
+  availableWidth: number,
+  cardsPerRow: number,
+  cardHeight: number
+) => {
+  return {
+    width: calculateCardWidth(availableWidth, cardsPerRow),
+    height: cardHeight,
+    marginRight: calculateMarginRight(index, cardsPerRow),
+  };
+};
+
+/**
+ * 预计算所有卡片的样式（一次性计算，用于保存）
+ * @param count 卡片总数
+ * @param availableWidth 可用宽度
+ * @param availableHeight 可用高度
+ * @param cardsPerRow 每行卡片数
+ * @param cardsPerColumn 每列卡片数
+ * @returns 卡片样式数组
+ */
+export const preCalculateCardStyles = (
+  count: number,
+  availableWidth: number,
+  availableHeight: number,
+  cardsPerRow: number,
+  cardsPerColumn: number
+) => {
+  const cardWidth = calculateCardWidth(availableWidth, cardsPerRow);
+  const cardHeight = calculateCardHeight(availableHeight, cardsPerColumn);
+  
+  return Array.from({ length: count }, (_, index) => ({
+    width: cardWidth,
+    height: cardHeight,
+    marginRight: calculateMarginRight(index, cardsPerRow),
+  }));
+};
+
+/**
  * 格式化时间为 HH:MM:SS
  * @param date 日期对象
  * @returns 格式化后的时间字符串

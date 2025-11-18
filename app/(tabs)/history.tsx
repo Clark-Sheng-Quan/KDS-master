@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  FlatList,
 } from "react-native";
 import { OrderCard } from "../../components/OrderCard";
 import { OrderService } from "../../services/orderService";
@@ -26,8 +27,7 @@ import {
   cardStyles,
   calculateCardWidth,
   calculateCardHeight,
-  calculateMarginRight,
-  formatTime,
+  preCalculateCardStyles,
 } from "../../constants/cardConfig";
 
 const { width } = Dimensions.get("window");
@@ -45,6 +45,7 @@ export default function HistoryScreen() {
   );
   const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
+  const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
 
   // 处理订单选择 - 使用 useCallback 避免在每次渲染时创建新函数
   const handleOrderSelect = useCallback((order: FormattedOrder) => {
@@ -56,25 +57,54 @@ export default function HistoryScreen() {
   // 计算卡片尺寸
   const availableWidth = dimensions.width - PADDING * 2;
   const cardWidth = calculateCardWidth(availableWidth, cardsPerRow);
-  const cardHeight = 600; // 固定高度
+  const cardHeight = calculateCardHeight(dimensions.height, cardsPerColumn);
+
+  // 根据 cardsPerColumn 计算初始渲染数量（渲染 cardsPerColumn 行）
+  const initialNumToRender = cardsPerRow * cardsPerColumn;
+  // 行高（用于 getItemLayout）
+  const rowHeight = cardHeight;
+
+  // FlatList renderItem 回调 - 只在显示时才渲染
+  const renderOrderCard = useCallback(
+    ({ item, index }: { item: FormattedOrder; index: number }) => (
+      <OrderCard
+        order={item}
+        style={[styles.cardStyle, cardStylesMap[index]]}
+        disabled={false}
+        selectable={true}
+        selected={selectedOrder?.id === item.id}
+        onSelect={() => handleOrderSelect(item)}
+        hideTimer={true}
+        hideActions={true}
+      />
+    ),
+    [cardStylesMap, selectedOrder]
+  );
 
   // 加载历史订单
   const loadHistoryOrders = useCallback(async () => {
     try {
-      const startTime = Date.now();
-      console.log("开始加载历史订单...");
       setLoading(true);
       const orders = await OrderService.getHistoryOrderDetails();
       setHistoryOrders(orders);
-      const endTime = Date.now();
-      console.log(`历史订单加载完成，耗时: ${endTime - startTime}ms，订单数: ${orders.length}`);
     } catch (error) {
       setError("Failed to load history orders");
-      console.error("加载历史订单失败:", error);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // 当历史订单、卡片尺寸改变时，重新计算卡片样式
+  useEffect(() => {
+    const styles = preCalculateCardStyles(
+      historyOrders.length,
+      availableWidth,
+      dimensions.height,
+      cardsPerRow,
+      cardsPerColumn
+    );
+    setCardStylesMap(styles);
+  }, [historyOrders.length, availableWidth, dimensions.height, cardsPerRow, cardsPerColumn]);
 
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
@@ -87,9 +117,7 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      console.log("History页面获得焦点，刷新数据");
       loadHistoryOrders();
-      // 重置选择
       setSelectedOrder(null);
 
       // 加载卡片数量设置
@@ -108,7 +136,6 @@ export default function HistoryScreen() {
 
       loadSettings();
 
-      // 返回一个空的清理函数
       return () => {};
     }, [loadHistoryOrders])
   );
@@ -169,34 +196,20 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={historyOrders}
+        renderItem={renderOrderCard}
+        keyExtractor={(item) => item?.id || Math.random().toString()}
+        numColumns={cardsPerRow}
+        scrollEnabled={true}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={cardsPerRow * 2}
+        updateCellsBatchingPeriod={100}
+        initialNumToRender={initialNumToRender}
+        windowSize={cardsPerColumn}
+        contentContainerStyle={styles.cardsContainer}
         style={styles.scrollContainer}
-        nestedScrollEnabled={true}
-        directionalLockEnabled={true}
-      >
-        <View style={styles.cardsContainer}>
-          {historyOrders.map((order, index) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              style={[
-                styles.cardStyle,
-                {
-                  width: cardWidth,
-                  height: cardHeight,
-                  marginRight: calculateMarginRight(index, cardsPerRow),
-                },
-              ]}
-              disabled={false}
-              selectable={true}
-              selected={selectedOrder?.id === order.id}
-              onSelect={() => handleOrderSelect(order)}
-              hideTimer={true}
-              hideActions={true}
-            />
-          ))}
-        </View>
-      </ScrollView>
+      />
     </View>
   );
 }

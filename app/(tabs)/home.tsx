@@ -23,7 +23,7 @@ import {
   cardStyles,
   calculateCardWidth,
   calculateCardHeight,
-  calculateMarginRight,
+  preCalculateCardStyles,
   formatTime,
 } from "../../constants/cardConfig";
 
@@ -40,6 +40,7 @@ export default function HomeScreen() {
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [cardStyles, setCardStyles] = useState<any[]>([]);
 
   // 更新当前时间
   useEffect(() => {
@@ -76,7 +77,6 @@ export default function HomeScreen() {
             STORAGE_KEY_CARDS_PER_ROW
           );
           if (savedCardsPerRow) {
-            console.log("Loaded cardsPerRow:", savedCardsPerRow);
             setCardsPerRow(parseInt(savedCardsPerRow));
           }
 
@@ -85,7 +85,6 @@ export default function HomeScreen() {
             STORAGE_KEY_CARDS_PER_COLUMN
           );
           if (savedCardsPerColumn) {
-            console.log("Loaded cardsPerColumn:", savedCardsPerColumn);
             setCardsPerColumn(parseFloat(savedCardsPerColumn));
           }
         } catch (error) {
@@ -96,6 +95,18 @@ export default function HomeScreen() {
       loadSettings();
     }, [])
   );
+
+  // 当订单、卡片尺寸、尺寸改变时，重新计算卡片样式
+  useEffect(() => {
+    const styles = preCalculateCardStyles(
+      filteredOrders.length,
+      availableWidth,
+      availableHeight,
+      cardsPerRow,
+      cardsPerColumn
+    );
+    setCardStyles(styles);
+  }, [filteredOrders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
 
   // 直接使用来自 OrderService 的已过滤订单，无需在 home 中重复过滤
   useEffect(() => {
@@ -167,14 +178,7 @@ export default function HomeScreen() {
             <OrderCard
               key={order.id}
               order={order}
-              style={[
-                styles.cardStyle,
-                {
-                  width: calculateCardWidth(availableWidth, cardsPerRow),
-                  height: cardHeight,
-                  marginRight: calculateMarginRight(index, cardsPerRow),
-                },
-              ]}
+              style={[styles.cardStyle, cardStyles[index]]}
               onOrderComplete={handleOrderRemove}
               onOrderCancel={handleOrderRemove}
             />
