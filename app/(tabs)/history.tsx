@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
-  ScrollView,
   Text,
   Dimensions,
   ActivityIndicator,
@@ -19,14 +18,11 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   PADDING,
-  CARD_MARGIN,
   DEFAULT_CARDS_PER_ROW,
   DEFAULT_CARDS_PER_COLUMN,
   STORAGE_KEY_CARDS_PER_ROW,
   STORAGE_KEY_CARDS_PER_COLUMN,
   cardStyles,
-  calculateCardWidth,
-  calculateCardHeight,
   preCalculateCardStyles,
 } from "../../constants/cardConfig";
 
@@ -40,9 +36,7 @@ export default function HistoryScreen() {
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(
     null
   );
-  const [cardsPerRow, setCardsPerRow] = useState<number>(
-    DEFAULT_CARDS_PER_ROW
-  );
+  const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
   const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
@@ -54,15 +48,8 @@ export default function HistoryScreen() {
     );
   }, []);
 
-  // 计算卡片尺寸
-  const availableWidth = dimensions.width - PADDING * 2;
-  const cardWidth = calculateCardWidth(availableWidth, cardsPerRow);
-  const cardHeight = calculateCardHeight(dimensions.height, cardsPerColumn);
-
   // 根据 cardsPerColumn 计算初始渲染数量（渲染 cardsPerColumn 行）
   const initialNumToRender = cardsPerRow * cardsPerColumn;
-  // 行高（用于 getItemLayout）
-  const rowHeight = cardHeight;
 
   // FlatList renderItem 回调 - 只在显示时才渲染
   const renderOrderCard = useCallback(
@@ -94,17 +81,20 @@ export default function HistoryScreen() {
     }
   }, []);
 
+    const availableWidth = dimensions.width - PADDING * 2;
+    const availableHeight = dimensions.height;
+  
   // 当历史订单、卡片尺寸改变时，重新计算卡片样式
   useEffect(() => {
     const styles = preCalculateCardStyles(
       historyOrders.length,
       availableWidth,
-      dimensions.height,
+      availableHeight,
       cardsPerRow,
       cardsPerColumn
     );
     setCardStylesMap(styles);
-  }, [historyOrders.length, availableWidth, dimensions.height, cardsPerRow, cardsPerColumn]);
+  }, [historyOrders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
 
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
@@ -116,7 +106,7 @@ export default function HistoryScreen() {
   }, []);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       loadHistoryOrders();
       setSelectedOrder(null);
 
@@ -128,6 +118,12 @@ export default function HistoryScreen() {
           );
           if (savedCardsPerRow) {
             setCardsPerRow(parseInt(savedCardsPerRow));
+          }
+          const savedCardsPerColumn = await AsyncStorage.getItem(
+            STORAGE_KEY_CARDS_PER_COLUMN
+          );
+          if (savedCardsPerColumn) {
+            setCardsPerColumn(parseFloat(savedCardsPerColumn));
           }
         } catch (error) {
           console.error("加载设置失败:", error);

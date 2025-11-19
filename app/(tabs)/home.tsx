@@ -15,14 +15,11 @@ import { FormattedOrder } from "@/services/types";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   PADDING,
-  CARD_MARGIN,
   DEFAULT_CARDS_PER_ROW,
   DEFAULT_CARDS_PER_COLUMN,
   STORAGE_KEY_CARDS_PER_ROW,
   STORAGE_KEY_CARDS_PER_COLUMN,
   cardStyles,
-  calculateCardWidth,
-  calculateCardHeight,
   preCalculateCardStyles,
   formatTime,
 } from "../../constants/cardConfig";
@@ -31,12 +28,8 @@ export default function HomeScreen() {
   const { orders, loading, error, removeOrder } = useOrders();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
-  const [cardsPerRow, setCardsPerRow] = useState<number>(
-    DEFAULT_CARDS_PER_ROW
-  );
-  const [cardsPerColumn, setCardsPerColumn] = useState<number>(
-    DEFAULT_CARDS_PER_COLUMN
-  );
+  const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
+  const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -51,13 +44,9 @@ export default function HomeScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  // 根据屏幕方向计算卡片数和可用宽度
-  const isLandscape = dimensions.width > dimensions.height;
   const availableWidth = dimensions.width - PADDING * 2;
-  
-  // 计算卡片高度：基于 cardsPerColumn 计算
   const availableHeight = dimensions.height;
-  const cardHeight = calculateCardHeight(availableHeight, cardsPerColumn);
+  
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
     const subscription = Dimensions.addEventListener("change", ({ window }) => {
@@ -72,15 +61,12 @@ export default function HomeScreen() {
     useCallback(() => {
       const loadSettings = async () => {
         try {
-          // 加载每行卡片数量
           const savedCardsPerRow = await AsyncStorage.getItem(
             STORAGE_KEY_CARDS_PER_ROW
           );
           if (savedCardsPerRow) {
             setCardsPerRow(parseInt(savedCardsPerRow));
           }
-
-          // 加载垂直卡片数量
           const savedCardsPerColumn = await AsyncStorage.getItem(
             STORAGE_KEY_CARDS_PER_COLUMN
           );
@@ -91,7 +77,6 @@ export default function HomeScreen() {
           console.error("加载设置失败:", error);
         }
       };
-
       loadSettings();
     }, [])
   );

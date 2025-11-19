@@ -16,26 +16,19 @@ import { FormattedOrder } from "@/services/types";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   PADDING,
-  CARD_MARGIN,
   DEFAULT_CARDS_PER_ROW,
   DEFAULT_CARDS_PER_COLUMN,
   STORAGE_KEY_CARDS_PER_ROW,
   STORAGE_KEY_CARDS_PER_COLUMN,
   cardStyles,
-  calculateCardWidth,
-  calculateCardHeight,
   preCalculateCardStyles,
   formatTime,
 } from "../../constants/cardConfig";
 
-const { width } = Dimensions.get("window");
-
 export default function PreOrdersScreen() {
   const { orders, loading, error, removeOrder } = usePreOrders();
   const { t } = useLanguage();
-  const [cardsPerRow, setCardsPerRow] = useState<number>(
-    DEFAULT_CARDS_PER_ROW
-  );
+  const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
   const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -72,7 +65,6 @@ export default function PreOrdersScreen() {
           if (savedCardsPerRow) {
             setCardsPerRow(parseInt(savedCardsPerRow));
           }
-          
           const savedCardsPerColumn = await AsyncStorage.getItem(
             STORAGE_KEY_CARDS_PER_COLUMN
           );
@@ -83,7 +75,6 @@ export default function PreOrdersScreen() {
           console.error("加载设置失败:", error);
         }
       };
-
       loadSettings();
     }, [])
   );
@@ -93,18 +84,20 @@ export default function PreOrdersScreen() {
     removeOrder(order.id);
   };
 
+  const availableWidth = dimensions.width - PADDING * 2;
+  const availableHeight = dimensions.height;
+
   // 当预订单、卡片尺寸改变时，重新计算卡片样式
   useEffect(() => {
-    const availableWidth = dimensions.width - PADDING * 2;
     const styles = preCalculateCardStyles(
       orders.length,
       availableWidth,
-      dimensions.height,
+      availableHeight,
       cardsPerRow,
       cardsPerColumn
     );
     setCardStylesMap(styles);
-  }, [orders.length, dimensions, cardsPerRow, cardsPerColumn]);
+  }, [orders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
 
   useEffect(() => {
     const loadShopInfo = async () => {
