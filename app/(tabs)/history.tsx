@@ -64,6 +64,8 @@ export default function HistoryScreen() {
         hideTimer={true}
         hideActions={true}
         rightCompact={true}
+        scrollIndicatorAtBottom={true}
+        disableItems={true}
       />
     ),
     [cardStylesMap, selectedOrder]

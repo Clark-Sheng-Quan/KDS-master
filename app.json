@@ -20,7 +20,9 @@
       "windowSoftInputMode": "adjustResize",
       "resizeMode": "contain",
       "softwareKeyboardLayoutMode": "resize",
-      "package": "com.anonymous.KDS"
+      "package": "com.anonymous.KDS",
+      "statusBarStyle": "dark",
+      "statusBarHidden": true
     },
     "web": {
       "bundler": "metro",

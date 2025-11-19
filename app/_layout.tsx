@@ -8,6 +8,8 @@ import { useState, useEffect } from "react";
 import { ConnectionBanner } from "../components/ConnectionBanner";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenOrientationModule from "expo-screen-orientation";
+import * as SystemUI from "expo-system-ui";
+import { StatusBar } from "expo-status-bar";
 
 // 内部组件：显示网络连接 banner
 function NetworkConnectionBanner() {
@@ -42,10 +44,14 @@ function NetworkConnectionBanner() {
 }
 
 export default function RootLayout() {
-  // 应用启动时恢复保存的屏幕方向
+  // 应用启动时恢复保存的屏幕方向并设置全屏模式
   useEffect(() => {
-    const restoreScreenOrientation = async () => {
+    const initializeFullscreen = async () => {
       try {
+        // 设置全屏：隐藏状态栏
+        await SystemUI.setBackgroundColorAsync("transparent");
+        
+        // 恢复保存的屏幕方向
         const savedOrientation = await AsyncStorage.getItem("screenOrientation");
         if (savedOrientation) {
           console.log("恢复保存的屏幕方向:", savedOrientation);
@@ -54,13 +60,16 @@ export default function RootLayout() {
           } else if (savedOrientation === "portrait") {
             await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.PORTRAIT);
           }
+        } else {
+          // 默认横屏
+          await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.LANDSCAPE);
         }
       } catch (error) {
-        console.error("恢复屏幕方向失败:", error);
+        console.error("初始化全屏模式失败:", error);
       }
     };
 
-    restoreScreenOrientation();
+    initializeFullscreen();
   }, []);
 
   return (
@@ -69,6 +78,7 @@ export default function RootLayout() {
         <OrderProvider>
           <PreOrderProvider>
             <View style={{ flex: 1 }}>
+              <StatusBar hidden={true} />
               <NetworkConnectionBanner />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />

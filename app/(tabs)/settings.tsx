@@ -38,7 +38,7 @@ enum CategoryType {
 const STORAGE_KEY_CARDS_PER_ROW = "cards_per_row";
 const DEFAULT_CARDS_PER_ROW = 5;
 const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
-const DEFAULT_CARDS_PER_COLUMN = 1.5;
+const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 
 export default function SettingsScreen() {
@@ -383,30 +383,30 @@ export default function SettingsScreen() {
   }, []);
 
   // 重置设置
-  const resetSettings = useCallback(() => {
-    Alert.alert(t("resetSettings"), t("confirmReset"), [
-      {
-        text: t("cancel"),
-        style: "cancel",
-      },
-      {
-        text: t("confirm"),
-        onPress: async () => {
-          // 重置为英文
-          await changeLanguage("en");
-          // 重置其他设置
-          await AsyncStorage.removeItem("viewMode");
-          // 重置每行卡片数量
-          await AsyncStorage.setItem(
-            STORAGE_KEY_CARDS_PER_ROW,
-            DEFAULT_CARDS_PER_ROW.toString()
-          );
-          setCardsPerRow(DEFAULT_CARDS_PER_ROW);
-          // 可以添加其他需要重置的设置
-        },
-      },
-    ]);
-  }, [t, changeLanguage]);
+  // const resetSettings = useCallback(() => {
+  //   Alert.alert(t("resetSettings"), t("confirmReset"), [
+  //     {
+  //       text: t("cancel"),
+  //       style: "cancel",
+  //     },
+  //     {
+  //       text: t("confirm"),
+  //       onPress: async () => {
+  //         // 重置为英文
+  //         await changeLanguage("en");
+  //         // 重置其他设置
+  //         await AsyncStorage.removeItem("viewMode");
+  //         // 重置每行卡片数量
+  //         await AsyncStorage.setItem(
+  //           STORAGE_KEY_CARDS_PER_ROW,
+  //           DEFAULT_CARDS_PER_ROW.toString()
+  //         );
+  //         setCardsPerRow(DEFAULT_CARDS_PER_ROW);
+  //         // 可以添加其他需要重置的设置
+  //       },
+  //     },
+  //   ]);
+  // }, [t, changeLanguage]);
 
   // 保存KDS设置
   const saveKDSRole = useCallback(async () => {

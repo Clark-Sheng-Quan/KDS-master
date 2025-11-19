@@ -5,6 +5,9 @@ import expo.modules.splashscreen.SplashScreenManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -25,8 +28,44 @@ class MainActivity : ReactActivity() {
     // @generated end expo-splashscreen
     super.onCreate(null)
     
+    // 设置沉浸式全屏模式，隐藏系统导航栏
+    enableImmersiveMode()
+    
     // 初始化设备发现服务
     initializeDeviceDiscovery()
+  }
+  
+  /**
+   * 启用沉浸式全屏模式，隐藏状态栏和导航栏
+   */
+  private fun enableImmersiveMode() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      // Android 12 (API 31+) 及以上
+      window.insetsController?.let {
+        it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+        it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+      }
+    } else {
+      // Android 11 (API 30) 及以下
+      @Suppress("DEPRECATION")
+      window.decorView.systemUiVisibility = (
+        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+        View.SYSTEM_UI_FLAG_FULLSCREEN or
+        View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+      )
+    }
+  }
+  
+  /**
+   * 在恢复应用时重新应用沉浸式模式
+   */
+  override fun onResume() {
+    super.onResume()
+    enableImmersiveMode()
   }
   
   /**
