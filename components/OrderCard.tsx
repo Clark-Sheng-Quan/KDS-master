@@ -34,6 +34,7 @@ interface OrderCardProps {
   onSelect?: () => void;
   hideTimer?: boolean;
   hideActions?: boolean;
+  rightCompact?: boolean; // 紧凑模式，用于 History 页面
 }
 
 export const OrderCard: React.FC<OrderCardProps> = React.memo(({
@@ -47,6 +48,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   onSelect,
   hideTimer = false,
   hideActions = false,
+  rightCompact = false,
 }) => {
   const { t } = useLanguage();
   const { getCategoryColor, categoryColorMap } = useCategoryColors();
@@ -494,7 +496,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
 
               {/* 右列 */}
-              <View style={styles.rightColumn}>
+              <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
                 {/* 右1：Due + Pickup Time */}
                 <Text style={styles.dueTimeText}>
                   Due: {formatAustralianTime(order.pickupTime)}
@@ -569,6 +571,9 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     position: "relative", // 添加相对定位
   },
+  compactCard: {
+    paddingTop: 0, // 恢复为正常 padding
+  },
   sourceIndicator: {
     position: "absolute",
     top: 0,
@@ -633,6 +638,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "flex-end",
     justifyContent: "flex-start",
+  },
+  rightColumnCompact: {
+    marginTop: 25, // 只在 compact 模式下下移右列
   },
   pickupMethodText: {
     fontSize: 18,

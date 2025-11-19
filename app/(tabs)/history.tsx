@@ -63,6 +63,7 @@ export default function HistoryScreen() {
         onSelect={() => handleOrderSelect(item)}
         hideTimer={true}
         hideActions={true}
+        rightCompact={true}
       />
     ),
     [cardStylesMap, selectedOrder]
@@ -185,10 +186,12 @@ export default function HistoryScreen() {
           <Ionicons
             name="refresh"
             size={20}
-            color="white"
+            color={selectedOrder ? "white" : "#888"}
             style={styles.buttonIcon}
           />
-          <Text style={styles.recallButtonText}>{t("recallOrder")}</Text>
+          <Text style={[styles.recallButtonText, !selectedOrder && styles.disabledButtonText]}>
+            {t("recallOrder")}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -243,16 +246,19 @@ const historyStyles = {
     borderRadius: 6,
   },
   disabledButton: {
-    backgroundColor: "#CCCCCC",
-    opacity: 0.6,
+    backgroundColor: "#ddd",
+    opacity: 0.8,
   },
-  buttonIcon: {
-    marginRight: 6,
+  disabledButtonText: {
+    color: "#888",
   },
   recallButtonText: {
     color: "white",
     fontWeight: "600" as const,
     fontSize: 14,
+  },
+  buttonIcon: {
+    marginRight: 6,
   },
 };
 
