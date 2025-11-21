@@ -159,6 +159,7 @@ export default function PreOrdersScreen() {
               style={[styles.cardStyle, cardStylesMap[index]]}
               onOrderComplete={handleOrderRemove}
               onOrderCancel={handleOrderRemove}
+              showDateInDue={true}
             />
           ))}
         </View>

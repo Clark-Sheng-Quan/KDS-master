@@ -37,6 +37,7 @@ interface OrderCardProps {
   rightCompact?: boolean;
   scrollIndicatorAtBottom?: boolean;
   disableItems?: boolean;
+  showDateInDue?: boolean;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = React.memo(({
@@ -53,6 +54,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   rightCompact = false,
   scrollIndicatorAtBottom = false,
   disableItems = false,
+  showDateInDue = false,
 }) => {
   const { t } = useLanguage();
   const { getCategoryColor, categoryColorMap } = useCategoryColors();
@@ -151,22 +153,28 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return order.id.substring(0, 8) || 'N/A';
   };
 
-  // 格式化时间为澳洲格式 (HH:MM-DD-MMM-YYYY)
-  const formatAustralianTime = (timeString: string) => {
+  // 格式化Due时间 - 根据showDateInDue决定是否显示日期
+  const formatDueTime = (timeString: string) => {
     try {
-      // 假设 timeString 格式为 "HH:MM" 或 ISO 格式
       const date = new Date(timeString);
       if (isNaN(date.getTime())) return timeString;
 
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const month = monthNames[date.getMonth()];
-      const year = date.getFullYear();
-      return `${hours}:${minutes} • ${day}-${month}-${year}`;
+      
+      if (showDateInDue) {
+        // pre-orders: 显示完整日期
+        const day = String(date.getDate()).padStart(2, '0');
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = monthNames[date.getMonth()];
+        const year = date.getFullYear();
+        return `${hours}:${minutes} • ${day}-${month}-${year}`;
+      } else {
+        // home/history: 只显示时间
+        return `${hours}:${minutes}`;
+      }
     } catch (error) {
-      return timeString; // 出错时返回原值
+      return timeString;
     }
   };
 
@@ -282,6 +290,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
         )}
 
+        {/* 召回订单指示器 - 在updateBadge右边 */}
+        {order.source === "recalled" && (
+          <View style={[
+            styles.recallBadge,
+            order.updateCount && order.updateCount >= 1 ? styles.recallBadgeWithUpdate : null
+          ]}>
+            <Ionicons name="arrow-redo" size={14} color="#fff" style={{ marginRight: 4 }} />
+            <Text style={styles.recallBadgeText}>RECALLED</Text>
+          </View>
+        )}
+
         <ConfirmModal
           visible={showDoneConfirm}
           title={t("complete")}
@@ -334,7 +353,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                <Text style={styles.dueTimeText}>Due: {formatAustralianTime(order.pickupTime)}</Text>
+                <Text style={styles.dueTimeText}>Due: {formatDueTime(order.pickupTime)}</Text>
                 {!disabled && !hideTimer && <OrderTimer order={order} />}
                 <PrintButton order={order} disabled={disabled} />
               </View>
@@ -421,6 +440,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
     letterSpacing: 0.5,
+  },
+  recallBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "#7B3FF2",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  recallBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  recallBadgeWithUpdate: {
+    left: 118, // updateBadge宽度约110px，所以放在右边
   },
   scrollViewContainer: {
     flex: 1,
