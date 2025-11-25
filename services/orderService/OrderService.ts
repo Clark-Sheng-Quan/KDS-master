@@ -180,7 +180,7 @@ export class OrderService {
   /**
    * 添加新网络订单
    */
-  public static async addNetworkOrder(order: FormattedOrder): Promise<void> {
+  public static async addNetworkOrder(order: FormattedOrder, shouldPlaySound: boolean = true): Promise<void> {
     try {
       // 确保订单有ID
       if (!order.id) {
@@ -257,8 +257,10 @@ export class OrderService {
       // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
       this.previousFilteredProducts.set(order.id, [...filteredProducts]);
      
-      // 播放新订单提示音
-      AudioService.playNewOrderAlert();
+      // 根据 shouldPlaySound 参数条件性播放提示音
+      if (shouldPlaySound) {
+        AudioService.playNewOrderAlert();
+      }
       
       // 触发网络订单和合并订单回调（直接传递已过滤的订单）
       if (this.networkOrderUpdateCallback) {
@@ -714,8 +716,8 @@ export class OrderService {
       
       console.log("recall订单的orderTime:", recalledOrder.orderTime);
       
-      // 保存到网络订单存储
-      await this.addNetworkOrder(recalledOrder);
+      // 保存到网络订单存储（不播放提示音）
+      await this.addNetworkOrder(recalledOrder, false);
       
       console.log("订单撤回成功:", recalledOrder.id, "orderTime:", recalledOrder.orderTime);
       return true;

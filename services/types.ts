@@ -84,4 +84,10 @@ export interface FormattedOrder {
   targetCategory?: string;
   updatedAt?: number;                    // 更新时间戳
   updateCount?: number;                  // 全局更新次数 (所有分类)
+}
+
+export interface CompletedOrder {
+  order: FormattedOrder;
+  completedAt: string;                   // 完成时间 (ISO 格式)
+  source: 'network' | 'tcp';             // 订单来源
 } 

@@ -25,7 +25,7 @@ export default function TabLayout() {
             title: "Recall",
           }}
         /> */}
-        <Tabs.Screen
+        {/* <Tabs.Screen
           name="history"
           options={{
             title: "History",
@@ -51,7 +51,7 @@ export default function TabLayout() {
               <Ionicons name="settings" size={size} color={color} />
             ),
           }}
-        />
+        /> */}
       </Tabs>
 
       {/* 浮动菜单按钮 */}

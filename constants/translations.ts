@@ -4,7 +4,7 @@ export const translations = {
     // 导航
     newOrders: "新订单",
     preOrders: "预订单",
-    orderHistory: "订单历史",
+    orderHistory: "历史查询",
     stockManagement: "库存管理",
     settings: "设置",
     
@@ -15,11 +15,17 @@ export const translations = {
     pickupTime: "取餐时间",
     tableNumber: "桌号",
     quantity: "数量",
+    completedAt: "完成于",
+    completedOrders: "已完成订单",
+    todayCompletedOrders: "今天的已完成订单",
+    historyQuery: "历史查询",
+    recall: "召回",
+    remove: "移除",
     
     // 订单状态
     active: "处理中",
-    urgent: "紧急",
-    delayed: "延迟",
+    urgent: "急处理",
+    delayed: "已延误",
     
     // 操作按钮
     complete: "完成",
@@ -27,6 +33,10 @@ export const translations = {
     print: "打印",
     confirmComplete: "确认完成",
     confirmCancel: "确认取消",
+    confirmRecall: "确认召回",
+    confirmRemove: "确认移除",
+    areYouSureRecall: "确定要召回该订单吗？",
+    areYouSureRemove: "确定要移除该订单吗？",
     
     // 登出相关
     logoutConfirmTitle: "确认登出",
@@ -214,7 +224,6 @@ export const translations = {
     makesSureOtherKDSConnected: "确保其他厨房显示屏设备连接到同一网络",
     removeDevice: "移除设备",
     areYouSureRemoveDevice: "确定要移除设备",
-    remove: "移除",
     editDevice: "编辑设备",
     connectToDevice: "连接到设备",
     areYouSureConnectTo: "确定要连接到设备",
@@ -287,8 +296,8 @@ export const translations = {
   en: {
     // Navigation
     newOrders: "New Orders",
-    preOrders: "Pre Orders",
-    orderHistory: "Order History",
+    preOrders: "Pre-Orders",
+    orderHistory: "History Query",
     stockManagement: "Stock Management",
     settings: "Settings",
     
@@ -299,9 +308,15 @@ export const translations = {
     pickupTime: "Pickup Time",
     tableNumber: "Table Number",
     quantity: "Quantity",
+    completedAt: "Completed at",
+    completedOrders: "Completed Orders",
+    todayCompletedOrders: "Today's Completed Orders",
+    historyQuery: "History Query",
+    recall: "Recall",
+    remove: "Remove",
     
     // Order status
-    active: "active",
+    active: "Active",
     urgent: "Urgent",
     delayed: "Delayed",
     
@@ -311,6 +326,10 @@ export const translations = {
     print: "Print",
     confirmComplete: "Confirm Complete",
     confirmCancel: "Confirm Cancel",
+    confirmRecall: "Confirm Recall",
+    confirmRemove: "Confirm Remove",
+    areYouSureRecall: "Are you sure you want to recall this order?",
+    areYouSureRemove: "Are you sure you want to remove this order?",
     
     // Logout related
     logoutConfirmTitle: "Logout Confirmation",
@@ -480,7 +499,6 @@ export const translations = {
     makesSureOtherKDSConnected: "Make sure other Kitchen devices are connected to the same network",
     removeDevice: "Remove Device",
     areYouSureRemoveDevice: "Are you sure you want to remove",
-    remove: "Remove",
     editDevice: "Edit Device",
     connectToDevice: "Connect to Device",
     areYouSureConnectTo: "Are you sure you want to connect to",

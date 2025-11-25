@@ -161,6 +161,14 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
 
             <TouchableOpacity
               style={styles.menuItem}
+              onPress={() => navigateTo("/(tabs)/completed")}
+            >
+              <Ionicons name="checkmark-done" size={20} color="white" />
+              <Text style={styles.menuItemText}>Completed Orders</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
               onPress={() => navigateTo("/(tabs)/history")}
             >
               <Ionicons name="time" size={20} color="white" />

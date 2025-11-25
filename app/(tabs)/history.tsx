@@ -161,29 +161,6 @@ export default function HistoryScreen() {
     }, [loadHistoryOrders])
   );
 
-  const handleRecallOrder = async () => {
-    if (!selectedOrder) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      // 调用orderService中的recallOrder方法
-      await OrderService.recallOrder(selectedOrder);
-
-      // 刷新订单列表
-      await loadHistoryOrders();
-
-      // 重置选择
-      setSelectedOrder(null);
-    } catch (error) {
-      console.error("召回订单失败:", error);
-      Alert.alert(t("error"), t("recallFailed"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.container}>
@@ -196,24 +173,8 @@ export default function HistoryScreen() {
     <View style={styles.mainContainer}>
       <View style={styles.headerContainer}>
         <Text style={styles.headerText}>
-          {t("todayOrderHistory")} ({historyOrders.length})
+          {t("historyQuery")} ({historyOrders.length})
         </Text>
-
-        <TouchableOpacity
-          style={[styles.recallButton, !selectedOrder && styles.disabledButton]}
-          onPress={handleRecallOrder}
-          disabled={!selectedOrder}
-        >
-          <Ionicons
-            name="refresh"
-            size={20}
-            color={selectedOrder ? "white" : "#888"}
-            style={styles.buttonIcon}
-          />
-          <Text style={[styles.recallButtonText, !selectedOrder && styles.disabledButtonText]}>
-            {t("recallOrder")}
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <FlatList

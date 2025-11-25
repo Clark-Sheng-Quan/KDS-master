@@ -3,6 +3,7 @@ import { OrderProvider, useOrders } from "../contexts/OrderContext";
 import { LanguageProvider } from "../contexts/LanguageContext";
 import { CategoryColorProvider } from "../contexts/CategoryColorContext";
 import { PreOrderProvider } from "../contexts/PreOrderContext";
+import { CompletedOrderProvider } from "../contexts/CompletedOrderContext";
 import { View } from "react-native";
 import { useState, useEffect } from "react";
 import { ConnectionBanner } from "../components/ConnectionBanner";
@@ -77,15 +78,17 @@ export default function RootLayout() {
       <LanguageProvider>
         <OrderProvider>
           <PreOrderProvider>
-            <View style={{ flex: 1 }}>
-              <StatusBar hidden={true} />
-              <NetworkConnectionBanner />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="login" />
-                <Stack.Screen name="(tabs)" />
-              </Stack>
-            </View>
+            <CompletedOrderProvider>
+              <View style={{ flex: 1 }}>
+                <StatusBar hidden={true} />
+                <NetworkConnectionBanner />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="login" />
+                  <Stack.Screen name="(tabs)" />
+                </Stack>
+              </View>
+            </CompletedOrderProvider>
           </PreOrderProvider>
         </OrderProvider>
       </LanguageProvider>

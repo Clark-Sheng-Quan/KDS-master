@@ -17,6 +17,7 @@ import { ConfirmModal } from "./ReuseComponents/ConfirmModal";
 import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCategoryColors } from "../contexts/CategoryColorContext";
+import { useCompletedOrders } from "../contexts/CompletedOrderContext";
 import { theme } from "../styles/theme";
 import { ProductDetailPopup, checkProductHasRecipe } from "./ProductDetailPopup";
 import { TCPSocketService } from "../services/tcpSocketService";
@@ -38,6 +39,8 @@ interface OrderCardProps {
   scrollIndicatorAtBottom?: boolean;
   disableItems?: boolean;
   showDateInDue?: boolean;
+  completedTime?: string;
+  hideBadges?: boolean;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = React.memo(({
@@ -55,9 +58,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   scrollIndicatorAtBottom = false,
   disableItems = false,
   showDateInDue = false,
+  completedTime,
+  hideBadges = false,
 }) => {
   const { t } = useLanguage();
   const { getCategoryColor, categoryColorMap } = useCategoryColors();
+  const { addCompletedOrder } = useCompletedOrders();
 
   const [completedItems, setCompletedItems] = useState<{ [key: string]: boolean }>({});
   const [completedOptions, setCompletedOptions] = useState<{ [key: string]: boolean }>({});
@@ -98,7 +104,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     setShowProductDetail(true);
   };
 
-    const handleDoneConfirm = () => {
+    const handleDoneConfirm = async () => {
     setShowDoneConfirm(false);
     updateOrderStatusToReady(order._id, order.source || "");
 
@@ -116,6 +122,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       })) || [];
       TCPSocketService.sendOrderItemsCompleted(order._id, orderitems);
     }
+
+    // 添加已完成的订单到 CompletedOrderContext
+    await addCompletedOrder(order, (order.source || 'network') as 'network' | 'tcp');
 
     onOrderComplete?.(order);
   };
@@ -161,8 +170,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const date = new Date(timeString);
       if (isNaN(date.getTime())) return timeString;
 
-      const hours = String(date.getHours()).padStart(2, '0');
+      let hours = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // 0点显示为12
+      const hoursStr = String(hours).padStart(2, '0');
       
       if (showDateInDue) {
         // pre-orders: 显示完整日期
@@ -170,11 +183,30 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const month = monthNames[date.getMonth()];
         const year = date.getFullYear();
-        return `${hours}:${minutes} • ${day}-${month}-${year}`;
+        return `${day}-${month}-${year} • ${hoursStr}:${minutes} ${ampm}`;
       } else {
-        // home/history: 只显示时间
-        return `${hours}:${minutes}`;
+        // home/history/completed: 只显示12小时制时间
+        return `${hoursStr}:${minutes} ${ampm}`;
       }
+    } catch (error) {
+      return timeString;
+    }
+  };
+
+  // 格式化完成时间 - 仅显示时间部分
+  const formatCompletedTime = (timeString: string) => {
+    try {
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) return timeString;
+
+      let hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // 0点显示为12
+      const hoursStr = String(hours).padStart(2, '0');
+      
+      return `${hoursStr}:${minutes} ${ampm}`;
     } catch (error) {
       return timeString;
     }
@@ -283,7 +315,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         ]}
       >
         {/* 订单更新指示器 - 左上角 */}
-        {order.updateCount && order.updateCount >= 1 && (
+        {!hideBadges && order.updateCount && order.updateCount >= 1 && (
           <View style={styles.updateBadge}>
             <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.updateBadgeText}>
@@ -293,7 +325,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         )}
 
         {/* 召回订单指示器 - 在updateBadge右边 */}
-        {order.isRecalled && (
+        {!hideBadges && order.isRecalled && (
           <View style={[
             styles.recallBadge,
             order.updateCount && order.updateCount >= 1 ? styles.recallBadgeWithUpdate : null
@@ -355,10 +387,16 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 <Text style={styles.prepareTime}>
                   Table: <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
                 </Text>
+
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
                 <Text style={styles.dueTimeText}>Due: {formatDueTime(order.pickupTime)}</Text>
+                {completedTime && (
+                  <Text style={styles.completedTimeDisplay}>
+                    {t("completedAt")}: {formatCompletedTime(completedTime)}
+                  </Text>
+                )}
                 {!disabled && !hideTimer && <OrderTimer order={order} />}
                 <PrintButton order={order} disabled={disabled} />
               </View>
@@ -514,7 +552,8 @@ const styles = StyleSheet.create({
   dueTimeText: {
     fontSize: 14,
     color: "#555",
-    marginBottom: 12
+    marginBottom: 6,
+    textAlign: "right" as const,
   },
   prepareTime: {
     fontSize: 18,
@@ -526,6 +565,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#333",
     fontWeight: "bold",
+  },
+  completedTimeDisplay: {
+    fontSize: 13,
+    color: "#999",
+    fontWeight: "500",
+    marginTop: 8,
+    marginBottom: 8,
+    textAlign: "right" as const,
   },
   itemsContainer: {
     marginTop: 20, 
