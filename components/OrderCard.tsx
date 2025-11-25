@@ -278,7 +278,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         style={[
           styles.orderCard,
           style,
-          order.source === "recalled" && styles.recalledOrder,
+          order.isRecalled && styles.recalledOrder,
           selected && styles.selectedCard,
         ]}
       >
@@ -293,7 +293,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         )}
 
         {/* 召回订单指示器 - 在updateBadge右边 */}
-        {order.source === "recalled" && (
+        {order.isRecalled && (
           <View style={[
             styles.recallBadge,
             order.updateCount && order.updateCount >= 1 ? styles.recallBadgeWithUpdate : null

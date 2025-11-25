@@ -76,6 +76,7 @@ export default function HistoryScreen() {
     try {
       setLoading(true);
       const orders = await OrderService.getHistoryOrderDetails();
+      console.log('[History Screen] 加载完成，订单数量:', orders.length);
       setHistoryOrders(orders);
     } catch (error) {
       setError("Failed to load history orders");
@@ -107,6 +108,27 @@ export default function HistoryScreen() {
 
     return () => subscription?.remove();
   }, []);
+
+  // 监听 OrderService 的合并订单更新回调，实时刷新历史订单列表
+  // useEffect(() => {
+  //   const handleOrderUpdate = async () => {
+      
+  //     await loadHistoryOrders();
+  //   };
+
+  //   // 设置回调函数
+  //   const originalCallback = (orders: FormattedOrder[]) => {
+  //     // 不直接使用接收到的 orders，而是重新从 API 加载历史订单
+  //     handleOrderUpdate();
+  //   };
+
+  //   OrderService.setOrderUpdateCallback(originalCallback);
+
+  //   return () => {
+  //     // 清理回调
+  //     OrderService.setOrderUpdateCallback(() => {});
+  //   };
+  // }, [loadHistoryOrders]);
 
   useFocusEffect(
     useCallback(() => {
@@ -154,9 +176,6 @@ export default function HistoryScreen() {
 
       // 重置选择
       setSelectedOrder(null);
-
-      // 显示成功提示
-      Alert.alert(t("success"), t("orderRecalled"));
     } catch (error) {
       console.error("召回订单失败:", error);
       Alert.alert(t("error"), t("recallFailed"));

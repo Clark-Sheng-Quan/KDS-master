@@ -188,8 +188,11 @@ export class OrderService {
         return;
       }
       
-      // 确保订单来源标记为network
-      order.source = 'network';
+      // 检查是否为 recalled 订单，如果不是则标记为 network
+      const isRecalledOrder = order.isRecalled === true;
+      if (!isRecalledOrder) {
+        order.source = 'network';
+      }
       
       // 检查订单是否已处理过
       if (this.isOrderProcessed(order.id)) {
@@ -205,40 +208,46 @@ export class OrderService {
       // 添加到处理缓存
       this.addToProcessedCache(order.id);
 
-      // 将新订单状态从 confirmed 更新为 processing
-      try {
-        const token = await AsyncStorage.getItem("token");
-        if (!token) {
-          console.warn('[addNetworkOrder] 没有token，跳过状态更新');
-        } else {
+      // 将新订单状态从 confirmed 更新为 processing（只对非 recalled 订单）
+      if (!isRecalledOrder) {
+        try {
+          const token = await AsyncStorage.getItem("token");
+          if (!token) {
+            console.warn('[addNetworkOrder] 没有token，跳过状态更新');
+          } else {
 
-          const updateResponse = await fetch(`${API_BASE_URL}/order/update_order_status`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              order_id: order._id,
-              status: "processing",
-              source: "network",
-            }),
-          });
-          
-          if (!updateResponse.ok) {
-            console.warn(`更新订单 ${order.id} 状态为 processing 失败`);
+            const updateResponse = await fetch(`${API_BASE_URL}/order/update_order_status`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                order_id: order._id,
+                status: "processing",
+                source: "network",
+              }),
+            });
+            
+            if (!updateResponse.ok) {
+              console.warn(`更新订单 ${order.id} 状态为 processing 失败`);
+            }
           }
+        } catch (error) {
+          console.error('[addNetworkOrder] 更新订单状态异常:', error);
         }
-      } catch (error) {
-        console.error('[addNetworkOrder] 更新订单状态异常:', error);
       }
 
-      // 函数1：过滤产品（直接修改 order.products）
-      const filteredProducts = this.filterOrderProducts(order);
-      
-      // 如果过滤后没有产品，不存储此订单（对当前 KDS 无关）
-      if (filteredProducts.length === 0) {
-        console.log(`[addNetworkOrder] 订单 ${order.id} 过滤后无产品，不存储`);
-        return;
+      // 对于 recalled 订单，不进行产品过滤，直接保留所有产品
+      let filteredProducts = order.products;
+      if (!isRecalledOrder) {
+        // 函数1：过滤产品（直接修改 order.products）
+        filteredProducts = this.filterOrderProducts(order);
+        
+        // 如果过滤后没有产品，不存储此订单（对当前 KDS 无关）
+        if (filteredProducts.length === 0) {
+          console.log(`[addNetworkOrder] 订单 ${order.id} 过滤后无产品，不存储`);
+          return;
+        }
       }
       
       // 添加新订单到末尾（已经是过滤后的）
@@ -585,15 +594,22 @@ export class OrderService {
   /**
    * 获取历史订单详情
    */
-  private static todayTimeRange: [string, string] = [
-    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-    new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
-  ] as [string, string];
+  private static getTodayTimeRange(): [string, string] {
+    // 每次调用时动态计算时间范围，确保时间是最新的
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return [start.toISOString(), end.toISOString()];
+  }
 
   static async getHistoryOrderDetails(): Promise<FormattedOrder[]> {
     try {
+      const todayTimeRange = this.getTodayTimeRange();
+      
       // 获取原始历史订单数据
-      const rawOrders = await NetworkService.fetchHistoryOrders(this.todayTimeRange);
+      const rawOrders = await NetworkService.fetchHistoryOrders(todayTimeRange);
       
       // 创建包含过滤后订单的结果对象
       const result = { orders: rawOrders };
@@ -601,7 +617,7 @@ export class OrderService {
       // 格式化订单
       return await Formatters.formatOrders(result);
     } catch (error) {
-      console.error('获取历史订单失败:', error);
+      console.error('[HistoryScreen] 获取历史订单失败:', error);
       return []; // 返回空数组而不是抛出错误
     }
   }
@@ -693,7 +709,7 @@ export class OrderService {
         ...order,
         id: `recalled-${order.id}`, // 生成新的ID以避免冲突
         orderTime: currentSydneyTime, // 设置为当前悉尼时间，格式正确
-        status: 'recalled', // 标记为撤回的订单
+        isRecalled: true, // 标记为撤回的订单
       };
       
       console.log("recall订单的orderTime:", recalledOrder.orderTime);

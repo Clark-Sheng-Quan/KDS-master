@@ -286,7 +286,10 @@ export const formatOrders = async (ordersData: any): Promise<FormattedOrder[]> =
       formattedOrder.source = 'history'; // Mark source as history
       formattedOrders.push(formattedOrder);
     } catch (error) {
-      console.error('[Format] Failed to format single order:', error);
+      console.error('[Format] 格式化单条订单失败:', {
+        orderId: order?.order_id,
+        error: error
+      });
       // Continue processing next order
     }
   }
