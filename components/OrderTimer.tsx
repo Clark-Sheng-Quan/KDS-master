@@ -39,12 +39,20 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   // 计算订单生成时间与当前时间的差值（秒）
   const calculateTimeDifference = () => {
     try {
-      // 解析订单的orderTime（格式："yyyy-MM-dd HH:mm:ss"，已是悉尼时区）
-      const pickupDate = DateTime.fromFormat(
+      // 解析订单的orderTime（支持多种格式）
+      let pickupDate: DateTime;
+      
+      // 先尝试标准格式 "yyyy-MM-dd HH:mm:ss"
+      pickupDate = DateTime.fromFormat(
         order.orderTime, 
         'yyyy-MM-dd HH:mm:ss',
         { zone: 'Australia/Sydney' }
       );
+      
+      // 如果失败，尝试ISO格式
+      if (!pickupDate.isValid) {
+        pickupDate = DateTime.fromISO(order.orderTime, { zone: 'utc' }).setZone('Australia/Sydney');
+      }
 
       if (!pickupDate.isValid) {
         console.error('[OrderTimer] Invalid orderTime format:', order.orderTime, pickupDate.invalidReason);

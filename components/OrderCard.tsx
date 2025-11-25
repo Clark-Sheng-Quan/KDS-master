@@ -67,14 +67,16 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [isScrollable, setIsScrollable] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
 
   useEffect(() => {
-    if (contentHeight > 0 && containerHeight > 0) {
-      setIsScrollable(contentHeight > containerHeight + 10);
+    if (contentHeight > 0 && scrollViewHeight > 0) {
+      // 比较内容高度和ScrollView容器高度
+      setIsScrollable(contentHeight > scrollViewHeight);
     } else {
       setIsScrollable(false);
     }
-  }, [contentHeight, containerHeight, order.id]);
+  }, [contentHeight, scrollViewHeight, order.id]);
 
   // 处理事件
   const handleItemClick = (itemId: string) => {
@@ -326,11 +328,14 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           nestedScrollEnabled={true}
           scrollIndicatorInsets={{ right: 1 }}
           style={styles.scrollViewContainer}
+          onLayout={(event) => {
+            // 获取ScrollView容器的实际高度
+            const { height } = event.nativeEvent.layout;
+            setScrollViewHeight(height);
+          }}
           onContentSizeChange={(width, height) => {
             // ScrollView的总内容高度
             setContentHeight(height);
-            // 假设OrderActions约50px，所以ScrollView可用空间约550px
-            setContainerHeight(550);
           }}
         >
           <View style={styles.textContainer}>
@@ -369,7 +374,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         {/* 只在可以滚动时显示提示 - 固定在右下角 */}
         {isScrollable && (
           <View style={[styles.scrollIndicatorText, scrollIndicatorAtBottom && styles.scrollIndicatorAtBottom]}>
-            <Text style={styles.scrollMoreText}>Scroll to see more items</Text>
+            <Text style={styles.scrollMoreText}>↓ more items</Text>
           </View>
         )}
         {!disabled && !hideActions && (
@@ -445,7 +450,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: "#7B3FF2",
+    backgroundColor: "#FF6B35",
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,

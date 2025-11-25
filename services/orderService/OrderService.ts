@@ -682,19 +682,26 @@ export class OrderService {
   static async recallOrder(order: FormattedOrder): Promise<boolean> {
     try {
       console.log("撤回历史订单:", order.id);
+      console.log("原始orderTime:", order.orderTime, "类型:", typeof order.orderTime);
+      
+      // 获取当前悉尼时间，格式为 "yyyy-MM-dd HH:mm:ss"
+      const currentSydneyTime = Formatters.convertToSydneyTime(new Date().toISOString());
+      console.log("转换后的悉尼时间:", currentSydneyTime);
       
       // 创建一个新的订单副本，避免修改原订单
       const recalledOrder: FormattedOrder = {
         ...order,
         id: `recalled-${order.id}`, // 生成新的ID以避免冲突
-        orderTime: new Date().toISOString(), // 更新订单时间为当前时间
+        orderTime: currentSydneyTime, // 设置为当前悉尼时间，格式正确
         status: 'recalled', // 标记为撤回的订单
       };
+      
+      console.log("recall订单的orderTime:", recalledOrder.orderTime);
       
       // 保存到网络订单存储
       await this.addNetworkOrder(recalledOrder);
       
-      console.log("订单撤回成功:", recalledOrder.id);
+      console.log("订单撤回成功:", recalledOrder.id, "orderTime:", recalledOrder.orderTime);
       return true;
     } catch (error) {
       console.error("撤回订单失败:", error);
