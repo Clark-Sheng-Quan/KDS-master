@@ -34,28 +34,31 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [order.orderTime]);
+  }, [order.kdsReceiveTime]);
 
-  // 计算订单生成时间与当前时间的差值（秒）
+  // 计算订单进入 KDS 时间与当前时间的差值（秒）
   const calculateTimeDifference = () => {
     try {
-      // 解析订单的orderTime（支持多种格式）
+      // 使用 kdsReceiveTime（订单进入 KDS 的时间）作为计时器起始时间
+      // 如果没有 kdsReceiveTime，则使用 orderTime 作为备选
+      const startTime = order.kdsReceiveTime || order.orderTime;
+      
       let pickupDate: DateTime;
       
-      // 先尝试标准格式 "yyyy-MM-dd HH:mm:ss"
-      pickupDate = DateTime.fromFormat(
-        order.orderTime, 
-        'yyyy-MM-dd HH:mm:ss',
-        { zone: 'Australia/Sydney' }
-      );
+      // 先尝试 ISO 格式
+      pickupDate = DateTime.fromISO(startTime, { zone: 'utc' }).setZone('Australia/Sydney');
       
-      // 如果失败，尝试ISO格式
+      // 如果失败，尝试标准格式 "yyyy-MM-dd HH:mm:ss"
       if (!pickupDate.isValid) {
-        pickupDate = DateTime.fromISO(order.orderTime, { zone: 'utc' }).setZone('Australia/Sydney');
+        pickupDate = DateTime.fromFormat(
+          startTime, 
+          'yyyy-MM-dd HH:mm:ss',
+          { zone: 'Australia/Sydney' }
+        );
       }
 
       if (!pickupDate.isValid) {
-        console.error('[OrderTimer] Invalid orderTime format:', order.orderTime, pickupDate.invalidReason);
+        console.error('[OrderTimer] Invalid start time format:', startTime, pickupDate.invalidReason);
         setElapsedTime(0);
         return;
       }

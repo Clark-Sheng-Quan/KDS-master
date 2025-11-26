@@ -75,6 +75,7 @@ export interface FormattedOrder {
   orderTime: string;
   pickupMethod: string;
   pickupTime: string;
+  kdsReceiveTime?: string;               // KDS接收到订单的时间 (用于计时器的起始时间)
   tableNumber?: string;
   status?: string;
   source?: string;

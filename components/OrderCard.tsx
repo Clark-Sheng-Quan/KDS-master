@@ -310,7 +310,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         style={[
           styles.orderCard,
           style,
-          order.isRecalled && styles.recalledOrder,
           selected && styles.selectedCard,
         ]}
       >
@@ -662,10 +661,6 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 12,
     padding: 2,
-  },
-  recalledOrder: {
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.warningColor,
   },
   scrollIndicatorText: {
     position: "absolute",

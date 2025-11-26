@@ -169,8 +169,9 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       orderTime: sydneyOrderTime,
       pickupMethod: pickupMethod,
       pickupTime: sydneyOrderTime, // POS doesn't have separate pickup time, use order time
+      kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
       num: orderNumber,              // 订单号 (用于显示)
-      status: orderData.status || 'IN_PROGRESS',
+      status: orderData.status,
       products: formattedItems,
       source: 'tcp', // Mark source as TCP
       total_prepare_time: totalPrepareTime,
@@ -186,7 +187,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       id: String(Date.now()),
       _id: String(Date.now()),
       orderTime: new Date().toISOString(),
-      pickupMethod: "formatting_error",
+      pickupMethod: "n/a",
       pickupTime: new Date().toISOString(),
       num: String(Date.now()),  // 订单号
       products: [],
@@ -242,11 +243,13 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       orderTime: sydneyOrderTime, // Use converted Sydney time
       pickupMethod: order.pick_method,
       pickupTime: sydneyPickupTime, // Use converted Sydney time
+      kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
       num: order.order_num.toString(),     // 订单号 (用于显示)
       status: order.status, 
       products: formattedItems,
       source: order.source,
       total_prepare_time: order.total_prepare_time || 0, // Add total prepare time
+      tableNumber: order.tableNumber || '', // Add table number
     };
   } catch (error) {
     console.error('[Format] Failed to format network order:', error, order);
@@ -263,6 +266,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       products: [],
       source: 'network',
       total_prepare_time: 0,
+      tableNumber: 'n/a',
     };
   }
 };
