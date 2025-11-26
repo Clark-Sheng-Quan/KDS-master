@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
 import { PrintButton } from "./PrintButton";
-import { ConfirmModal } from "./ReuseComponents/ConfirmModal";
+import { ConfirmModal, showConfirmAlert } from "./ReuseComponents/ConfirmModal";
 import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCategoryColors } from "../contexts/CategoryColorContext";
@@ -67,7 +67,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   const [completedItems, setCompletedItems] = useState<{ [key: string]: boolean }>({});
   const [completedOptions, setCompletedOptions] = useState<{ [key: string]: boolean }>({});
-  const [showDoneConfirm, setShowDoneConfirm] = useState(false);
   const [showProductDetail, setShowProductDetail] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string } | null>(null);
   const [isScrollable, setIsScrollable] = useState(false);
@@ -105,7 +104,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   };
 
     const handleDoneConfirm = async () => {
-    setShowDoneConfirm(false);
     updateOrderStatusToReady(order._id, order.source || "");
 
     if (order.source?.toLowerCase() === 'tcp') {
@@ -128,6 +126,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
     onOrderComplete?.(order);
   };
+
+
 
   const updateOrderStatusToReady = async (orderId: string, source: string) => {
     try {
@@ -335,16 +335,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
         )}
 
-        <ConfirmModal
-          visible={showDoneConfirm}
-          title={t("complete")}
-          message={`${t("confirmComplete")} #${getOrderDisplayNumber()}?`}
-          confirmText={t("complete")}
-          cancelText={t("cancel")}
-          onConfirm={handleDoneConfirm}
-          onCancel={() => setShowDoneConfirm(false)}
-        />
-
         {selectedProduct && (
           <ProductDetailPopup
             visible={showProductDetail}
@@ -418,7 +408,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         {!disabled && !hideActions && (
           <OrderActions
             orderId={order.id}
-            onDone={() => setShowDoneConfirm(true)}
+            onDone={handleDoneConfirm}
             onCancel={() => {}}
           />
         )}

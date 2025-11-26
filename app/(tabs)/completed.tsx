@@ -128,38 +128,22 @@ export default function CompletedScreen() {
       return;
     }
 
-    Alert.alert(
-      t("confirmRecall"),
-      t("areYouSureRecall"),
-      [
-        {
-          text: t("cancel"),
-          onPress: () => {},
-          style: "cancel",
-        },
-        {
-          text: t("recall"),
-          onPress: async () => {
-            try {
-              setLoading(true);
-              // 调用 OrderService 的 recallOrder 方法
-              await OrderService.recallOrder(selectedOrder);
+    try {
+      setLoading(true);
+      // 调用 OrderService 的 recallOrder 方法
+      await OrderService.recallOrder(selectedOrder);
 
-              // 从完成列表中移除
-              await removeCompletedOrder(selectedOrder.id);
+      // 从完成列表中移除
+      await removeCompletedOrder(selectedOrder.id);
 
-              // 重置选择
-              setSelectedOrder(null);
-            } catch (error) {
-              console.error("召回订单失败:", error);
-              Alert.alert(t("error"), "召回订单失败");
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+      // 重置选择
+      setSelectedOrder(null);
+    } catch (error) {
+      console.error("召回订单失败:", error);
+      Alert.alert(t("error"), "召回订单失败");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 移除订单功能 - 从已完成列表中移除
@@ -168,35 +152,19 @@ export default function CompletedScreen() {
       return;
     }
 
-    Alert.alert(
-      t("confirmRemove"),
-      t("areYouSureRemove"),
-      [
-        {
-          text: t("cancel"),
-          onPress: () => {},
-          style: "cancel",
-        },
-        {
-          text: t("remove"),
-          onPress: async () => {
-            try {
-              setLoading(true);
-              // 从完成列表中移除
-              await removeCompletedOrder(selectedOrder.id);
+    try {
+      setLoading(true);
+      // 从完成列表中移除
+      await removeCompletedOrder(selectedOrder.id);
 
-              // 重置选择
-              setSelectedOrder(null);
-            } catch (error) {
-              console.error("移除订单失败:", error);
-              Alert.alert(t("error"), "移除订单失败");
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+      // 重置选择
+      setSelectedOrder(null);
+    } catch (error) {
+      console.error("移除订单失败:", error);
+      Alert.alert(t("error"), "移除订单失败");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {

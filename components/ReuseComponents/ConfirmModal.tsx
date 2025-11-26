@@ -1,8 +1,7 @@
 import React from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Alert } from "react-native";
 
 interface ConfirmModalProps {
-  visible: boolean;
   title: string;
   message: string;
   confirmText: string;
@@ -12,8 +11,43 @@ interface ConfirmModalProps {
   isDanger?: boolean;
 }
 
+/**
+ * 显示确认对话框 - 使用原生 Alert 而不是 Modal
+ * 这样可以避免导航栏在 Modal 弹出时自动显示的问题
+ */
+export const showConfirmAlert = (
+  title: string,
+  message: string,
+  confirmText: string,
+  cancelText: string,
+  onConfirm: () => void,
+  onCancel?: () => void,
+  isDanger?: boolean
+) => {
+  Alert.alert(
+    title,
+    message,
+    [
+      {
+        text: cancelText,
+        onPress: onCancel || (() => {}),
+        style: "cancel",
+      },
+      {
+        text: confirmText,
+        onPress: onConfirm,
+        style: isDanger ? "destructive" : "default",
+      },
+    ],
+    { cancelable: false }
+  );
+};
+
+/**
+ * ConfirmModal 组件 - 用于直接调用
+ * 使用原生 Alert 避免导航栏问题
+ */
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  visible,
   title,
   message,
   confirmText,
@@ -22,94 +56,18 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onCancel,
   isDanger = false,
 }) => {
-  return (
-    <Modal
-      transparent={true}
-      visible={visible}
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <Text style={styles.modalText}>{message}</Text>
-          <View style={styles.modalButtons}>
-            <TouchableOpacity
-              style={[
-                styles.modalButton,
-                isDanger ? styles.dangerButton : styles.confirmModalButton,
-              ]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.modalButtonText}>{confirmText}</Text>
-            </TouchableOpacity>
+  // 立即显示原生 Alert
+  React.useEffect(() => {
+    showConfirmAlert(
+      title,
+      message,
+      confirmText,
+      cancelText,
+      onConfirm,
+      onCancel,
+      isDanger
+    );
+  }, []);
 
-            <TouchableOpacity
-              style={[styles.modalButton, styles.cancelModalButton]}
-              onPress={onCancel}
-            >
-              <Text style={styles.cancelButtonText}>{cancelText}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
+  return null;
 };
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: 8,
-    padding: 20,
-    width: "30%",
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  modalText: {
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "60%",
-  },
-  modalButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 6,
-    minWidth: 100,
-    alignItems: "center",
-  },
-  cancelModalButton: {
-    backgroundColor: "#e0e0e0",
-  },
-  confirmModalButton: {
-    backgroundColor: "#69ab6b",
-  },
-  dangerButton: {
-    backgroundColor: "#e74c3c",
-  },
-  modalButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  cancelButtonText: {
-    color: "#333",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-});
