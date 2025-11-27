@@ -7,7 +7,6 @@ import {
 import { FormattedOrder } from "@/services/types";
 import { colors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
-import { DateTime } from 'luxon';
 
 interface OrderTimerProps {
   order: FormattedOrder;
@@ -16,7 +15,8 @@ interface OrderTimerProps {
 
 export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) => {
   const { t } = useLanguage();
-  const [elapsedTime, setElapsedTime] = useState(0); // 存储已经过去的时间（秒）
+  const [elapsedTime, setElapsedTime] = useState(0); // 初始化为 0
+  const [startTime] = useState(() => new Date(order.kdsReceiveTime || order.orderTime || 0)); // 记录订单进入 KDS 的时间
   const onTimeUpdateRef = useRef(onTimeUpdate);
 
   // 保持 onTimeUpdate 引用最新
@@ -25,60 +25,16 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   }, [onTimeUpdate]);
 
   useEffect(() => {
-    // 计算初始时间差
-    calculateTimeDifference();
-
     // 每秒更新一次时间差
     const interval = setInterval(() => {
-      calculateTimeDifference();
+      const now = new Date();
+      const diffMs = now.getTime() - startTime.getTime();
+      const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
+      setElapsedTime(diffSeconds);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [order.kdsReceiveTime]);
-
-  // 计算订单进入 KDS 时间与当前时间的差值（秒）
-  const calculateTimeDifference = () => {
-    try {
-      // 使用 kdsReceiveTime（订单进入 KDS 的时间）作为计时器起始时间
-      // 如果没有 kdsReceiveTime，则使用 orderTime 作为备选
-      const startTime = order.kdsReceiveTime || order.orderTime;
-      
-      let pickupDate: DateTime;
-      
-      // 先尝试 ISO 格式
-      pickupDate = DateTime.fromISO(startTime, { zone: 'utc' }).setZone('Australia/Sydney');
-      
-      // 如果失败，尝试标准格式 "yyyy-MM-dd HH:mm:ss"
-      if (!pickupDate.isValid) {
-        pickupDate = DateTime.fromFormat(
-          startTime, 
-          'yyyy-MM-dd HH:mm:ss',
-          { zone: 'Australia/Sydney' }
-        );
-      }
-
-      if (!pickupDate.isValid) {
-        console.error('[OrderTimer] Invalid start time format:', startTime, pickupDate.invalidReason);
-        setElapsedTime(0);
-        return;
-      }
-
-      // 获取当前悉尼时间
-      const now = DateTime.now().setZone('Australia/Sydney');
-
-      // 计算时间差（毫秒）
-      const diffMs = now.toMillis() - pickupDate.toMillis();
-
-      // 转换为秒并确保不为负数
-      const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
-
-      // 更新状态
-      setElapsedTime(diffSeconds);
-    } catch (error) {
-      console.error("计算时间差异失败:", error);
-      setElapsedTime(0);
-    }
-  };
+  }, [startTime]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);

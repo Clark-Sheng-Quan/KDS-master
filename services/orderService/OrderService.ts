@@ -702,15 +702,15 @@ export class OrderService {
       console.log("撤回历史订单:", order.id);
       console.log("原始orderTime:", order.orderTime, "类型:", typeof order.orderTime);
       
-      // 获取当前悉尼时间，格式为 "yyyy-MM-dd HH:mm:ss"
-      const currentSydneyTime = Formatters.convertToSydneyTime(new Date().toISOString());
-      console.log("转换后的悉尼时间:", currentSydneyTime);
+      // 获取当前本地时间，格式为 "yyyy-MM-dd HH:mm:ss"
+      const currentLocalTime = Formatters.convertToLocalTimeFormatted(new Date().toISOString());
+      console.log("转换后的本地时间:", currentLocalTime);
       
       // 创建一个新的订单副本，避免修改原订单
       const recalledOrder: FormattedOrder = {
         ...order,
         id: `recalled-${order.id}`, // 生成新的ID以避免冲突
-        orderTime: currentSydneyTime, // 设置为当前悉尼时间，格式正确
+        orderTime: currentLocalTime, // 设置为当前本地时间，格式正确
         isRecalled: true, // 标记为撤回的订单
       };
       

@@ -5,65 +5,13 @@
 
 import { DateTime } from 'luxon';
 import { FormattedOrder } from '../types';
+import { convertToLocalTime } from './timeConfig';
 
 /**
- * 将 UTC 时间转换为悉尼时区时间
+ * 将 UTC 时间转换为本地时区时间（向后兼容包装器）
  */
-export const convertToSydneyTime = (utcTimeString: string): string => {
-  try {
-    let utcDate: DateTime;
-    const trimmedString = utcTimeString.trim();
-    
-    // Try to parse as ISO format first (most common, fastest)
-    utcDate = DateTime.fromISO(trimmedString, { zone: 'utc' });
-    if (utcDate.isValid) {
-      
-      const sydneyDate = utcDate.setZone('Australia/Sydney');
-      const formattedSydneyTime = sydneyDate.toFormat('yyyy-MM-dd HH:mm:ss');
-      
-      return formattedSydneyTime;
-    }
-    
-    // Check if string contains timezone offset (e.g., "+0000", "-0800")
-    const timezoneOffsetMatch = trimmedString.match(/^(.+)\s+([+-]\d{4})$/);
-    
-    if (timezoneOffsetMatch) {
-      // Format: "2025-10-29 03:59:45 +0000"
-      // Parse with timezone offset using ISO format
-      const dateTimePart = timezoneOffsetMatch[1]; // "2025-10-29 03:59:45"
-      const offsetPart = timezoneOffsetMatch[2];    // "+0000"
-      
-      
-      // Convert to ISO format that Luxon can parse: "2025-10-29T03:59:45+00:00"
-      const isoString = dateTimePart.replace(' ', 'T') + offsetPart.slice(0, 3) + ':' + offsetPart.slice(3);
-      
-      utcDate = DateTime.fromISO(isoString);
-    } else if (trimmedString.match(/^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+(AM|PM)$/i)) {
-      // POS Format: "Oct 30, 2025 10:44:43 PM" or "Oct 30, 2025 3:21:07 PM"
-      // Use 'h' for 1-12 hour format (without leading zero) instead of 'hh'
-      utcDate = DateTime.fromFormat(trimmedString, 'MMM d, yyyy h:mm:ss a', { zone: 'utc', locale: 'en-US' });
-    } else {
-      // Format: "2025-10-29 00:00:00" (no timezone offset, assume UTC)
-      
-      utcDate = DateTime.fromFormat(trimmedString, 'yyyy-MM-dd HH:mm:ss', { zone: 'utc' });
-    }
-
-    if (!utcDate.isValid) {
-      console.error('[Time] Time parsing failed:', utcDate.invalidExplanation);
-      console.error('[Time] Attempted to parse:', trimmedString);
-      return utcTimeString;
-    }
-
-    // Convert to Sydney time
-    const sydneyDate = utcDate.setZone('Australia/Sydney');
-    const formattedSydneyTime = sydneyDate.toFormat('yyyy-MM-dd HH:mm:ss');
-    
-    
-    return formattedSydneyTime;
-  } catch (error) {
-    console.error('[Time] Timezone conversion error:', error);
-    return utcTimeString;
-  }
+export const convertToLocalTimeFormatted = (utcTimeString: string): string => {
+  return convertToLocalTime(utcTimeString);
 };
 
 /**
@@ -126,10 +74,11 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       return sum + (item.prepare_time || 0);
     }, 0);
     
-    // Convert times to Sydney timezone
-    const sydneyOrderTime = convertToSydneyTime(
+    // Convert times to local timezone
+    const localOrderTime = convertToLocalTimeFormatted(
       orderData.timestamp || orderData.createdAt || new Date().toISOString()
     );
+
     // Extract pickup method from POS format - ensure it's a string, not an object
     let pickupMethod = "DINEIN";
     if (typeof orderData.ordermode === 'string' && orderData.ordermode) {
@@ -166,9 +115,9 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const formattedOrder: FormattedOrder = {
       id: orderId,
       _id: orderData.id || orderId,
-      orderTime: sydneyOrderTime,
+      orderTime: localOrderTime,
       pickupMethod: pickupMethod,
-      pickupTime: sydneyOrderTime, // POS doesn't have separate pickup time, use order time
+      pickupTime: localOrderTime, // POS doesn't have separate pickup time, use order time
       kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
       num: orderNumber,              // 订单号 (用于显示)
       status: orderData.status,
@@ -233,16 +182,16 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       };
     });
 
-    // Convert pickupTime to Sydney timezone
-    const sydneyPickupTime = convertToSydneyTime(order.pick_time);
-    const sydneyOrderTime = convertToSydneyTime(order.time);
+    // Convert pickupTime to local timezone
+    const localPickupTime = convertToLocalTimeFormatted(order.pick_time);
+    const localOrderTime = convertToLocalTimeFormatted(order.time);
     
     return {
       id: order._id.toString(),
       _id: order._id || order._id.toString(),
-      orderTime: sydneyOrderTime, // Use converted Sydney time
+      orderTime: localOrderTime, // Use converted local time
       pickupMethod: order.pick_method,
-      pickupTime: sydneyPickupTime, // Use converted Sydney time
+      pickupTime: localPickupTime, // Use converted local time
       kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
       num: order.order_num.toString(),     // 订单号 (用于显示)
       status: order.status, 
