@@ -19,6 +19,7 @@ export const translations = {
     completedOrders: "已完成订单",
     todayCompletedOrders: "今天的已完成订单",
     historyQuery: "历史查询",
+    searchHistory: "搜索历史",
     recall: "召回",
     remove: "移除",
     
@@ -129,6 +130,7 @@ export const translations = {
     
     // 其他
     noOrders: "暂无订单...",
+    noCompletedOrders: "暂无已完成订单...",
     todayOrderHistory: "今日订单历史",
     save: "保存",
     edit: "编辑",
@@ -312,6 +314,7 @@ export const translations = {
     completedOrders: "Completed Orders",
     todayCompletedOrders: "Today's Completed Orders",
     historyQuery: "History Query",
+    searchHistory: "Search History",
     recall: "Recall",
     remove: "Remove",
     
@@ -422,6 +425,7 @@ export const translations = {
     
     // Others
     noOrders: "Waiting for orders...",
+    noCompletedOrders: "No completed orders...",
     todayOrderHistory: "Today's Order History",
     save: "Save",
     edit: "Edit",

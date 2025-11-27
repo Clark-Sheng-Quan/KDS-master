@@ -99,7 +99,7 @@ export default function GlobalNav() {
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/history")}
           >
-            <Text style={styles.buttonText}>{t("orderHistory")}</Text>
+            <Text style={styles.buttonText}>{t("searchHistory")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

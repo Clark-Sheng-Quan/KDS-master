@@ -172,7 +172,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               onPress={() => navigateTo("/(tabs)/history")}
             >
               <Ionicons name="time" size={20} color="white" />
-              <Text style={styles.menuItemText}>{t("orderHistory")}</Text>
+              <Text style={styles.menuItemText}>{t("searchHistory")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

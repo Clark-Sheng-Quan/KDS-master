@@ -173,7 +173,7 @@ export default function HistoryScreen() {
     <View style={styles.mainContainer}>
       <View style={styles.headerContainer}>
         <Text style={styles.headerText}>
-          {t("historyQuery")} ({historyOrders.length})
+          {t("searchHistory")} ({historyOrders.length})
         </Text>
       </View>
 

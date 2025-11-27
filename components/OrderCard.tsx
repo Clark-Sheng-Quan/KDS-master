@@ -152,7 +152,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   };
 
   // 工具函数
-  const safeText = (text: string | undefined) => text || "null";
+  const safeText = (text: string | undefined) => text || "1";
+  
+  // 判断是否应该显示数量（只有 >= 2 时才显示）
+  const shouldShowQuantity = (quantity: any): boolean => {
+    const num = parseInt(String(quantity), 10);
+    return !isNaN(num) && num >= 2;
+  };
 
   const getOrderDisplayNumber = () => {
     // 如果 num 存在且不等于完整的 id（表示是真正的订单号）
@@ -275,11 +281,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               >
                 <View style={styles.optionContent}>
                   <Text style={[styles.optionName, isVoided && styles.voidedText]}>
-                    - {option.name}
+                    - {option.name}{''}
                   </Text>
-                  <Text style={[styles.optionValue, isVoided && styles.voidedText]}>
-                    x{safeText(option.value)}
-                  </Text>
+                  {shouldShowQuantity(option.value) && (
+                    <Text style={[styles.optionValue, isVoided && styles.voidedText]}>
+                       x{option.value}
+                    </Text>
+                  )}
                 </View>
                 {!isVoided && completedOptions[`${order.id}-item-${index}-option-${optIndex}`] && (
                   <Ionicons name="checkmark-circle" size={20} color={colors.checkColor} />
@@ -618,7 +626,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   optionValue: {
-    fontSize: 14,
+    fontSize: 16,
     color: "#333",
     fontWeight: "bold",
   },

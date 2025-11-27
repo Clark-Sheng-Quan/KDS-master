@@ -178,7 +178,7 @@ export default function CompletedScreen() {
   if (completedOrders.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.noOrdersText}>暂无已完成订单</Text>
+        <Text style={styles.noOrdersText}>{t("noCompletedOrders")}</Text>
       </View>
     );
   }
@@ -320,8 +320,9 @@ const completedStyles = {
     alignItems: "center" as const,
   },
   noOrdersText: {
-    fontSize: 18,
-    color: "#666",
+    fontSize: 38,
+    color: "#151010",
+    textAlign: "center" as const,
   },
 };
 
