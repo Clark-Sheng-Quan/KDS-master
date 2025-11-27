@@ -152,7 +152,7 @@ export default function PreOrdersScreen() {
         </View>
 
         <View style={styles.cardsContainer}>
-          {orders.map((order, index) => (
+          {cardStylesMap.length > 0 && orders.map((order, index) => (
             <OrderCard
               key={order.id}
               order={order}

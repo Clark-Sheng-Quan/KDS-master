@@ -19,7 +19,7 @@ import {
   DEFAULT_CARDS_PER_COLUMN,
   STORAGE_KEY_CARDS_PER_ROW,
   STORAGE_KEY_CARDS_PER_COLUMN,
-  cardStyles,
+  cardStyles as cardStylesSheet,
   preCalculateCardStyles,
   formatTime,
 } from "../../constants/cardConfig";
@@ -56,7 +56,7 @@ export default function HomeScreen() {
     return () => subscription?.remove();
   }, []);
 
-  // 每次页面获得焦点时加载设置
+  // 每次页面获得焦点时重新加载设置
   useFocusEffect(
     useCallback(() => {
       const loadSettings = async () => {
@@ -159,7 +159,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.cardsContainer}>
-          {filteredOrders.map((order, index) => (
+          {cardStyles.length > 0 && filteredOrders.map((order, index) => (
             <OrderCard
               key={order.id}
               order={order}
@@ -174,4 +174,4 @@ export default function HomeScreen() {
   );
 }
 
-const styles = cardStyles;
+const styles = cardStylesSheet;

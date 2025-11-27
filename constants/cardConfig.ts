@@ -10,7 +10,7 @@ import { theme } from "../styles/theme";
 export const PADDING = 16;
 export const CARD_MARGIN = 6;
 export const DEFAULT_CARDS_PER_ROW = 5;
-export const DEFAULT_CARDS_PER_COLUMN = 1.5;
+export const DEFAULT_CARDS_PER_COLUMN = 1.75;
 
 // ============ AsyncStorage 键定义 ============
 export const STORAGE_KEY_CARDS_PER_ROW = "cards_per_row";
@@ -121,36 +121,6 @@ export const calculateMarginRight = (
   return (index + 1) % cardsPerRow === 0 ? 0 : CARD_MARGIN;
 };
 
-/**
- * 计算卡片完整样式对象
- * @param index 卡片索引
- * @param availableWidth 可用宽度
- * @param cardsPerRow 每行卡片数
- * @param cardHeight 卡片高度
- * @returns 卡片完整样式对象
- */
-export const calculateCardStyle = (
-  index: number,
-  availableWidth: number,
-  cardsPerRow: number,
-  cardHeight: number
-) => {
-  return {
-    width: calculateCardWidth(availableWidth, cardsPerRow),
-    height: cardHeight,
-    marginRight: calculateMarginRight(index, cardsPerRow),
-  };
-};
-
-/**
- * 预计算所有卡片的样式（一次性计算，用于保存）
- * @param count 卡片总数
- * @param availableWidth 可用宽度
- * @param availableHeight 可用高度
- * @param cardsPerRow 每行卡片数
- * @param cardsPerColumn 每列卡片数
- * @returns 卡片样式数组
- */
 export const preCalculateCardStyles = (
   count: number,
   availableWidth: number,

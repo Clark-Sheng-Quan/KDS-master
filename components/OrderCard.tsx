@@ -309,8 +309,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       <View
         style={[
           styles.orderCard,
-          style,
           selected && styles.selectedCard,
+          style,
         ]}
       >
         {/* 订单更新指示器 - 左上角 */}
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   orderCard: {
     backgroundColor: "white",
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     paddingBottom: 0,
     paddingLeft: 0,
     paddingRight: 0,
@@ -442,10 +442,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    height: 600,
+    // height: 600,
+    // width: 360,
     display: "flex",
     flexDirection: "column",
     position: "relative",
+    marginRight: 6,
   },
   compactCard: {
     paddingTop: 0,

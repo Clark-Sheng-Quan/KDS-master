@@ -226,7 +226,7 @@ export default function CompletedScreen() {
       </View>
 
       <FlatList
-        data={completedOrders}
+        data={cardStylesMap.length > 0 ? completedOrders : []}
         renderItem={({ item, index }) =>
           renderOrderCard({ item: item.order, index, completedTime: item.completedAt })
         }

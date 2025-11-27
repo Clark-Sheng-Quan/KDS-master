@@ -178,7 +178,7 @@ export default function HistoryScreen() {
       </View>
 
       <FlatList
-        data={historyOrders}
+        data={cardStylesMap.length > 0 ? historyOrders : []}
         renderItem={renderOrderCard}
         keyExtractor={(item) => item?.id || Math.random().toString()}
         numColumns={cardsPerRow}
