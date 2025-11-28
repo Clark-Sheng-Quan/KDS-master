@@ -15,7 +15,7 @@ interface OrderActionsProps {
   style?: ViewStyle;
 }
 
-export const OrderActions: React.FC<OrderActionsProps> = ({
+export const OrderActions: React.FC<OrderActionsProps> = React.memo(({
   orderId,
   onDone,
   onCancel,
@@ -28,7 +28,7 @@ export const OrderActions: React.FC<OrderActionsProps> = ({
       </TouchableOpacity>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   buttonContainer: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   TouchableOpacity,
@@ -46,11 +46,11 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   }, []);
 
   // 获取网络状态图标名称（用于 MaterialCommunityIcons）
-  const getNetworkStatusIconName = () => {
+  const getNetworkStatusIconName = useCallback(() => {
     return networkStatus === "connected" ? "wifi" : "wifi-off";
-  };
+  }, [networkStatus]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     Alert.alert(
       t("logoutConfirmTitle") || "确认登出",
       t("logoutConfirmMessage") || "您确定要登出系统吗？",
@@ -74,13 +74,14 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
         },
       ]
     );
-  };
-  const navigateTo = (path: any) => {
+  }, [t, router]);
+
+  const navigateTo = useCallback((path: any) => {
     router.push(path);
     onClose();
-  };
+  }, [router, onClose]);
 
-  const menuWidth = Math.min(width * 0.4, 400); // 菜单宽度为屏幕的40%，最大400px
+  const menuWidth = useMemo(() => Math.min(width * 0.4, 400), [width]); // 菜单宽度为屏幕的40%，最大400px
 
   return (
     <Modal

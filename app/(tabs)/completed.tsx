@@ -71,7 +71,7 @@ export default function CompletedScreen() {
         hideBadges={true}
       />
     ),
-    [cardStylesMap, selectedOrder]
+    [selectedOrder?.id, cardStylesMap]  // 依赖 selectedOrder 的 id 和 cardStylesMap
   );
 
   const availableWidth = dimensions.width - PADDING * 2;
@@ -128,22 +128,19 @@ export default function CompletedScreen() {
       return;
     }
 
-    try {
-      setLoading(true);
-      // 调用 OrderService 的 recallOrder 方法
-      await OrderService.recallOrder(selectedOrder);
-
-      // 从完成列表中移除
-      await removeCompletedOrder(selectedOrder.id);
-
-      // 重置选择
-      setSelectedOrder(null);
-    } catch (error) {
+    // 立即重置选择
+    setSelectedOrder(null);
+    
+    // 在后台执行 recall 和移除操作，不阻塞 UI
+    OrderService.recallOrder(selectedOrder).then(() => {
+      // 从完成列表中移除 - 不 await，让它在后台执行
+      removeCompletedOrder(selectedOrder.id).catch((error) => {
+        console.error("移除订单失败:", error);
+      });
+    }).catch((error) => {
       console.error("召回订单失败:", error);
       Alert.alert(t("error"), "召回订单失败");
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   // 移除订单功能 - 从已完成列表中移除
@@ -152,19 +149,14 @@ export default function CompletedScreen() {
       return;
     }
 
-    try {
-      setLoading(true);
-      // 从完成列表中移除
-      await removeCompletedOrder(selectedOrder.id);
-
-      // 重置选择
-      setSelectedOrder(null);
-    } catch (error) {
+    // 立即重置选择
+    setSelectedOrder(null);
+    
+    // 在后台移除，不阻塞 UI
+    removeCompletedOrder(selectedOrder.id).catch((error) => {
       console.error("移除订单失败:", error);
       Alert.alert(t("error"), "移除订单失败");
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   if (loading) {

@@ -68,7 +68,7 @@ export default function HistoryScreen() {
         disableItems={true}
       />
     ),
-    [cardStylesMap, selectedOrder]
+    [selectedOrder?.id]
   );
 
   // 加载历史订单

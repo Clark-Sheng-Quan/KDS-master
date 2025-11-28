@@ -106,7 +106,11 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       // 添加到列表头部（最新的在前）
       const updated = [completedOrder, ...completedOrders];
       setCompletedOrders(updated);
-      await saveCompletedOrders(updated);
+      
+      // 在后台保存，不阻塞 UI
+      saveCompletedOrders(updated).catch((error) => {
+        console.error('[CompletedOrderContext] 后台保存失败:', error);
+      });
 
       console.log(`[CompletedOrderContext] 已添加完成订单: ${order.id}`);
     } catch (error) {
@@ -121,7 +125,11 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
     try {
       const updated = completedOrders.filter(co => co.order.id !== orderId);
       setCompletedOrders(updated);
-      await saveCompletedOrders(updated);
+      
+      // 在后台保存，不阻塞 UI
+      saveCompletedOrders(updated).catch((error) => {
+        console.error('[CompletedOrderContext] 后台保存失败:', error);
+      });
 
       console.log(`[CompletedOrderContext] 已移除完成订单: ${orderId}`);
     } catch (error) {

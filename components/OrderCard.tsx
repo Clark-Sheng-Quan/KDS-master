@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -84,26 +84,27 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   }, [contentHeight, scrollViewHeight, order.id]);
 
   // 处理事件
-  const handleItemClick = (itemId: string) => {
+  const handleItemClick = useCallback((itemId: string) => {
     if (disabled) return;
     setCompletedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
-  };
+  }, [disabled]);
 
-  const handleOptionClick = (optionId: string, event: any) => {
+  const handleOptionClick = useCallback((optionId: string, event: any) => {
     if (disabled) return;
     event.stopPropagation();
     setCompletedOptions((prev) => ({ ...prev, [optionId]: !prev[optionId] }));
-  };
+  }, [disabled]);
 
-  const handleItemLongPress = async (item: any) => {
+  const handleItemLongPress = useCallback(async (item: any) => {
     if (disabled) return;
     const hasRecipe = await checkProductHasRecipe(item.id);
     if (!hasRecipe) return;
     setSelectedProduct({ id: item.id, name: item.name });
     setShowProductDetail(true);
-  };
+  }, [disabled]);
 
     const handleDoneConfirm = async () => {
+    // 立即调用，不等待 API 响应
     updateOrderStatusToReady(order._id, order.source || "");
 
     if (order.source?.toLowerCase() === 'tcp') {
@@ -121,38 +122,43 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       TCPSocketService.sendOrderItemsCompleted(order._id, orderitems);
     }
 
-    // 添加已完成的订单到 CompletedOrderContext
-    await addCompletedOrder(order, (order.source || 'network') as 'network' | 'tcp');
+    // 在后台添加到已完成订单列表，不等待结果
+    addCompletedOrder(order, (order.source || 'network') as 'network' | 'tcp').catch((error) => {
+      console.error('[OrderCard] 添加完成订单失败:', error);
+    });
 
     onOrderComplete?.(order);
   };
 
 
 
-  const updateOrderStatusToReady = async (orderId: string, source: string) => {
+  const updateOrderStatusToReady = (orderId: string, source: string) => {
     try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        console.warn('[updateOrderStatusToReady] 没有token，无法更新状态');
-        return;
-      }
-
       // 只有网络订单才需要更新状态
       if (source.toLowerCase() === "network") {
-        const response = await fetch(`${BASE_API}/order/update_order_status`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order_id: orderId, status: "ready", source }),
+        // 在后台获取token并发送请求，不阻塞UI
+        AsyncStorage.getItem("token").then((token) => {
+          if (!token) {
+            console.warn('[updateOrderStatusToReady] 没有token，无法更新状态');
+            return;
+          }
+
+          // 后台发送请求，不需要等待响应
+          fetch(`${BASE_API}/order/update_order_status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_id: orderId, status: "ready", source }),
+          }).catch((error) => {
+            console.error('[updateOrderStatusToReady] 异常:', error);
+          });
+        }).catch((error) => {
+          console.error('[updateOrderStatusToReady] 获取token失败:', error);
         });
-        if (!response.ok) throw new Error(`HTTP错误! 状态: ${response.status}`);
       }
     } catch (error) {
       console.error('[updateOrderStatusToReady] 异常:', error);
     }
   };
-
-  // 工具函数
-  const safeText = (text: string | undefined) => text || "1";
   
   // 判断是否应该显示数量（只有 >= 2 时才显示）
   const shouldShowQuantity = (quantity: any): boolean => {
@@ -171,10 +177,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   };
 
   // 格式化Due时间 - 根据showDateInDue决定是否显示日期
-  const formatDueTime = (timeString: string) => {
+  const formattedDueTime = useMemo(() => {
     try {
-      const date = new Date(timeString);
-      if (isNaN(date.getTime())) return timeString;
+      const date = new Date(order.pickupTime);
+      if (isNaN(date.getTime())) return order.pickupTime;
 
       let hours = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -195,15 +201,16 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         return `${hoursStr}:${minutes} ${ampm}`;
       }
     } catch (error) {
-      return timeString;
+      return order.pickupTime;
     }
-  };
+  }, [order.pickupTime, showDateInDue]);
 
   // 格式化完成时间 - 仅显示时间部分
-  const formatCompletedTime = (timeString: string) => {
+  const formattedCompletedTime = useMemo(() => {
+    if (!completedTime) return '';
     try {
-      const date = new Date(timeString);
-      if (isNaN(date.getTime())) return timeString;
+      const date = new Date(completedTime);
+      if (isNaN(date.getTime())) return completedTime;
 
       let hours = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -214,9 +221,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       
       return `${hoursStr}:${minutes} ${ampm}`;
     } catch (error) {
-      return timeString;
+      return completedTime;
     }
-  };
+  }, [completedTime]);
 
   const getPickupMethodDisplay = (method?: string) => {
     const lower = method?.toLowerCase() || '';
@@ -226,7 +233,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   };
 
 
-  const renderProductItem = (item: any, index: number) => {
+  const renderProductItem = useCallback((item: any, index: number) => {
     const categoryColor = getCategoryColor(item.category);
     const isVoided = item.itemState === 'VOIDED';
 
@@ -300,7 +307,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         <View style={styles.itemDivider} />
       </View>
     );
-  };
+  }, [disabled, disableItems, completedItems, completedOptions, getCategoryColor, handleItemClick, handleOptionClick, handleItemLongPress, shouldShowQuantity]);
 
   if (!order.products || !Array.isArray(order.products)) {
     console.error('[OrderCard] Order has no products array:', order);
@@ -388,10 +395,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                <Text style={styles.dueTimeText}>Due: {formatDueTime(order.pickupTime)}</Text>
+                <Text style={styles.dueTimeText}>Due: {formattedDueTime}</Text>
                 {completedTime && (
                   <Text style={styles.completedTimeDisplay}>
-                    {t("completedAt")}: {formatCompletedTime(completedTime)}
+                    {t("completedAt")}: {formattedCompletedTime}
                   </Text>
                 )}
                 {!disabled && !hideTimer && <OrderTimer order={order} />}
@@ -433,6 +440,15 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       </View>
     </CardWrapper>
   );
+}, (prevProps, nextProps) => {
+  // 自定义比较函数 - 只有这些 props 改变时才重新渲染
+  return (
+    prevProps.order.id === nextProps.order.id &&
+    prevProps.selected === nextProps.selected &&
+    prevProps.disabled === nextProps.disabled &&
+    prevProps.style === nextProps.style &&
+    prevProps.completedTime === nextProps.completedTime
+  );
 })
 
 export default OrderCard;
@@ -445,11 +461,6 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     paddingLeft: 0,
     paddingRight: 0,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
     // height: 600,
     // width: 360,
     display: "flex",
@@ -668,7 +679,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: "white",
     borderRadius: 12,
     padding: 2,
   },
