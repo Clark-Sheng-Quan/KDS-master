@@ -6,7 +6,7 @@ const STORAGE_KEY = 'completed_orders';
 
 // 保留策略配置
 const RETENTION_CONFIG = {
-  MAX_ORDERS: 100,              // 最多保留 100 条记录
+  MAX_ORDERS: 50,              // 最多保留 50 条记录
   MAX_DAYS: 1,                  // 最多保留 1 天的记录
 };
 
@@ -15,6 +15,7 @@ interface CompletedOrderContextType {
   addCompletedOrder: (order: FormattedOrder, source: 'network' | 'tcp') => Promise<void>;
   removeCompletedOrder: (orderId: string) => Promise<void>;
   clearCompletedOrders: () => Promise<void>;
+  cleanExpiredOrdersNow: () => Promise<void>;
   loading: boolean;
 }
 
@@ -37,8 +38,14 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       // 1. 先过滤掉超过保留天数的订单（满足条件1就删除）
       let filtered = orders.filter(co => {
         const completedDate = new Date(co.completedAt);
-        return completedDate > maxDaysAgo;
+        const isExpired = completedDate <= maxDaysAgo;  // 修正：<= 才是过期的
+        if (isExpired) {
+          console.log(`[CompletedOrderContext] 订单 ${co.order.id} 已过期: ${co.completedAt} <= ${maxDaysAgo.toISOString()}`);
+        }
+        return !isExpired;  // 返回未过期的订单
       });
+
+      console.log(`[CompletedOrderContext] 清理前: ${orders.length} 条, 清理后: ${filtered.length} 条`);
 
       // 2. 如果数量超过限制，只保留最新的 MAX_ORDERS 条（满足条件2就删除超出部分）
       if (filtered.length > RETENTION_CONFIG.MAX_ORDERS) {
@@ -61,8 +68,7 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
         let orders = JSON.parse(stored) as CompletedOrder[];
-        // 加载时清理过期数据
-        orders = cleanExpiredOrders(orders);
+        // 直接加载，不自动清理
         setCompletedOrders(orders);
       }
     } catch (error) {
@@ -150,6 +156,22 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   };
 
+  /**
+   * 主动清理过期订单（手动触发）
+   */
+  const cleanExpiredOrdersNow = async () => {
+    try {
+      const cleaned = cleanExpiredOrders(completedOrders);
+      if (cleaned.length !== completedOrders.length) {
+        console.log(`[CompletedOrderContext] 清理过期订单: 从 ${completedOrders.length} 条减少到 ${cleaned.length} 条`);
+        setCompletedOrders(cleaned);
+        await saveCompletedOrders(cleaned);
+      }
+    } catch (error) {
+      console.error('[CompletedOrderContext] 主动清理过期订单失败:', error);
+    }
+  };
+
   return (
     <CompletedOrderContext.Provider
       value={{
@@ -157,6 +179,7 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
         addCompletedOrder,
         removeCompletedOrder,
         clearCompletedOrders,
+        cleanExpiredOrdersNow,
         loading,
       }}
     >

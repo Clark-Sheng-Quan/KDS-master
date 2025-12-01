@@ -30,7 +30,7 @@ const { width } = Dimensions.get("window");
 
 export default function CompletedScreen() {
   const { t } = useLanguage();
-  const { completedOrders, removeCompletedOrder, loading: contextLoading } = useCompletedOrders();
+  const { completedOrders, removeCompletedOrder, loading: contextLoading, cleanExpiredOrdersNow } = useCompletedOrders();
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(null);
   const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
   const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
@@ -159,6 +159,17 @@ export default function CompletedScreen() {
     });
   };
 
+  // 清理过期订单功能
+  const handleCleanExpired = async () => {
+    try {
+      await cleanExpiredOrdersNow();
+      Alert.alert(t("success") || "成功", "已清理过期订单");
+    } catch (error) {
+      console.error("清理过期订单失败:", error);
+      Alert.alert(t("error"), "清理过期订单失败");
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -212,6 +223,21 @@ export default function CompletedScreen() {
             />
             <Text style={[styles.removeButtonText, !selectedOrder && styles.disabledButtonText]}>
               {t("remove")}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cleanButton}
+            onPress={handleCleanExpired}
+          >
+            <Ionicons
+              name="trash-bin"
+              size={20}
+              color="white"
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.cleanButtonText}>
+              清理过期
             </Text>
           </TouchableOpacity>
         </View>
@@ -281,6 +307,14 @@ const completedStyles = {
     paddingVertical: 8,
     borderRadius: 6,
   },
+  cleanButton: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#666",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
   disabledButton: {
     backgroundColor: "#ddd",
     opacity: 0.8,
@@ -294,6 +328,11 @@ const completedStyles = {
     fontSize: 14,
   },
   removeButtonText: {
+    color: "white",
+    fontWeight: "600" as const,
+    fontSize: 14,
+  },
+  cleanButtonText: {
     color: "white",
     fontWeight: "600" as const,
     fontSize: 14,

@@ -688,7 +688,6 @@ const styles = StyleSheet.create({
     right: 12,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
     borderRadius: 4,
   },
   scrollIndicatorAtBottom: {
