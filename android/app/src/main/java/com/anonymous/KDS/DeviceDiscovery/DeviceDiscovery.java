@@ -4,8 +4,8 @@ import android.content.Context;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
-import android.net.wifi.WifiInfo;
 import android.util.Log;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,9 +14,11 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import com.anonymous.KDS.models.NetworkDevice;
 
 public class DeviceDiscovery {
+    //custom service type string used to identify the kind of service being advertised
     private static final String SERVICE_TYPE = "_vendapp._tcp.";
     private final Map<String, NetworkDevice> resolvedServices = new HashMap<>();
     private final Set<String> resolvingServices = Collections.synchronizedSet(new HashSet<>());
@@ -32,44 +34,6 @@ public class DeviceDiscovery {
     public DeviceDiscovery(Context context) {
         this.context = context;
         this.nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
-    }
-
-    /**
-     * 获取当前设备的WiFi IP地址
-     */
-    private String getLocalIpAddress() {
-        try {
-            WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            if (wifiManager != null) {
-                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-                int ipInt = wifiInfo.getIpAddress();
-                
-                // 将整数IP转换为字符串格式
-                return String.format("%d.%d.%d.%d",
-                    (ipInt & 0xff),
-                    (ipInt >> 8 & 0xff),
-                    (ipInt >> 16 & 0xff),
-                    (ipInt >> 24 & 0xff));
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting local IP address: " + e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * 从SharedPreferences获取当前设备名称
-     */
-    private String getCurrentDeviceName() {
-        try {
-            android.content.SharedPreferences prefs = context.getSharedPreferences("RCTAsyncLocalStorage_V1", Context.MODE_PRIVATE);
-            String deviceName = prefs.getString("device_name", null);
-            Log.d(TAG, "Current device name from storage: " + deviceName);
-            return deviceName;
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting device name: " + e.getMessage());
-        }
-        return null;
     }
 
     private static String TAG = "DEVICE_DISCOVERY";
@@ -101,18 +65,18 @@ public class DeviceDiscovery {
             public void onServiceFound(NsdServiceInfo serviceInfo) {
                 String serviceName = serviceInfo.getServiceName();
                 String msg = "Service found: " + serviceName + " / " + serviceInfo.getServiceType();
-                Log.d(TAG, msg);
+//                Log.d(TAG, msg);
                 onLog.accept(msg);
 
                 if (resolvedServices.containsKey(serviceName)) {
                     onServiceDiscovered.accept(resolvedServices.get(serviceName));
-                    Log.d(TAG, "Service already resolved");
+//                    Log.d(TAG, "Service already resolved");
                     onLog.accept("Service '" + serviceName + "' already resolved.");
                     return;
                 }
 
                 if (resolvingServices.contains(serviceName)) {
-                    Log.d(TAG, "Skipping, already resolving service '" + serviceName + "'");
+//                    Log.d(TAG, "Skipping, already resolving service '" + serviceName + "'");
                     onLog.accept("Skipping resolve, already resolving: " + serviceName);
                     return;
                 }
@@ -122,26 +86,26 @@ public class DeviceDiscovery {
             }
             private void tryResolveNext() {
                 if (isResolving) {
-                    Log.d(TAG, "Queued, Already resolving another service. ");
+//                    Log.d(TAG, "Queued, Already resolving another service. ");
                     onLog.accept("Queued, Already resolving another service.");
                     return;
                 }
 
                 if (pendingResolves.isEmpty()) {
-                    Log.d(TAG, "Queue empty, All services resolved.");
+//                    Log.d(TAG, "Queue empty, All services resolved.");
                     onLog.accept("Queue empty, All services resolved.");
                     return;
                 }
 
                 NsdServiceInfo serviceInfo = pendingResolves.poll();
                 if (serviceInfo == null) {
-                    Log.d(TAG, "Error: Polled null serviceInfo.");
+//                    Log.d(TAG, "Error: Polled null serviceInfo.");
                     onLog.accept("Error: Polled null serviceInfo.");
                     return;
                 }
 
                 currentlyResolvingServiceName = serviceInfo.getServiceName();
-                Log.d(TAG, "Resolving '" + currentlyResolvingServiceName +"'");
+//                Log.d(TAG, "Resolving '" + currentlyResolvingServiceName +"'");
                 onLog.accept("Resolving '" + currentlyResolvingServiceName +"'");
                 isResolving = true;
                 try {
@@ -149,11 +113,11 @@ public class DeviceDiscovery {
                         try {
                             resolvedServices.put(service.getId(), service);
                             onServiceDiscovered.accept(service);
-                            Log.d(TAG, "Resolved '" + currentlyResolvingServiceName +"'");
+//                            Log.d(TAG, "Resolved '" + currentlyResolvingServiceName +"'");
                             onLog.accept("Resolved '" + currentlyResolvingServiceName +"'");
                         } catch (Exception ex) {
                             onLog.accept("Exception in success callback: " + ex.getMessage());
-                            Log.d(TAG, "Exception in success callback: " + ex.getMessage());
+//                            Log.d(TAG, "Exception in success callback: " + ex.getMessage());
                         } finally {
                             resolvingServices.remove(currentlyResolvingServiceName);
                             isResolving = false;
@@ -161,7 +125,7 @@ public class DeviceDiscovery {
                                 tryResolveNext(); // Continue with next in queue
                             } catch (Exception ex) {
                                 onLog.accept("Exception in tryResolveNext() after success: " + ex.getMessage());
-                                Log.d(TAG ,"Exception in tryResolveNext() after success: " + ex.getMessage());
+//                                Log.d(TAG ,"Exception in tryResolveNext() after success: " + ex.getMessage());
                             }
                         }
                     }, error -> {
@@ -171,7 +135,7 @@ public class DeviceDiscovery {
                                 onError.accept(error);
                             } catch (Exception ex) {
                                 onLog.accept("Exception in onError.accept: " + ex.getMessage());
-                                Log.d(TAG,"Exception in onError.accept: " + ex.getMessage());
+//                                Log.d(TAG,"Exception in onError.accept: " + ex.getMessage());
                             }
                         } finally {
                             resolvingServices.remove(currentlyResolvingServiceName);
@@ -180,21 +144,19 @@ public class DeviceDiscovery {
                                 tryResolveNext(); // Continue with next in queue
                             } catch (Exception ex) {
                                 onLog.accept("Exception in tryResolveNext() after error: " + ex.getMessage());
-                                Log.d(TAG,"Exception in tryResolveNext() after error: " + ex.getMessage());
-
-
+//                                Log.d(TAG,"Exception in tryResolveNext() after error: " + ex.getMessage());
                             }
                         }
                     });
                 } catch (Exception e) {
                     onLog.accept("Exception while calling resolveService: " + e.getMessage());
-                    Log.d(TAG, "Exception while calling resolveService: " + e.getMessage());
+//                    Log.d(TAG, "Exception while calling resolveService: " + e.getMessage());
                     isResolving = false;
                     try {
                         tryResolveNext(); // continue resolving others
                     } catch (Exception ex) {
                         onLog.accept("Exception in tryResolveNext() after outer catch: " + ex.getMessage());
-                        Log.d(TAG, "Exception in tryResolveNext() after outer catch: " + ex.getMessage());
+//                        Log.d(TAG, "Exception in tryResolveNext() after outer catch: " + ex.getMessage());
                     }
                 }
             }
@@ -203,7 +165,7 @@ public class DeviceDiscovery {
             public void onServiceLost(NsdServiceInfo serviceInfo) {
                 String serviceName = serviceInfo.getServiceName();
                 String msg = "Service lost: " + serviceName + " / " + serviceInfo.getServiceType();
-                Log.d(TAG, msg);
+//                Log.d(TAG, msg);
                 onLog.accept(msg);
 
                 // Remove from cache to keep it fresh
@@ -214,7 +176,7 @@ public class DeviceDiscovery {
                     isResolving = false;
                     currentlyResolvingServiceName = null;
                     onLog.accept("Service lost while resolving, continuing with next...");
-                    Log.d(TAG, "Service lost while resolving, continuing with next...");
+//                    Log.d(TAG, "Service lost while resolving, continuing with next...");
                     tryResolveNext();
                 }
 
@@ -238,20 +200,24 @@ public class DeviceDiscovery {
             @Override
             public void onStartDiscoveryFailed(String serviceType, int errorCode) {
                 onError.accept("Discovery start failed with code " + errorCode);
-                Log.d(TAG, "Discovery start failed with code" + errorCode);
+//                Log.d(TAG, "Discovery start failed with code" + errorCode);
                 nsdManager.stopServiceDiscovery(this);
             }
 
             @Override
             public void onStopDiscoveryFailed(String serviceType, int errorCode) {
                 onError.accept("Discovery stop failed with code " + errorCode);
-                Log.d(TAG, "Discovery stop failed with code " + errorCode);
+//                Log.d(TAG, "Discovery stop failed with code " + errorCode);
                 nsdManager.stopServiceDiscovery(this);
             }
         };
 
         nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
     }
+    // Add this constant near the top of DeviceDiscovery.java
+    private static final String STABLE_ID_KEY = "stableId";
+    private static final String DEFAULT_STABLE_ID = "UNKNOWN_STABLE_ID";
+
 
     private void resolveService(
             NsdServiceInfo serviceInfo,
@@ -262,33 +228,56 @@ public class DeviceDiscovery {
             @Override
             public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
                 onError.accept("Resolve failed for " + serviceInfo.getServiceName() + " with code " + errorCode);
-                Log.d(TAG, "Resolve failed for " + serviceInfo.getServiceName() + " with code " + errorCode);
-
+//                Log.d(TAG, "Resolve failed for " + serviceInfo.getServiceName() + " with code " + errorCode);
             }
+
 
             @Override
             public void onServiceResolved(NsdServiceInfo resolvedInfo) {
                 String host = resolvedInfo.getHost().getHostAddress();
-                int port = resolvedInfo.getPort();
-                String serviceName = resolvedInfo.getServiceName();
-                
-                // 检查是否是当前设备自己（通过服务名称判断）
-                String currentDeviceName = getCurrentDeviceName();
-                if (currentDeviceName != null && serviceName.equals(currentDeviceName)) {
-                    // 如果是自己的设备，使用本地IP地址
-                    String localIp = getLocalIpAddress();
-                    if (localIp != null) {
-                        host = localIp;
-                        Log.d(TAG, "Detected own device '" + serviceName + "', using local IP: " + localIp);
+
+                // --- 1. EXTRACT STABLE ID FROM TXT RECORD ---
+                String stableId = DEFAULT_STABLE_ID;
+                Map<String, byte[]> attributes = resolvedInfo.getAttributes();
+
+                if (attributes != null && attributes.containsKey(STABLE_ID_KEY)) {
+                    byte[] idBytes = attributes.get(STABLE_ID_KEY);
+                    if (idBytes != null) {
+                        // CRITICAL: Convert byte[] to String using UTF-8 encoding
+                        stableId = new String(idBytes, java.nio.charset.StandardCharsets.UTF_8);
                     }
                 }
-                
-                onServiceDiscovered.accept(new NetworkDevice(
-                        serviceName,
+                // ---------------------------------------------
+
+                int port = resolvedInfo.getPort();
+
+                // 2. CREATE NETWORKDEVICE AND SET STABLE ID
+                NetworkDevice device = new NetworkDevice(
+                        stableId, // Mutable network name (KDS:De or KDS:De(2))
                         host,
                         port
-                ));
+                );
+
+
+                // 3. PROPAGATE THE DEVICE OBJECT
+                onServiceDiscovered.accept(device);
             }
+//            @Override
+//            public void onServiceResolved(NsdServiceInfo resolvedInfo) {
+//                String host = resolvedInfo.getHost().getHostAddress();
+//                if (resolvedInfo.getServiceName().toLowerCase().equals(MyApplication.getDeviceRegistry().SERVICE_NAME.toLowerCase())) {
+//                    host = MyApplication.getNetworkUtils().getCurrentIp();
+//                }
+//
+//                int port = resolvedInfo.getPort();
+//                resolvedInfo.getAttributes();
+//
+//                onServiceDiscovered.accept(new NetworkDevice(
+//                        resolvedInfo.getServiceName(),
+//                        host,
+//                        port
+//                ));
+//            }
         };
 
         nsdManager.resolveService(serviceInfo, resolveListener);
@@ -304,7 +293,7 @@ public class DeviceDiscovery {
                 nsdManager.stopServiceDiscovery(discoveryListener);
                 discoveryListener = null;
             } catch (IllegalArgumentException e) {
-                Log.w(TAG, "Attempted to stop discovery, but listener was not registered: " + e.getMessage());
+//                Log.w(TAG, "Attempted to stop discovery, but listener was not registered: " + e.getMessage());
             }
         }
     }

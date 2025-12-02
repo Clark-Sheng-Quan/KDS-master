@@ -38,40 +38,16 @@ export class TCPSocketService {
    * Get TCP port (from AsyncStorage or default value)
    */
   public static async getTcpPort(): Promise<number> {
-    try {
-      const savedPort = await AsyncStorage.getItem('kds_port');
-      if (savedPort) {
-        const port = parseInt(savedPort, 10);
-        if (port > 0 && port < 65536) {
-          this.tcpPort = port;
-          return port;
-        }
-      }
-    } catch (error) {
-      console.error('[TCP] Failed to read port from storage:', error);
-    }
-    
-    this.tcpPort = DEFAULT_TCP_PORT;
-    return DEFAULT_TCP_PORT;
+    // Port is now fixed to 8080
+    this.tcpPort = 8080;
+    return 8080;
   }
 
   /**
-   * Set TCP port (save to AsyncStorage)
+   * Set TCP port - no longer used, port is fixed to 8080
    */
   public static async setTcpPort(port: number): Promise<boolean> {
-    try {
-      if (port <= 0 || port >= 65536) {
-        console.error('[TCP] Invalid port number:', port);
-        return false;
-      }
-
-      await AsyncStorage.setItem('kds_port', port.toString());
-      this.tcpPort = port;
-      return true;
-    } catch (error) {
-      console.error('[TCP] Failed to save port:', error);
-      return false;
-    }
+    return true;
   }
 
   /**

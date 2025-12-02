@@ -127,18 +127,20 @@ const DeviceCard: React.FC<DeviceCardProps> = ({
   return (
     <View style={styles.deviceCard}>
       <View style={styles.deviceNameSection}>
-        <Ionicons name="wifi" size={20} color="#4CAF50" />
-        <Text style={styles.deviceName}>{device.name}</Text>
-      </View>
-
-      <View style={styles.deviceAddressSection}>
-        <View style={styles.addressGroup}>
-          <Text style={styles.addressLabel}>IP:</Text>
-          <Text style={styles.addressValue}>{device.ip}</Text>
-        </View>
-        <View style={styles.portGroup}>
-          <Text style={styles.portLabel}>Port:</Text>
-          <Text style={styles.portValue}>{device.port}</Text>
+        <Ionicons name="wifi" size={24} color="#4CAF50" />
+        <View style={styles.deviceInfoColumn}>
+          <Text style={styles.deviceName}>{device.name}</Text>
+          <View style={styles.deviceAddressSection}>
+            <View style={styles.addressGroup}>
+              <Text style={styles.addressLabel}>IP:</Text>
+              <Text style={styles.addressValue}>{device.ip}</Text>
+            </View>
+            <Text style={styles.separator}>|</Text>
+            <View style={styles.portGroup}>
+              <Text style={styles.portLabel}>Port:</Text>
+              <Text style={styles.portValue}>{device.port}</Text>
+            </View>
+          </View>
         </View>
       </View>
     </View>
@@ -225,34 +227,42 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   deviceCard: {
-    flexDirection: 'row',
     backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: 14,
+    marginBottom: 10,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
   },
   deviceNameSection: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
+    width: '100%',
+  },
+  deviceInfoColumn: {
     flex: 1,
   },
   deviceName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#333',
+    marginBottom: 8,
   },
   deviceAddressSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
+  },
+  separator: {
+    fontSize: 14,
+    color: '#ddd',
+    fontWeight: '300',
   },
   addressGroup: {
     flexDirection: 'row',

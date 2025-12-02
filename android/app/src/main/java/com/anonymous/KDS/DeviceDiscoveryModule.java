@@ -3,6 +3,7 @@ package com.anonymous.KDS;
 import android.util.Log;
 import android.content.SharedPreferences;
 import android.content.Context;
+import android.provider.Settings;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactMethod;
@@ -65,20 +66,15 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void setDeviceServiceName(String deviceName, Promise promise) {
         try {
-            if (discoveryRegistry != null) {
-                discoveryRegistry.setServiceName(deviceName);
-                
-                // 保存到 SharedPreferences
-                SharedPreferences prefs = reactContext.getSharedPreferences(DEVICE_PREFS_NAME, Context.MODE_PRIVATE);
-                prefs.edit().putString(DEVICE_NAME_KEY, deviceName).apply();
-                Log.d(TAG, "Device name saved and updated: " + deviceName);
-                
-                promise.resolve("Device name set to: " + deviceName);
-            } else {
-                promise.reject("NOT_INITIALIZED", "DeviceDiscoveryModule not initialized");
-            }
+            // 设备名称现在是硬编码的，无法在运行时修改
+            // 仅保存到 SharedPreferences 供其他模块参考
+            SharedPreferences prefs = reactContext.getSharedPreferences(DEVICE_PREFS_NAME, Context.MODE_PRIVATE);
+            prefs.edit().putString(DEVICE_NAME_KEY, deviceName).apply();
+            Log.d(TAG, "Device name saved: " + deviceName);
+            
+            promise.resolve("Device name saved (runtime modification not supported): " + deviceName);
         } catch (Exception e) {
-            Log.e(TAG, "Error setting device name", e);
+            Log.e(TAG, "Error saving device name", e);
             promise.reject("SET_NAME_ERROR", e.getMessage());
         }
     }
@@ -288,6 +284,23 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
         } catch (Exception e) {
             Log.e(TAG, "Error stopping discovery service", e);
             promise.reject("STOP_ERROR", e.getMessage());
+        }
+    }
+
+    /**
+     * 获取设备的 Android ID（用于生成设备名）
+     */
+    @ReactMethod
+    public void getAndroidId(Promise promise) {
+        try {
+            String androidId = Settings.Secure.getString(
+                reactContext.getContentResolver(),
+                Settings.Secure.ANDROID_ID
+            );
+            promise.resolve(androidId);
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting Android ID", e);
+            promise.reject("GET_ANDROID_ID_ERROR", e.getMessage());
         }
     }
 }

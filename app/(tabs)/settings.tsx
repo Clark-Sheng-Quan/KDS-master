@@ -40,17 +40,17 @@ const DEFAULT_CARDS_PER_ROW = 5;
 const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
 const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
+const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
-  const [port, setPort] = useState<string>("4322"); // 默认端口
+  const [port, setPort] = useState<string>("8080"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
   const [masterIP, setMasterIP] = useState<string>("");
   const [manualMasterIP, setManualMasterIP] = useState<string>("");
   const [showDeviceDiscovery, setShowDeviceDiscovery] = useState(false);
-  const [deviceName, setDeviceName] = useState<string>("KDS:Device");
-  const [editingDeviceName, setEditingDeviceName] = useState<string>("KDS:Device");
+  const [deviceName, setDeviceName] = useState<string>("获取中...");
 
   // 添加每行卡片数量状态
   const [cardsPerRow, setCardsPerRow] = useState<number>(5);
@@ -60,6 +60,9 @@ export default function SettingsScreen() {
 
   // 添加显示打印按钮开关状态
   const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
+
+  // 添加项目级完成模式状态
+  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
 
   // KDS分类设置（仅用于UI显示，Master-Slave功能已移除）
   const [kdsCategory, setKdsCategory] = useState<CategoryType>(CategoryType.ALL);
@@ -78,6 +81,22 @@ export default function SettingsScreen() {
         // 获取设备IP地址
         const ip = await Network.getIpAddressAsync();
         setIpAddress(ip || "未知IP地址");
+
+        // 获取真实设备名（从原生模块或本地计算）
+        try {
+          if (Platform.OS === "android") {
+            const androidId = await NativeModules.DeviceDiscoveryModule?.getAndroidId?.();
+            if (androidId) {
+              const shortId = androidId.length >= 4 ? androidId.substring(androidId.length - 4) : androidId;
+              const realDeviceName = `KDS:${shortId}`;
+              setDeviceName(realDeviceName);
+            }
+          }
+        } catch (error) {
+          console.warn("无法从原生模块获取设备名:", error);
+          // 降级方案：显示获取中...
+          setDeviceName("获取失败");
+        }
 
         const savedPort = await AsyncStorage.getItem("kds_port");
         if (savedPort) setPort(savedPort);
@@ -105,17 +124,18 @@ export default function SettingsScreen() {
           setShowPrintButton(savedShowPrintButton === "true");
         }
 
+        // 加载项目级完成模式设置
+        const savedItemLevelCompletion = await AsyncStorage.getItem(
+          STORAGE_KEY_ITEM_LEVEL_COMPLETION
+        );
+        if (savedItemLevelCompletion !== null) {
+          setEnableItemLevelCompletion(savedItemLevelCompletion === "true");
+        }
+
         // 加载子KDS分类设置
         const savedCategory = await AsyncStorage.getItem("kds_category");
         if (savedCategory) {
           setKdsCategory(savedCategory as CategoryType);
-        }
-
-        // 加载设备名称
-        const savedDeviceName = await AsyncStorage.getItem("device_name");
-        if (savedDeviceName) {
-          setDeviceName(savedDeviceName);
-          setEditingDeviceName(savedDeviceName);
         }
 
         // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
@@ -199,109 +219,13 @@ export default function SettingsScreen() {
       // 保存分类设置
       await AsyncStorage.setItem("kds_category", kdsCategory);
 
-      // 保存设备名称
-      await AsyncStorage.setItem("device_name", editingDeviceName);
-      setDeviceName(editingDeviceName);
-
-      // 通过原生模块更新设备在网络上的服务名称
-      if (Platform.OS === "android" && NativeModules.DeviceDiscoveryModule) {
-        try {
-          await NativeModules.DeviceDiscoveryModule.setDeviceServiceName(
-            editingDeviceName
-          );
-        } catch (error) {
-          console.warn("设备名称已保存，但网络更新可能延迟", error);
-        }
-      }
-
       Alert.alert("成功", "设置已保存");
     } catch (error) {
       Alert.alert("错误", "保存设置失败");
     }
-  }, [port, cardsPerRow, cardsPerColumn, kdsCategory, editingDeviceName]);
+  }, [port, cardsPerRow, cardsPerColumn, kdsCategory]);
 
-  // 处理从Device Discovery连接目标设备
-  // const handleConnectToDevice = useCallback(async (device: NetworkDevice) => {
-  //   try {
-  //       // 如果当前是Slave，则连接到Master KDS (在当前方案中，POS作为客户端连接到KDS)
-        
-  //       Alert.alert(
-  //         t("connectToDevice"),
-  //         t("connectToMasterKDS"),
-  //         [
-  //           { text: t("cancel"), onPress: () => {
-  //             setShowDeviceDiscovery(false);
-  //           }, style: 'cancel' },
-  //           {
-  //             text: t("connect"),
-  //             onPress: async () => {
-  //               setMasterIP(device.ip);
-                
-  //               try {
-  //                 // 立即连接到POS/Master，不需要重启
-  //                 const connected = await TCPSocketService.connectToMaster(device.ip);
-                  
-  //                 if (connected) {
-  //                   // 保存IP到本地存储
-  //                   await AsyncStorage.setItem("master_ip", device.ip);
-                    
-  //                   // 关闭Device Discovery面板
-  //                   setShowDeviceDiscovery(false);
-                    
-  //                   Alert.alert(
-  //                     t("success"),
-  //                     `${t("connectionEstablished")}\nPOS IP: ${device.ip}\n\n等待接收心跳以确认连接状态...`
-  //                   );
-  //                 } else {
-  //                   setMasterIP(""); // 重置IP
-  //                   Alert.alert(t("error"), t("connectionFailed"));
-  //                 }
-  //               } catch (error: any) {
-  //                 console.error('[Settings] 连接过程出错:', error);
-  //                 setMasterIP(""); // 重置IP
-  //                 Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
-  //               }
-  //             },
-  //             style: 'default',
-  //           },
-  //         ]
-  //       );
-  //     /* } */ // Master模式块结束
-  //   } catch (error) {
-  //     console.error('[Settings] handleConnectToDevice错误:', error);
-  //     Alert.alert("错误", "连接设备失败");
-  //   }
-  // }, [t, setShowDeviceDiscovery]);
-
-  // 保存手动输入的Master IP
-  // const saveManualMasterIP = useCallback(async () => {
-  //   if (!manualMasterIP.trim()) {
-  //     Alert.alert(t("error"), t("pleaseEnterIPAddress"));
-  //     return;
-  //   }
-
-  //   try {
-  //     console.log('[Settings] 开始手动连接到Master IP:', manualMasterIP);
-      
-  //     // 立即连接到Master，不需要重启
-  //     // const connected = await TCPSocketService.connectToMaster(manualMasterIP);
-      
-  //     if (connected) {
-  //       console.log('[Settings] 成功连接到Master KDS');
-  //       setMasterIP(manualMasterIP);
-  //       // 保存IP到本地存储
-  //       await AsyncStorage.setItem("master_ip", manualMasterIP);
-  //       Alert.alert(t("success"), `${t("masterKDSIPAddress")} ${t("saved")}: ${manualMasterIP}`);
-  //       setManualMasterIP(""); // Clear input field
-  //     } else {
-  //       console.log('[Settings] 连接到Master KDS失败');
-  //       Alert.alert(t("error"), t("connectionFailed"));
-  //     }
-  //   } catch (error: any) {
-  //     console.error('[Settings] 手动连接过程出错:', error);
-  //     Alert.alert(t("error"), `${t("connectionFailed")}: ${error.message}`);
-  //   }
-  // }, [manualMasterIP, t]);
+ 
 
   // 获取品类显示名称
   const getCategoryDisplayName = useCallback((category: CategoryType) => {
@@ -382,6 +306,16 @@ export default function SettingsScreen() {
     console.log('[Settings] 发出 show_print_button 设置变化事件，值:', value);
   }, []);
 
+  // 处理项目级完成模式开关
+  const handleItemLevelCompletionChange = useCallback(async (value: boolean) => {
+    setEnableItemLevelCompletion(value);
+    await AsyncStorage.setItem(STORAGE_KEY_ITEM_LEVEL_COMPLETION, value.toString());
+    
+    // 发出设置变化事件
+    settingsListener.emitSettingChange('item_level_completion', value);
+    console.log('[Settings] 发出 item_level_completion 设置变化事件，值:', value);
+  }, []);
+
   // 重置设置
   // const resetSettings = useCallback(() => {
   //   Alert.alert(t("resetSettings"), t("confirmReset"), [
@@ -408,40 +342,21 @@ export default function SettingsScreen() {
   //   ]);
   // }, [t, changeLanguage]);
 
-  // 保存KDS设置
+  // 保存KDS设置（仅保存分类，端口和设备名已固定）
   const saveKDSRole = useCallback(async () => {
     try {
-      // 保存端口（使用 TCPSocketService.setTcpPort）
-      const portNum = parseInt(port, 10);
-      if (portNum > 0 && portNum < 65536) {
-        await TCPSocketService.setTcpPort(portNum);
-      } else {
-        Alert.alert("错误", "端口号必须在 1-65535 之间");
-        return;
-      }
-      
-      await AsyncStorage.setItem("device_name", editingDeviceName);
-
       // 保存分类设置
       await AsyncStorage.setItem("kds_category", kdsCategory);
 
-      // 通过原生模块更新设备在网络上的服务名称
-      if (Platform.OS === "android" && NativeModules.DeviceDiscoveryModule) {
-        try {
-          await NativeModules.DeviceDiscoveryModule.setDeviceServiceName(
-            editingDeviceName
-          );
-        } catch (error) {
-          console.warn("设备名称已保存，但网络更新可能延迟", error);
-        }
-      }
-
-      Alert.alert(t("success"), t("settingsSavedRestart"));
+      Alert.alert(
+        t("success"), 
+        "✓ 端口已固定为 8080\n✓ 设备名已固定为 DEVICE_TYPE:XXXX\n\n分类设置已保存，请重启应用生效。"
+      );
     } catch (error) {
-      console.error("保存KDS设置失败:", error);
+      console.error("保存设置失败:", error);
       Alert.alert(t("error"), t("saveSettingsFailed"));
     }
-  }, [port, editingDeviceName, kdsCategory, t]);
+  }, [kdsCategory, t]);
 
   if (loading) {
     return (
@@ -466,23 +381,12 @@ export default function SettingsScreen() {
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("tcpPort")}</Text>
-            <TextInput
-              style={styles.textInput}
-              value={port}
-              onChangeText={setPort}
-              keyboardType="number-pad"
-            />
+            <Text style={styles.infoValue}>8080</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("deviceName")}</Text>
-            <TextInput
-              style={styles.textInput}
-              value={editingDeviceName}
-              onChangeText={setEditingDeviceName}
-              placeholder="e.g. KDS:Kitchen NO.1"
-              placeholderTextColor="#999"
-            />
+            <Text style={styles.infoValue}>{deviceName}</Text>
           </View>
 
           <View style={styles.infoRowColumn}>
@@ -735,6 +639,22 @@ export default function SettingsScreen() {
               <View style={[
                 styles.switchThumb,
                 showPrintButton && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Enable Item-level Completion</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                enableItemLevelCompletion && styles.switchButtonActive
+              ]}
+              onPress={() => handleItemLevelCompletionChange(!enableItemLevelCompletion)}
+            >
+              <View style={[
+                styles.switchThumb,
+                enableItemLevelCompletion && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
           </View>

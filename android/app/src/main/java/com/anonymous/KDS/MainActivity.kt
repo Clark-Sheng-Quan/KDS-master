@@ -18,6 +18,8 @@ import expo.modules.ReactActivityDelegateWrapper
 import com.anonymous.KDS.DeviceDiscovery.DiscoveryRegistry
 
 class MainActivity : ReactActivity() {
+  private var discoveryRegistry: DiscoveryRegistry? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
@@ -36,17 +38,17 @@ class MainActivity : ReactActivity() {
   }
   
   /**
-   * 启用沉浸式全屏模式，隐藏状态栏和导航栏
+   * Full Screen
    */
   private fun enableImmersiveMode() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      // Android 12 (API 31+) 及以上
+      // Android 12 (API 31+) 
       window.insetsController?.let {
         it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
         it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
       }
     } else {
-      // Android 11 (API 30) 及以下
+      // Android 11 (API 30) 
       @Suppress("DEPRECATION")
       window.decorView.systemUiVisibility = (
         View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
@@ -67,22 +69,49 @@ class MainActivity : ReactActivity() {
     super.onResume()
     enableImmersiveMode()
   }
+
+  /**
+   * 在销毁应用时停止设备发现服务
+   */
+  override fun onDestroy() {
+    super.onDestroy()
+    if (discoveryRegistry != null) {
+      try {
+        discoveryRegistry!!.stopService()
+        Log.d("MainActivity", "Device Discovery Service stopped on destroy")
+      } catch (e: Exception) {
+        Log.e("MainActivity", "Error stopping device discovery on destroy", e)
+      }
+      discoveryRegistry = null
+    }
+  }
   
   /**
    * 初始化设备发现服务
-   * 在应用启动时启动 mDNS 广播
+   * 在应用启动时启动 mDNS 广播，并清空旧的设备缓存
    */
   private fun initializeDeviceDiscovery() {
     try {
-      val discoveryRegistry = DiscoveryRegistry(this)
+      // 停止之前的实例（如果存在）
+      if (discoveryRegistry != null) {
+        try {
+          discoveryRegistry!!.stopService()
+          Log.d("MainActivity", "Stopped previous device discovery service")
+        } catch (e: Exception) {
+          Log.e("MainActivity", "Error stopping previous service", e)
+        }
+        discoveryRegistry = null
+      }
+
+      // 清空旧的设备缓存，避免显示已改名的旧设备
+      val prefs = getSharedPreferences("DevicePrefs", MODE_PRIVATE)
+      prefs.edit().remove("SavedDeviceMap").apply()
+      Log.d("MainActivity", "Cleared old device cache")
       
-      // 从 SharedPreferences 读取保存的设备名称
-      val sharedPrefs = getSharedPreferences("device_prefs", android.content.Context.MODE_PRIVATE)
-      val savedDeviceName = sharedPrefs.getString("device_name", "KDS:Device")
-      
-      discoveryRegistry.setServiceName(savedDeviceName ?: "KDS:Device")
-      discoveryRegistry.StartService()
-      Log.d("MainActivity", "Device Discovery Service started")
+      // 创建新的 DiscoveryRegistry 实例（这会生成新的服务名）
+      discoveryRegistry = DiscoveryRegistry(this)
+      discoveryRegistry!!.StartService()
+      Log.d("MainActivity", "Device Discovery Service started with new service name")
     } catch (e: Exception) {
       Log.e("MainActivity", "Error initializing device discovery", e)
     }
