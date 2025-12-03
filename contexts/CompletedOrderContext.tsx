@@ -12,8 +12,8 @@ const RETENTION_CONFIG = {
 
 interface CompletedOrderContextType {
   completedOrders: CompletedOrder[];
-  addCompletedOrder: (order: FormattedOrder, source: 'network' | 'tcp') => Promise<void>;
-  removeCompletedOrder: (orderId: string) => Promise<void>;
+  addCompletedOrder: (order: FormattedOrder, source: 'network' | 'tcp', itemId?: string, itemName?: string) => Promise<void>;
+  removeCompletedOrder: (orderId: string, itemId?: string, itemToRestore?: any) => Promise<void>;
   clearCompletedOrders: () => Promise<void>;
   cleanExpiredOrdersNow: () => Promise<void>;
   loading: boolean;
@@ -93,32 +93,116 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
 
   /**
    * 添加已完成的订单
+   * 支持两种模式：
+   * 1. 全单完成：order 完成，itemId 为空
+   * 2. 单项完成：只有单个 item 完成，itemId 和 itemName 不为空
    */
-  const addCompletedOrder = async (order: FormattedOrder, source: 'network' | 'tcp') => {
+  const addCompletedOrder = async (order: FormattedOrder, source: 'network' | 'tcp', itemId?: string, itemName?: string) => {
     try {
-      const completedOrder: CompletedOrder = {
-        order,
-        completedAt: new Date().toISOString(),
-        source,
-      };
+      // 如果是单项完成（item-level mode），检查是否已有该 order 的完成记录
+      if (itemId) {
+        // 查找该订单的任何单项完成记录（不是全单完成的）
+        const existingIndex = completedOrders.findIndex(
+          co => co.order.id === order.id && co.itemId
+        );
 
-      // 检查是否已存在该订单
-      const exists = completedOrders.some(co => co.order.id === order.id);
-      if (exists) {
-        console.warn(`[CompletedOrderContext] 订单 ${order.id} 已存在于已完成列表`);
-        return;
+        if (existingIndex !== -1) {
+          // 已有该 order 的单项完成记录，更新它
+          const existing = completedOrders[existingIndex];
+          
+          // 检查该 item 是否已在完成列表中
+          const itemAlreadyCompleted = existing.completedItems?.some(p => p.id === itemId);
+          
+          if (!itemAlreadyCompleted) {
+            // 把该 item 从原订单中移出（标记为完成）
+            const itemToRemove = order.products?.find(p => p.id === itemId);
+            
+            if (itemToRemove) {
+              // 更新订单，移除该 item
+              const updatedOrder = {
+                ...existing.order,
+                products: existing.order.products?.filter(p => p.id !== itemId) || []
+              };
+              
+              // 添加到完成列表
+              const updatedCompletedItems = [...(existing.completedItems || []), itemToRemove];
+              
+              // 更新完成记录
+              const updated = [...completedOrders];
+              updated[existingIndex] = {
+                ...existing,
+                order: updatedOrder,
+                completedItems: updatedCompletedItems,
+                completedAt: new Date().toISOString(),
+              };
+              
+              setCompletedOrders(updated);
+              saveCompletedOrders(updated).catch((error) => {
+                console.error('[CompletedOrderContext] 后台保存失败:', error);
+              });
+              
+              console.log(`[CompletedOrderContext] 已更新单项完成: ${order.id} - ${itemName} (${itemId})`);
+            }
+          } else {
+            console.log(`[CompletedOrderContext] 项目已完成: ${itemName} (${itemId})`);
+          }
+        } else {
+          // 第一次完成该 order 的 item，创建新记录
+          // 把该 item 从原订单中移出
+          const itemToRemove = order.products?.find(p => p.id === itemId);
+          
+          if (itemToRemove) {
+            const updatedOrder = {
+              ...order,
+              products: order.products?.filter(p => p.id !== itemId) || []
+            };
+            
+            const completedOrder: CompletedOrder = {
+              order: updatedOrder,
+              completedAt: new Date().toISOString(),
+              source,
+              itemId,
+              itemName,
+              completedItem: itemToRemove,  // 保存完成的 item 完整信息
+              completedItems: [itemToRemove],  // 完成的 items 列表
+              isFullOrder: false,
+            };
+            
+            const updated = [completedOrder, ...completedOrders];
+            setCompletedOrders(updated);
+            
+            saveCompletedOrders(updated).catch((error) => {
+              console.error('[CompletedOrderContext] 后台保存失败:', error);
+            });
+            
+            console.log(`[CompletedOrderContext] 已添加单项完成: ${order.id} - ${itemName} (${itemId})`);
+          }
+        }
+      } else {
+        // 全单完成
+        const completedOrder: CompletedOrder = {
+          order,
+          completedAt: new Date().toISOString(),
+          source,
+          completedItems: order.products || [],  // 全单完成时，所有 products 都是完成的
+          isFullOrder: true,
+        };
+
+        const exists = completedOrders.some(co => co.order.id === order.id && !co.itemId);
+        if (exists) {
+          console.warn(`[CompletedOrderContext] 订单 ${order.id} 的全单完成记录已存在`);
+          return;
+        }
+
+        const updated = [completedOrder, ...completedOrders];
+        setCompletedOrders(updated);
+        
+        saveCompletedOrders(updated).catch((error) => {
+          console.error('[CompletedOrderContext] 后台保存失败:', error);
+        });
+
+        console.log(`[CompletedOrderContext] 已添加全单完成: ${order.id}`);
       }
-
-      // 添加到列表头部（最新的在前）
-      const updated = [completedOrder, ...completedOrders];
-      setCompletedOrders(updated);
-      
-      // 在后台保存，不阻塞 UI
-      saveCompletedOrders(updated).catch((error) => {
-        console.error('[CompletedOrderContext] 后台保存失败:', error);
-      });
-
-      console.log(`[CompletedOrderContext] 已添加完成订单: ${order.id}`);
     } catch (error) {
       console.error('[CompletedOrderContext] 添加完成订单失败:', error);
     }
@@ -126,18 +210,57 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
 
   /**
    * 删除已完成的订单（撤回时使用）
+   * 支持两种删除方式：
+   * 1. 按 orderId 删除整个订单
+   * 2. 按 itemId 删除订单中的单个项目，同时可恢复 item 到订单中
    */
-  const removeCompletedOrder = async (orderId: string) => {
+  const removeCompletedOrder = async (orderId: string, itemId?: string, itemToRestore?: any) => {
     try {
-      const updated = completedOrders.filter(co => co.order.id !== orderId);
+      let updated: CompletedOrder[];
+      
+      if (itemId) {
+        // 按 itemId 删除/更新：删除该 item 的完成记录，并可选地恢复 item 到订单
+        const completedOrderIndex = completedOrders.findIndex(
+          co => co.order.id === orderId && co.itemId === itemId
+        );
+
+        if (completedOrderIndex !== -1) {
+          // 找到了该 item 的完成记录
+          const completedOrder = completedOrders[completedOrderIndex];
+          
+          // 如果提供了 itemToRestore，说明这是一个 recall 操作，需要把 item 加回到订单
+          if (itemToRestore) {
+            const originalOrder = completedOrder.order;
+            const updatedOrder = {
+              ...originalOrder,
+              products: [...(originalOrder.products || []), itemToRestore]
+            };
+            
+            // 删除该完成记录
+            updated = completedOrders.filter((_, idx) => idx !== completedOrderIndex);
+            
+            console.log(`[CompletedOrderContext] 已恢复项目到订单: orderId=${orderId}, itemId=${itemId}`);
+          } else {
+            // 没有 itemToRestore，说明只是移除完成记录
+            updated = completedOrders.filter((_, idx) => idx !== completedOrderIndex);
+            console.log(`[CompletedOrderContext] 已移除完成项目: orderId=${orderId}, itemId=${itemId}`);
+          }
+        } else {
+          // 没找到，直接按原来的方式删除
+          updated = completedOrders.filter(co => !(co.order.id === orderId && co.itemId === itemId));
+        }
+      } else {
+        // 按 orderId 删除：移除整个订单的所有完成记录
+        updated = completedOrders.filter(co => co.order.id !== orderId);
+        console.log(`[CompletedOrderContext] 已移除完成订单: ${orderId}`);
+      }
+      
       setCompletedOrders(updated);
       
       // 在后台保存，不阻塞 UI
       saveCompletedOrders(updated).catch((error) => {
         console.error('[CompletedOrderContext] 后台保存失败:', error);
       });
-
-      console.log(`[CompletedOrderContext] 已移除完成订单: ${orderId}`);
     } catch (error) {
       console.error('[CompletedOrderContext] 移除完成订单失败:', error);
     }

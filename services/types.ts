@@ -91,4 +91,9 @@ export interface CompletedOrder {
   order: FormattedOrder;
   completedAt: string;                   // 完成时间 (ISO 格式)
   source: 'network' | 'tcp';             // 订单来源
+  completedItems?: any[];                // 完成的 items 列表（用于显示）
+  itemId?: string;                       // 如果是单项完成，记录 item id
+  itemName?: string;                     // 如果是单项完成，记录 item 名称
+  completedItem?: any;                   // 如果是单项完成，保存完成的 item 完整信息（用于 recall）
+  isFullOrder?: boolean;                 // 是否是全单完成（true: 全单, false: 单项）
 } 

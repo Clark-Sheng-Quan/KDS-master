@@ -342,22 +342,6 @@ export default function SettingsScreen() {
   //   ]);
   // }, [t, changeLanguage]);
 
-  // 保存KDS设置（仅保存分类，端口和设备名已固定）
-  const saveKDSRole = useCallback(async () => {
-    try {
-      // 保存分类设置
-      await AsyncStorage.setItem("kds_category", kdsCategory);
-
-      Alert.alert(
-        t("success"), 
-        "✓ 端口已固定为 8080\n✓ 设备名已固定为 DEVICE_TYPE:XXXX\n\n分类设置已保存，请重启应用生效。"
-      );
-    } catch (error) {
-      console.error("保存设置失败:", error);
-      Alert.alert(t("error"), t("saveSettingsFailed"));
-    }
-  }, [kdsCategory, t]);
-
   if (loading) {
     return (
       <View style={styles.container}>
@@ -389,20 +373,21 @@ export default function SettingsScreen() {
             <Text style={styles.infoValue}>{deviceName}</Text>
           </View>
 
-          <View style={styles.infoRowColumn}>
-            <Text style={styles.infoLabel}>{t("kdsRole")}</Text>
-            <Text style={styles.infoValue}>{t("slaveDevices")}</Text>
-          </View>
-
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
             <View style={styles.categoryPickerWrapper}>
               <Picker
                 selectedValue={kdsCategory}
                 style={styles.categoryPicker}
-                onValueChange={(itemValue) =>
-                  setKdsCategory(itemValue as CategoryType)
-                }
+                onValueChange={async (itemValue) => {
+                  setKdsCategory(itemValue as CategoryType);
+                  // 自动保存到 AsyncStorage
+                  try {
+                    await AsyncStorage.setItem("kds_category", itemValue);
+                  } catch (error) {
+                    console.error('Failed to save category:', error);
+                  }
+                }}
                 dropdownIconColor="#666"
               >
                 <Picker.Item
@@ -421,14 +406,6 @@ export default function SettingsScreen() {
             </View>
           </View>
           
-          <View>
-            <TouchableOpacity
-              style={[styles.saveButton, { marginTop: 20, maxWidth: 200, alignSelf: "center" }]}
-              onPress={saveKDSRole}
-            >
-              <Text style={styles.saveButtonText}>{t("saveSettings")}</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* ========== 设备连接 - POS System ========== */}
@@ -545,7 +522,7 @@ export default function SettingsScreen() {
                 color="white"
               />
               <Text style={styles.orientationButtonText}>
-                {screenOrientation === "portrait" ? "Landscape" : "Portrait"}
+                {screenOrientation === "portrait" ? "Portrait" : "Landscape"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -644,19 +621,37 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Enable Item-level Completion</Text>
-            <TouchableOpacity
-              style={[
-                styles.switchButton,
-                enableItemLevelCompletion && styles.switchButtonActive
-              ]}
-              onPress={() => handleItemLevelCompletionChange(!enableItemLevelCompletion)}
-            >
-              <View style={[
-                styles.switchThumb,
-                enableItemLevelCompletion && styles.switchThumbActive
-              ]} />
-            </TouchableOpacity>
+            <Text style={styles.infoLabel}>{t("orderCompletionMode")}</Text>
+            <View style={styles.completionModeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.completionModeButton,
+                  !enableItemLevelCompletion && styles.completionModeButtonActive
+                ]}
+                onPress={() => handleItemLevelCompletionChange(false)}
+              >
+                <Text style={[
+                  styles.completionModeButtonText,
+                  !enableItemLevelCompletion && styles.completionModeButtonTextActive
+                ]}>
+                  {t("fullOrder")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.completionModeButton,
+                  enableItemLevelCompletion && styles.completionModeButtonActive
+                ]}
+                onPress={() => handleItemLevelCompletionChange(true)}
+              >
+                <Text style={[
+                  styles.completionModeButtonText,
+                  enableItemLevelCompletion && styles.completionModeButtonTextActive
+                ]}>
+                  {t("itemLevel")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -1073,6 +1068,30 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  completionModeContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  completionModeButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#e0e0e0",
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 100,
+  },
+  completionModeButtonActive: {
+    backgroundColor: "#2196F3",
+  },
+  completionModeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  completionModeButtonTextActive: {
+    color: "white",
   },
 });
 

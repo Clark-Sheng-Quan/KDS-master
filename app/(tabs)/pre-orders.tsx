@@ -122,14 +122,6 @@ export default function PreOrdersScreen() {
     );
   }
 
-  if (orders.length === 0) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
-      </View>
-    );
-  }
-
   if (error) {
     return (
       <View style={styles.centerContent}>
@@ -140,7 +132,7 @@ export default function PreOrdersScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
         <View style={styles.headerContainer}>
           <Text style={styles.title}>
             {selectedShopName
@@ -151,18 +143,24 @@ export default function PreOrdersScreen() {
           <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
         </View>
 
-        <View style={styles.cardsContainer}>
-          {cardStylesMap.length > 0 && orders.map((order, index) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              style={[styles.cardStyle, cardStylesMap[index]]}
-              onOrderComplete={handleOrderRemove}
-              onOrderCancel={handleOrderRemove}
-              showDateInDue={true}
-            />
-          ))}
-        </View>
+        {orders.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
+            <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
+          </View>
+        ) : (
+          <View style={styles.cardsContainer}>
+            {cardStylesMap.length > 0 && orders.map((order, index) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                style={[styles.cardStyle, cardStylesMap[index]]}
+                onOrderComplete={handleOrderRemove}
+                onOrderCancel={handleOrderRemove}
+                showDateInDue={true}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );

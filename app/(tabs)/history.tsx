@@ -188,8 +188,13 @@ export default function HistoryScreen() {
         updateCellsBatchingPeriod={100}
         initialNumToRender={initialNumToRender}
         windowSize={cardsPerColumn}
-        contentContainerStyle={styles.cardsContainer}
-        style={styles.scrollContainer}
+        contentContainerStyle={[styles.cardsContainer, { flexGrow: 1 }]}
+        style={[styles.scrollContainer, { flex: 1 }]}
+        ListEmptyComponent={
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ color: '#999', fontSize: 14 }}>No history orders</Text>
+          </View>
+        }
       />
     </View>
   );

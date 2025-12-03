@@ -66,6 +66,9 @@ export const translations = {
     cardsPerRow: "每行显示卡片数量",
     displaySettings: "显示设置",
     applyChanges: "应用更改",
+    orderCompletionMode: "订单完成模式",
+    fullOrder: "完整订单",
+    itemLevel: "逐项完成",
     
     // 库存管理
     stockList: "库存列表",
@@ -361,6 +364,9 @@ export const translations = {
     cardsPerRow: "Cards Per Row",
     displaySettings: "Display Settings",
     applyChanges: "Apply Changes",
+    orderCompletionMode: "Order Completion Mode",
+    fullOrder: "Full Order",
+    itemLevel: "Item-level",
     
     // Stock management
     stockList: "Stock List",

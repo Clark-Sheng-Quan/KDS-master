@@ -134,10 +134,10 @@ export default function CompletedScreen() {
     // 在后台执行 recall 和移除操作，不阻塞 UI
     OrderService.recallOrder(selectedOrder).then(() => {
       // 从完成列表中移除 - 不 await，让它在后台执行
-      removeCompletedOrder(selectedOrder.id).catch((error) => {
+      removeCompletedOrder(selectedOrder.id).catch((error: any) => {
         console.error("移除订单失败:", error);
       });
-    }).catch((error) => {
+    }).catch((error: any) => {
       console.error("召回订单失败:", error);
       Alert.alert(t("error"), "召回订单失败");
     });
@@ -153,7 +153,7 @@ export default function CompletedScreen() {
     setSelectedOrder(null);
     
     // 在后台移除，不阻塞 UI
-    removeCompletedOrder(selectedOrder.id).catch((error) => {
+    removeCompletedOrder(selectedOrder.id).catch((error: any) => {
       console.error("移除订单失败:", error);
       Alert.alert(t("error"), "移除订单失败");
     });
@@ -174,14 +174,6 @@ export default function CompletedScreen() {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#333" />
-      </View>
-    );
-  }
-
-  if (completedOrders.length === 0) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.noOrdersText}>{t("noCompletedOrders")}</Text>
       </View>
     );
   }
@@ -245,9 +237,14 @@ export default function CompletedScreen() {
 
       <FlatList
         data={cardStylesMap.length > 0 ? completedOrders : []}
-        renderItem={({ item, index }) =>
-          renderOrderCard({ item: item.order, index, completedTime: item.completedAt })
-        }
+        renderItem={({ item, index }) => {
+          // 为完成的 items 构建一个虚拟的订单对象用于显示
+          const displayOrder = {
+            ...item.order,
+            products: item.completedItems || item.order.products || []
+          };
+          return renderOrderCard({ item: displayOrder, index, completedTime: item.completedAt });
+        }}
         keyExtractor={(item: any) => item.order?.id || Math.random().toString()}
         numColumns={cardsPerRow}
         scrollEnabled={true}
@@ -256,8 +253,13 @@ export default function CompletedScreen() {
         updateCellsBatchingPeriod={100}
         initialNumToRender={initialNumToRender}
         windowSize={cardsPerColumn}
-        contentContainerStyle={styles.cardsContainer}
-        style={styles.scrollContainer}
+        contentContainerStyle={[styles.cardsContainer, { flexGrow: 1 }]}
+        style={[styles.scrollContainer, { flex: 1 }]}
+        ListEmptyComponent={
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={styles.noOrdersText}>{t("noCompletedOrders")}</Text>
+          </View>
+        }
       />
     </View>
   );
