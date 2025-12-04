@@ -125,18 +125,20 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
               // 添加到完成列表
               const updatedCompletedItems = [...(existing.completedItems || []), itemToRemove];
               
-              // 更新完成记录
-              const updated = [...completedOrders];
-              updated[existingIndex] = {
-                ...existing,
-                order: updatedOrder,
-                completedItems: updatedCompletedItems,
-                completedAt: new Date().toISOString(),
-              };
-              
-              setCompletedOrders(updated);
-              saveCompletedOrders(updated).catch((error) => {
-                console.error('[CompletedOrderContext] 后台保存失败:', error);
+              // 优化：直接使用 findIndex，避免重复查找
+              const idx = completedOrders.findIndex(co => co.order.id === order.id && co.itemId);
+              setCompletedOrders(prevOrders => {
+                const updated = [...prevOrders];
+                updated[idx] = {
+                  ...existing,
+                  order: updatedOrder,
+                  completedItems: updatedCompletedItems,
+                  completedAt: new Date().toISOString(),
+                };
+                saveCompletedOrders(updated).catch((error) => {
+                  console.error('[CompletedOrderContext] 后台保存失败:', error);
+                });
+                return updated;
               });
               
               console.log(`[CompletedOrderContext] 已更新单项完成: ${order.id} - ${itemName} (${itemId})`);
@@ -161,7 +163,6 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
               source,
               itemId,
               itemName,
-              completedItem: itemToRemove,  // 保存完成的 item 完整信息
               completedItems: [itemToRemove],  // 完成的 items 列表
               isFullOrder: false,
             };

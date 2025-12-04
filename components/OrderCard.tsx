@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -44,9 +44,6 @@ interface OrderCardProps {
   showDateInDue?: boolean;
   completedTime?: string;
   hideBadges?: boolean;
-  enableItemSelection?: boolean;
-  selectedItems?: Set<string>;
-  onItemsSelected?: (itemIds: Set<string>, orderId?: string) => void;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = React.memo(({
@@ -68,16 +65,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   showDateInDue = false,
   completedTime,
   hideBadges = false,
-  enableItemSelection = false,
-  selectedItems,
-  onItemsSelected,
 }) => {
   const { t } = useLanguage();
   const { getCategoryColor, categoryColorMap } = useCategoryColors();
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
 
-  const [completedItems, setCompletedItems] = useState<{ [key: string]: boolean }>({});
-  const [completedOptions, setCompletedOptions] = useState<{ [key: string]: boolean }>({});
+  const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
+  const [forceUpdateTrigger, setForceUpdateTrigger] = useState(0);  // 仅用于必要时触发重新渲染
   const [showProductDetail, setShowProductDetail] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string } | null>(null);
   const [isScrollable, setIsScrollable] = useState(false);
@@ -91,7 +85,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [toastItemName, setToastItemName] = useState("");
   const [lastCompletedItemId, setLastCompletedItemId] = useState<string | null>(null);
   const [lastRemovedItem, setLastRemovedItem] = useState<any>(null);
-  const [completingItemIds, setCompletingItemIds] = useState<Set<string>>(new Set());  // 正在完成的 item IDs
 
   // 加载项目级完成设置
   useEffect(() => {
@@ -129,17 +122,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [contentHeight, scrollViewHeight, order.id]);
 
-  // 处理事件
-  const handleItemClick = useCallback((itemId: string) => {
-    if (disabled) return;
-    setCompletedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
-  }, [disabled]);
-
-  const handleOptionClick = useCallback((optionId: string, event: any) => {
-    if (disabled) return;
-    event.stopPropagation();
-    setCompletedOptions((prev) => ({ ...prev, [optionId]: !prev[optionId] }));
-  }, [disabled]);
+  // 项目级完成处理 - 单击 item 完成
 
   const handleItemLongPress = useCallback(async (item: any) => {
     if (disabled) return;
@@ -209,16 +192,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   // 完成单个项目 - 从 order.products 中移除该项目
   const completeItemOnly = useCallback(async (item: any) => {
     try {
-      // 防止重复提交：检查该 item 是否已经在完成过程中
-      if (completingItemIds.has(item.id)) {
-        console.log(`[OrderCard] Item 已在完成过程中，跳过重复提交: ${item.id}`);
-        return;
-      }
-
       const itemName = item.name || "Item";
-      
-      // 标记为正在完成
-      setCompletingItemIds(prev => new Set(prev).add(item.id));
       
       // 从 order.products 中移除该项目
       const updatedProducts = order.products?.filter((p: any) => p.id !== item.id) || [];
@@ -242,13 +216,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       // 通知父组件项目已移除
       onItemRemoved?.(item.id, itemName, updatedOrder);
 
-      // 如果全部项目都移除了，标记订单为完成
+      // 如果全部项目都移除了，标记订单为完成（立即，不延迟）
       if (updatedProducts.length === 0) {
         console.log(`[OrderCard] 全部项目已完成，标记订单为完成: ${order.id}`);
-        // 延迟一点以确保 UI 更新
-        setTimeout(() => {
-          onOrderComplete?.(updatedOrder);
-        }, 300);
+        // 立即调用，让 home 中的 handleItemRemoved 立即删除订单
+        onOrderComplete?.(updatedOrder);
       } else {
         // 通知 POS 或后端
         const source = order.source || 'tcp';
@@ -257,15 +229,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     } catch (error) {
       console.error('[completeItemOnly] 异常:', error);
       setToastVisible(false);
-    } finally {
-      // 完成后移除正在完成的标记
-      setCompletingItemIds(prev => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
     }
-  }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, completingItemIds, onItemCompleted]);
+  }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, onItemCompleted]);
 
   // 撤回单项完成 - 恢复项目到 order.products
   const undoItemCompletion = useCallback(() => {
@@ -367,26 +332,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const renderProductItem = useCallback((item: any, index: number) => {
     const categoryColor = getCategoryColor(item.category);
     const isVoided = item.itemState === 'VOIDED';
-    const isSelected = enableItemSelection && selectedItems?.has(item.id);
 
     const handleItemPress = () => {
       if (disableItems || disabled || isVoided) return;
       
-      // 如果启用项目选择（在 completed 页面），切换选择状态
-      if (enableItemSelection) {
-        const newSelectedItems = new Set<string>(selectedItems || []);
-        if (newSelectedItems.has(item.id)) {
-          newSelectedItems.delete(item.id);
-        } else {
-          newSelectedItems.add(item.id);
-        }
-        onItemsSelected?.(newSelectedItems, order.id);
-      } else if (enableItemLevelCompletion) {
-        // 如果启用项目级完成，点击 item 完成单项
+      const itemKey = `${order.id}-item-${index}`;
+      
+      if (enableItemLevelCompletion) {
+        // 项目级完成模式：完成单项
         completeItemOnly(item);
       } else {
-        // 否则使用原有的标记逻辑
-        handleItemClick(`${order.id}-item-${index}`);
+        // 普通模式：标记 item 完成（仅用于显示，不实际移除）
+        completedItemsRef.current[itemKey] = !completedItemsRef.current[itemKey];
+        setForceUpdateTrigger(prev => prev + 1);
       }
     };
 
@@ -399,9 +357,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           activeOpacity={disableItems || isVoided ? 1 : 0.7}
           style={[
             styles.itemRow,
-            completedItems[`${order.id}-item-${index}`] && styles.completedItem,
+            completedItemsRef.current[`${order.id}-item-${index}`] && styles.completedItem,
             isVoided && styles.voidedItem,
-            isSelected && { backgroundColor: '#e8f4f8' },
             (!item.options || item.options.length === 0) && {
               borderBottomLeftRadius: 4,
               borderBottomRightRadius: 4,
@@ -416,9 +373,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
           {isVoided ? (
             <Text style={styles.cancelledText}>Cancelled</Text>
-          ) : isSelected ? (
-            <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
-          ) : completedItems[`${order.id}-item-${index}`] ? (
+          ) : completedItemsRef.current[`${order.id}-item-${index}`] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
             <Text style={[styles.itemQuantity, { color: categoryColor }]}>x{item.quantity}</Text>
@@ -428,11 +383,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         {item.options?.length > 0 && (
           <View style={styles.optionsContainer}>
             {item.options.map((option: any, optIndex: number) => (
-              <TouchableOpacity
+              <View
                 key={`${order.id}-item-${index}-option-${optIndex}`}
-                onPress={(e) => !disableItems && !isVoided && handleOptionClick(`${order.id}-item-${index}-option-${optIndex}`, e)}
-                disabled={disableItems || disabled || isVoided}
-                activeOpacity={disableItems || isVoided ? 1 : 0.7}
                 style={[
                   styles.optionRow,
                   isVoided && styles.voidedOption,
@@ -452,10 +404,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                     </Text>
                   )}
                 </View>
-                {!isVoided && completedOptions[`${order.id}-item-${index}-option-${optIndex}`] && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.checkColor} />
-                )}
-              </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}
@@ -463,7 +412,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         <View style={styles.itemDivider} />
       </View>
     );
-  }, [disabled, disableItems, completedItems, completedOptions, getCategoryColor, handleItemClick, handleOptionClick, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id]);
+  }, [disabled, disableItems, getCategoryColor, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger]);
 
   if (!order.products || !Array.isArray(order.products)) {
     console.error('[OrderCard] Order has no products array:', order);
