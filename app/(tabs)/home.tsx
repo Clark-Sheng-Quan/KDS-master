@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -48,6 +48,7 @@ export default function HomeScreen() {
   const [toastItemName, setToastItemName] = useState("");
   const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder} | null>(null);
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
+  const recallingItemsRef = useRef<Set<string>>(new Set());  // 用 useRef 来同步控制，避免竞速问题，不显示 UI
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
 
   // 更新当前时间
@@ -239,25 +240,35 @@ export default function HomeScreen() {
   // Recall 单个 item - 检查订单是否在 localOrders 中
   const handleRecallItem = useCallback(async (completedItem: any) => {
     try {
+      const itemId = completedItem.itemId;
+      const orderId = completedItem.order.id;
+      
+      // 使用 useRef 进行竞速保护（同步检查，不依赖 state 更新）
+      if (recallingItemsRef.current.has(itemId)) {
+        console.log(`[Home] Item 正在 recall 中，跳过重复点击: ${itemId}`);
+        return;
+      }
+
       console.log('[Home] handleRecallItem 开始:', {
-        itemId: completedItem.itemId,
+        itemId,
         itemName: completedItem.itemName,
-        orderId: completedItem.order.id,
+        orderId,
       });
 
-      if (!completedItem.itemId) {
+      if (!itemId) {
         console.error('[Home] Item 没有 itemId，无法 recall');
         return;
       }
 
+      // 立即标记为正在 recall（同步）
+      recallingItemsRef.current.add(itemId);
+
       const itemToRecall = completedItem.completedItem;
       if (!itemToRecall) {
         console.error('[Home] 无法找到要 recall 的 item 信息');
+        recallingItemsRef.current.delete(itemId);
         return;
       }
-
-      const orderId = completedItem.order.id;
-      const itemId = completedItem.itemId;
 
       // 检查订单是否在 localOrders 中
       const existingOrderInLocal = localOrders.find(o => o.id === orderId);
@@ -270,6 +281,10 @@ export default function HomeScreen() {
         if (itemAlreadyExists) {
           console.log(`[Home] Item 已存在于订单中，跳过`);
           await removeCompletedOrder(orderId, itemId);
+          // 延迟清除标记，防止在 removeCompletedOrder 的 async 期间发生重复点击
+          setTimeout(() => {
+            recallingItemsRef.current.delete(itemId);
+          }, 100);
           return;
         }
 
@@ -287,6 +302,9 @@ export default function HomeScreen() {
           prev.map((order) => (order.id === orderId ? updatedOrder : order))
         );
 
+        // 同时同步到 recall order（持久化）
+        await OrderService.recallOrder(updatedOrder);
+
         console.log(`[Home] ✓ Item 已添加到订单: ${completedItem.itemName}`);
       } else {
         // ❌ 情况2：订单不存在于 localOrders 中（比如 recall 第一个 item）
@@ -302,7 +320,7 @@ export default function HomeScreen() {
         await OrderService.recallOrder(recalledOrder);
         console.log(`[Home] ✓ 创建/更新 recall order: ${completedItem.itemName}`);
       }
-
+      
       // 从 completed orders 中删除该 item
       await removeCompletedOrder(orderId, itemId);
 
@@ -310,10 +328,13 @@ export default function HomeScreen() {
       setShowRecentItemsMenu(false);
     } catch (error) {
       console.error('[Home] Recall item 失败:', error);
+    } finally {
+      // 延迟清除标记（100ms），防止在 finally 块执行后立即重复点击
+      setTimeout(() => {
+        recallingItemsRef.current.delete(completedItem.itemId);
+      }, 100);
     }
-  }, [localOrders, removeCompletedOrder]);
-
-  useEffect(() => {
+  }, [localOrders, removeCompletedOrder]);  useEffect(() => {
     const loadShopInfo = async () => {
       try {
         const shopName = await AsyncStorage.getItem("selectedShopName");

@@ -45,8 +45,6 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
         return !isExpired;  // 返回未过期的订单
       });
 
-      console.log(`[CompletedOrderContext] 清理前: ${orders.length} 条, 清理后: ${filtered.length} 条`);
-
       // 2. 如果数量超过限制，只保留最新的 MAX_ORDERS 条（满足条件2就删除超出部分）
       if (filtered.length > RETENTION_CONFIG.MAX_ORDERS) {
         filtered = filtered.slice(0, RETENTION_CONFIG.MAX_ORDERS);
