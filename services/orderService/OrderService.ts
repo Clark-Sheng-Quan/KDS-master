@@ -194,19 +194,49 @@ export class OrderService {
         order.source = 'network';
       }
       
-      // 检查订单是否已处理过
-      if (this.isOrderProcessed(order.id)) {
+      // 检查订单是否已处理过（recalled 订单跳过此检查，因为需要合并产品）
+      if (!isRecalledOrder && this.isOrderProcessed(order.id)) {
+        console.log(`[addNetworkOrder] 订单 ${order.id} 已处理过，跳过`);
         return;
       }
       
       // 检查订单是否已存在
       const existingOrderIndex = this.networkOrders.findIndex((o) => o.id === order.id);
+      
       if (existingOrderIndex !== -1) {
+        // 订单已存在，对于 recalled 订单进行产品合并更新
+        if (isRecalledOrder) {
+          const existingOrder = this.networkOrders[existingOrderIndex];
+          // 合并产品：保留现有产品，添加新产品（避免重复）
+          const existingProductIds = new Set(existingOrder.products?.map(p => p.id) || []);
+          const newProducts = order.products?.filter(p => !existingProductIds.has(p.id)) || [];
+          
+          const mergedOrder = {
+            ...existingOrder,
+            products: [...(existingOrder.products || []), ...newProducts],
+          };
+          
+          this.networkOrders[existingOrderIndex] = mergedOrder;
+          await StorageService.saveNetworkOrders(this.networkOrders);
+          
+          console.log(`[addNetworkOrder] 已更新recall订单 ${order.id}，新增 ${newProducts.length} 个产品`);
+          
+          // 触发回调通知UI更新
+          if (this.networkOrderUpdateCallback) {
+            this.networkOrderUpdateCallback(this.networkOrders);
+          }
+          
+          if (this.combinedOrderUpdateCallback) {
+            this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
+          }
+        }
         return;
       }
 
-      // 添加到处理缓存
-      this.addToProcessedCache(order.id);
+      // 添加到处理缓存（recalled 订单不添加到缓存，以便可以重复合并）
+      if (!isRecalledOrder) {
+        this.addToProcessedCache(order.id);
+      }
 
       // 将新订单状态从 confirmed 更新为 processing（只对非 recalled 订单）
       if (!isRecalledOrder) {
@@ -254,6 +284,8 @@ export class OrderService {
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
       
+      console.log(`[addNetworkOrder] ✓ 添加新订单: ${order.id}, isRecalled: ${isRecalledOrder}, 当前订单数: ${this.networkOrders.length}`);
+      
       // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
       this.previousFilteredProducts.set(order.id, [...filteredProducts]);
      
@@ -297,6 +329,34 @@ export class OrderService {
         // 获取旧订单
         const oldOrder = this.tcpOrders[existingOrderIndex];
         
+        // 对于 recalled 订单进行产品合并更新
+        if (order.isRecalled) {
+          // 合并产品：保留现有产品，添加新产品（避免重复）
+          const existingProductIds = new Set(oldOrder.products?.map(p => p.id) || []);
+          const newProducts = order.products?.filter(p => !existingProductIds.has(p.id)) || [];
+          
+          const mergedOrder = {
+            ...oldOrder,
+            products: [...(oldOrder.products || []), ...newProducts],
+          };
+          
+          this.tcpOrders[existingOrderIndex] = mergedOrder;
+          await StorageService.saveTCPOrders(this.tcpOrders);
+          
+          console.log(`[addTCPOrder] 已更新recall订单 ${order.id}，新增 ${newProducts.length} 个产品`);
+          
+          // 触发回调通知UI更新
+          if (this.tcpOrderUpdateCallback) {
+            this.tcpOrderUpdateCallback(this.tcpOrders);
+          }
+          
+          if (this.combinedOrderUpdateCallback) {
+            this.combinedOrderUpdateCallback([...this.networkOrders, ...this.tcpOrders]);
+          }
+          return;
+        }
+        
+        // 非 recalled 订单的正常更新逻辑
         // 函数1：获取新订单的过滤后产品
         const newFilteredProducts = this.filterOrderProducts(order);
         
@@ -709,7 +769,7 @@ export class OrderService {
       // 创建一个新的订单副本，避免修改原订单
       const recalledOrder: FormattedOrder = {
         ...order,
-        id: `recalled-${order.id}`, // 生成新的ID以避免冲突
+        id: order.id, // 使用原始 ID（isRecalled 标记区分）
         orderTime: currentLocalTime, // 设置为当前本地时间，格式正确
         isRecalled: true, // 标记为撤回的订单
       };

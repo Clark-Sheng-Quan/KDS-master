@@ -236,14 +236,13 @@ export default function HomeScreen() {
     }
   }, [lastCompletedItemData, removeCompletedOrder]);
 
-  // Recall 单个 item - 把 item 加回到原订单（不创建新订单）
-  const handleRecallItem = useCallback(async (completedItem: CompletedOrder) => {
+  // Recall 单个 item - 检查订单是否在 localOrders 中
+  const handleRecallItem = useCallback(async (completedItem: any) => {
     try {
       console.log('[Home] handleRecallItem 开始:', {
         itemId: completedItem.itemId,
         itemName: completedItem.itemName,
         orderId: completedItem.order.id,
-        orderNum: completedItem.order.num,
       });
 
       if (!completedItem.itemId) {
@@ -251,58 +250,68 @@ export default function HomeScreen() {
         return;
       }
 
-      // 使用保存的完成 item 信息，而不是从 order.products 中查找
-      let itemToRecall = completedItem.completedItem;
-      
+      const itemToRecall = completedItem.completedItem;
       if (!itemToRecall) {
         console.error('[Home] 无法找到要 recall 的 item 信息');
         return;
       }
 
-      console.log('[Home] 使用保存的 completed item:', itemToRecall);
+      const orderId = completedItem.order.id;
+      const itemId = completedItem.itemId;
 
-      // 把 item 加回到 localOrders 中的订单
-      setLocalOrders((prev) => 
-        prev.map((order) => {
-          if (order.id === completedItem.order.id) {
-            // 如果 item 还不在订单中，则加回
-            const itemExists = order.products?.some(p => p.id === completedItem.itemId);
-            if (!itemExists && itemToRecall) {
-              return {
-                ...order,
-                products: [...(order.products || []), itemToRecall],
-              };
-            }
-          }
-          return order;
-        })
-      );
-
-      // 同时更新 filteredOrders
-      setFilteredOrders((prev) =>
-        prev.map((order) => {
-          if (order.id === completedItem.order.id) {
-            const itemExists = order.products?.some(p => p.id === completedItem.itemId);
-            if (!itemExists && itemToRecall) {
-              return {
-                ...order,
-                products: [...(order.products || []), itemToRecall],
-              };
-            }
-          }
-          return order;
-        })
-      );
+      // 检查订单是否在 localOrders 中
+      const existingOrderInLocal = localOrders.find(o => o.id === orderId);
       
+      if (existingOrderInLocal) {
+        // ✅ 情况1：订单存在于 localOrders 中（比如 recall 第二个 item）
+        console.log(`[Home] 订单已存在于 localOrders，直接添加 item`);
+        
+        const itemAlreadyExists = existingOrderInLocal.products?.some(p => p.id === itemId);
+        if (itemAlreadyExists) {
+          console.log(`[Home] Item 已存在于订单中，跳过`);
+          await removeCompletedOrder(orderId, itemId);
+          return;
+        }
+
+        // 直接添加 item 到订单
+        const updatedOrder = {
+          ...existingOrderInLocal,
+          products: [...(existingOrderInLocal.products || []), itemToRecall],
+        };
+
+        setLocalOrders((prev) =>
+          prev.map((order) => (order.id === orderId ? updatedOrder : order))
+        );
+
+        setFilteredOrders((prev) =>
+          prev.map((order) => (order.id === orderId ? updatedOrder : order))
+        );
+
+        console.log(`[Home] ✓ Item 已添加到订单: ${completedItem.itemName}`);
+      } else {
+        // ❌ 情况2：订单不存在于 localOrders 中（比如 recall 第一个 item）
+        console.log(`[Home] 订单不存在于 localOrders，创建新的 recall order`);
+        
+        const recalledOrder: FormattedOrder = {
+          ...completedItem.order,
+          id: orderId,
+          products: [itemToRecall],
+          isRecalled: true,
+        };
+
+        await OrderService.recallOrder(recalledOrder);
+        console.log(`[Home] ✓ 创建/更新 recall order: ${completedItem.itemName}`);
+      }
+
       // 从 completed orders 中删除该 item
-      await removeCompletedOrder(completedItem.order.id, completedItem.itemId, itemToRecall);
-      
-      console.log(`[Home] ✓ 成功 recall item: ${completedItem.itemName}，item 已加回到订单`);
+      await removeCompletedOrder(orderId, itemId);
+
+      console.log(`[Home] ✓ 成功 recall item: ${completedItem.itemName}`);
       setShowRecentItemsMenu(false);
     } catch (error) {
       console.error('[Home] Recall item 失败:', error);
     }
-  }, [removeCompletedOrder]);
+  }, [localOrders, removeCompletedOrder]);
 
   useEffect(() => {
     const loadShopInfo = async () => {

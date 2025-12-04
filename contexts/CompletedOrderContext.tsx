@@ -219,35 +219,41 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       let updated: CompletedOrder[];
       
       if (itemId) {
-        // 按 itemId 删除/更新：删除该 item 的完成记录，并可选地恢复 item 到订单
+        // 按 itemId 删除/更新：删除该 item 的完成记录
+        // 首先查找该 order 的完成记录（可能有多个 items）
         const completedOrderIndex = completedOrders.findIndex(
-          co => co.order.id === orderId && co.itemId === itemId
+          co => co.order.id === orderId && co.completedItems
         );
 
         if (completedOrderIndex !== -1) {
-          // 找到了该 item 的完成记录
+          // 找到了该 order 的完成记录
           const completedOrder = completedOrders[completedOrderIndex];
           
-          // 如果提供了 itemToRestore，说明这是一个 recall 操作，需要把 item 加回到订单
-          if (itemToRestore) {
-            const originalOrder = completedOrder.order;
-            const updatedOrder = {
-              ...originalOrder,
-              products: [...(originalOrder.products || []), itemToRestore]
+          // 从 completedItems 中移除该 item
+          const updatedCompletedItems = (completedOrder.completedItems || []).filter(
+            item => item.id !== itemId
+          );
+          
+          // 如果还有其他 items，更新记录；否则删除该记录
+          if (updatedCompletedItems.length > 0) {
+            // 还有其他 items，保留该记录并更新
+            const updated_arr = [...completedOrders];
+            updated_arr[completedOrderIndex] = {
+              ...completedOrder,
+              completedItems: updatedCompletedItems,
+              completedAt: new Date().toISOString(),
             };
-            
-            // 删除该完成记录
-            updated = completedOrders.filter((_, idx) => idx !== completedOrderIndex);
-            
-            console.log(`[CompletedOrderContext] 已恢复项目到订单: orderId=${orderId}, itemId=${itemId}`);
+            updated = updated_arr;
+            console.log(`[CompletedOrderContext] 已从记录中移除 item: orderId=${orderId}, itemId=${itemId}，剩余 ${updatedCompletedItems.length} 个 items`);
           } else {
-            // 没有 itemToRestore，说明只是移除完成记录
+            // 没有其他 items 了，删除该记录
             updated = completedOrders.filter((_, idx) => idx !== completedOrderIndex);
-            console.log(`[CompletedOrderContext] 已移除完成项目: orderId=${orderId}, itemId=${itemId}`);
+            console.log(`[CompletedOrderContext] 已删除完成记录（无剩余 items）: orderId=${orderId}, itemId=${itemId}`);
           }
         } else {
-          // 没找到，直接按原来的方式删除
-          updated = completedOrders.filter(co => !(co.order.id === orderId && co.itemId === itemId));
+          // 没找到，可能这个 order 的记录已被删除
+          console.warn(`[CompletedOrderContext] 未找到订单的完成记录: orderId=${orderId}`);
+          updated = completedOrders;
         }
       } else {
         // 按 orderId 删除：移除整个订单的所有完成记录
