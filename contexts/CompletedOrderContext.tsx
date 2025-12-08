@@ -140,8 +140,7 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
                 });
                 return updated;
               });
-              
-              console.log(`[CompletedOrderContext] 已更新单项完成: ${order.id} - ${itemName} (${itemId})`);
+            
             }
           } else {
             console.log(`[CompletedOrderContext] 项目已完成: ${itemName} (${itemId})`);
@@ -179,6 +178,44 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
       } else {
         // 全单完成
+        // 检查是否已有该订单的单项完成记录
+        const existingItemLevelIndex = completedOrders.findIndex(
+          co => co.order.id === order.id && co.itemId
+        );
+
+        if (existingItemLevelIndex !== -1) {
+          // 已有单项完成记录，更新它为全单完成（merge所有items）
+          const existing = completedOrders[existingItemLevelIndex];
+          const allItems = order.products || [];
+          
+          const updated_arr = [...completedOrders];
+          updated_arr[existingItemLevelIndex] = {
+            ...existing,
+            order,
+            completedItems: allItems,
+            completedAt: new Date().toISOString(),
+            isFullOrder: true,
+            itemId: undefined,  // 清除 itemId，表示全单完成
+          };
+          
+          setCompletedOrders(updated_arr);
+          
+          saveCompletedOrders(updated_arr).catch((error) => {
+            console.error('[CompletedOrderContext] 后台保存失败:', error);
+          });
+          
+          console.log(`[CompletedOrderContext] 已更新为全单完成（从单项完成升级）: ${order.id}`);
+          return;
+        }
+
+        // 检查是否已有该订单的全单完成记录
+        const existsFullOrder = completedOrders.some(co => co.order.id === order.id && !co.itemId);
+        if (existsFullOrder) {
+          console.warn(`[CompletedOrderContext] 订单 ${order.id} 的全单完成记录已存在`);
+          return;
+        }
+
+        // 创建新的全单完成记录
         const completedOrder: CompletedOrder = {
           order,
           completedAt: new Date().toISOString(),
@@ -187,20 +224,12 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
           isFullOrder: true,
         };
 
-        const exists = completedOrders.some(co => co.order.id === order.id && !co.itemId);
-        if (exists) {
-          console.warn(`[CompletedOrderContext] 订单 ${order.id} 的全单完成记录已存在`);
-          return;
-        }
-
         const updated = [completedOrder, ...completedOrders];
         setCompletedOrders(updated);
         
         saveCompletedOrders(updated).catch((error) => {
           console.error('[CompletedOrderContext] 后台保存失败:', error);
         });
-
-        console.log(`[CompletedOrderContext] 已添加全单完成: ${order.id}`);
       }
     } catch (error) {
       console.error('[CompletedOrderContext] 添加完成订单失败:', error);
