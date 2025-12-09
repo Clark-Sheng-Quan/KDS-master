@@ -29,7 +29,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
     private static final String TAG = "OrderHandlerModule";
     // private ReactApplicationContext appContext;
     // private Callback OrderCallbackFunct;
-    private OrderServer Server; // 添加一个正确的类成员变量
+    private OrderServer Server; // Add a correct class member variable
     @Override
     public String getName(){
         return "OrderHandlerModule";
@@ -52,7 +52,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
 
         Log.d(TAG, "=== OrderHandlerModule Initialization ===");
         Log.d(TAG, "Creating OrderServer instance...");
-        this.Server = new OrderServer(); // 使用类成员变量
+        this.Server = new OrderServer(); // Use class member variable
         
         Log.d(TAG, "Starting TCP server...");
         this.Server.startServer(this);
@@ -86,7 +86,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
         try {
             Log.d(TAG, "Received order: " + orderstring);
             if (this.OrderCallbackFunct != null) {
-                // 在主线程中执行回调
+                // Execute callback in main thread
                 appContext.runOnUiQueueThread(() -> {
                     try {
                         this.OrderCallbackFunct.invoke(orderstring);
@@ -112,7 +112,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
 
         try{
             for (parseCounter=0; parseCounter < orderString.length(); parseCounter++ ) { 
-                char character = (char) orderString.charAt(parseCounter) ;             // currenct character
+                char character = (char) orderString.charAt(parseCounter) ;             // current character
                 // if (productoptions != null)  System.out.println("comppp" + character);
                 // checkers
                 if (character == '}'){
@@ -124,7 +124,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
                 }   
                 if (character == '{'){                  // new product line
                     newProduct = true;
-                    productIndicie = 0;                 // reset indicie
+                    productIndicie = 0;                 // reset index
                 }
         
                 if (newProduct && character == '"'){
@@ -162,7 +162,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
      * Attempt to read the single array starting at the current position in buffer reader. 
      *      Format to parse :  [ "url1", "url2",  ]"
      * @param reader
-     * @return the parsed array of urls.
+     * @return the parsed array of URLs.
      */
     private  String[] parseSingleArray (String meta) throws IOException { 
 
@@ -233,7 +233,7 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
             Socket socket = null;
             try {
                 socket = new Socket();
-                socket.connect(new InetSocketAddress(targetIP, 4321), 5000); // 3秒超时
+                socket.connect(new InetSocketAddress(targetIP, 4321), 5000); // 5 second timeout
                 
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 out.println(data);
@@ -241,8 +241,8 @@ public class OrderHandlerModule extends ReactContextBaseJavaModule{
                 
                 promise.resolve(true);
             } catch (Exception e) {
-                Log.e("OrderHandlerModule", "发送TCP数据失败: " + e.getMessage());
-                promise.reject("TCP_ERROR", "发送TCP数据失败: " + e.getMessage());
+                Log.e("OrderHandlerModule", "Failed to send TCP data: " + e.getMessage());
+                promise.reject("TCP_ERROR", "Failed to send TCP data: " + e.getMessage());
             } 
         }).start();
     }

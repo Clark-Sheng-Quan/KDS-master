@@ -22,24 +22,24 @@ public class OrderServer {
     public void startServer(OrderHandlerModule OrderModule){
         new Thread(() -> {
             try {
-                Log.d(TAG, "正在启动服务器...");
+                Log.d(TAG, "Starting server...");
                 serverSocket = new ServerSocket(PORT, 50, InetAddress.getByName("0.0.0.0"));
-                Log.d(TAG, "服务器启动成功！");
+                Log.d(TAG, "Server started successfully!");
 
                 while (serverRunning) {
                     try {
-                        Log.d(TAG, "等待新的客户端连接...");
+                        Log.d(TAG, "Waiting for new client connection...");
                         Socket clientSocket = serverSocket.accept();
-                        Log.d(TAG, "新客户端已连接: " + clientSocket.getInetAddress());
+                        Log.d(TAG, "New client connected: " + clientSocket.getInetAddress());
                         new ClientHandler(clientSocket, OrderModule).start();
                     } catch (IOException e) {
                         if (serverRunning) {
-                            Log.e(TAG, "处理客户端连接时出错: " + e.getMessage());
+                            Log.e(TAG, "Error handling client connection: " + e.getMessage());
                         }
                     }
                 }
             } catch (IOException e) {
-                Log.e(TAG, "服务器启动失败: " + e.getMessage());
+                Log.e(TAG, "Server startup failed: " + e.getMessage());
                 e.printStackTrace();
             }
         }).start();
@@ -52,7 +52,7 @@ public class OrderServer {
                 serverSocket.close();
             }
         } catch (IOException e) {
-            Log.e(TAG, "关闭服务器时出错: " + e.getMessage());
+            Log.e(TAG, "Error closing server: " + e.getMessage());
         }
     }
 
@@ -74,7 +74,7 @@ public class OrderServer {
                 String message;
                 StringBuilder b = new StringBuilder();
                 while ((message = in.readLine()) != null) {
-                    // Log.d(TAG, "收到数据行: " + message);
+                    // Log.d(TAG, "Received data line: " + message);
                     if (message.equalsIgnoreCase("end")) {
                         out.println("ok");
                         break;
@@ -83,24 +83,24 @@ public class OrderServer {
                 }
                 
                 String completeData = b.toString();
-                Log.d(TAG, "完整客户端请求 = " + completeData);
+                Log.d(TAG, "Complete client request = " + completeData);
                 
                 try {
-                    // 处理完整的订单数据
+                    // Handle complete order data
                     orderModule.AddOrder(completeData);
                     
-                    // 发送确认消息
+                    // Send acknowledgment
                     out.println("OK");
                     out.flush();
                     
                 } catch (Exception e) {
-                    Log.e(TAG, "处理订单时出错: " + e.getMessage());
+                    Log.e(TAG, "Error processing order: " + e.getMessage());
                     out.println("ERROR: " + e.getMessage());
                     out.flush();
                 }
                 
             } catch (IOException e) {
-                Log.e(TAG, "Socket IO错误: " + e.getMessage());
+                Log.e(TAG, "Socket IO error: " + e.getMessage());
             }
         }
     }

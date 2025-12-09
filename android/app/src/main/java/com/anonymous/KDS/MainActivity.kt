@@ -30,15 +30,15 @@ class MainActivity : ReactActivity() {
     // @generated end expo-splashscreen
     super.onCreate(null)
     
-    // 设置沉浸式全屏模式，隐藏系统导航栏
+    // Set immersive full-screen mode, hide system navigation bar
     enableImmersiveMode()
     
-    // 初始化设备发现服务
+    // Initialize device discovery service
     initializeDeviceDiscovery()
   }
   
   /**
-   * Full Screen
+   * Full Screen Mode
    */
   private fun enableImmersiveMode() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -63,7 +63,7 @@ class MainActivity : ReactActivity() {
   }
   
   /**
-   * 在恢复应用时重新应用沉浸式模式
+   * Reapply immersive mode when app resumes
    */
   override fun onResume() {
     super.onResume()
@@ -71,7 +71,7 @@ class MainActivity : ReactActivity() {
   }
 
   /**
-   * 在销毁应用时停止设备发现服务
+   * Stop device discovery service when app is destroyed
    */
   override fun onDestroy() {
     super.onDestroy()
@@ -87,12 +87,12 @@ class MainActivity : ReactActivity() {
   }
   
   /**
-   * 初始化设备发现服务
-   * 在应用启动时启动 mDNS 广播，并清空旧的设备缓存
+   * Initialize device discovery service
+   * Start mDNS broadcast on app startup and clear old device cache
    */
   private fun initializeDeviceDiscovery() {
     try {
-      // 停止之前的实例（如果存在）
+      // Stop previous instance if exists
       if (discoveryRegistry != null) {
         try {
           discoveryRegistry!!.stopService()
@@ -103,12 +103,12 @@ class MainActivity : ReactActivity() {
         discoveryRegistry = null
       }
 
-      // 清空旧的设备缓存，避免显示已改名的旧设备
+      // Clear old device cache to avoid showing renamed old devices
       val prefs = getSharedPreferences("DevicePrefs", MODE_PRIVATE)
       prefs.edit().remove("SavedDeviceMap").apply()
       Log.d("MainActivity", "Cleared old device cache")
       
-      // 创建新的 DiscoveryRegistry 实例（这会生成新的服务名）
+      // Create new DiscoveryRegistry instance (generates new service name)
       discoveryRegistry = DiscoveryRegistry(this)
       discoveryRegistry!!.StartService()
       Log.d("MainActivity", "Device Discovery Service started with new service name")

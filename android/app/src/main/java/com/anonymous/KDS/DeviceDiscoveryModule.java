@@ -37,7 +37,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 初始化设备发现服务
+     * Initialize device discovery service
      */
     @ReactMethod
     public void initializeDeviceDiscovery(Promise promise) {
@@ -47,7 +47,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
                 Log.d(TAG, "DeviceMappingService created");
             }
 
-            // 创建 DiscoveryRegistry 实例
+            // Create DiscoveryRegistry instance
             if (discoveryRegistry == null) {
                 discoveryRegistry = new DiscoveryRegistry(reactContext);
                 Log.d(TAG, "DiscoveryRegistry instance created");
@@ -61,13 +61,13 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 设置当前设备的服务名称
+     * Set current device service name
      */
     @ReactMethod
     public void setDeviceServiceName(String deviceName, Promise promise) {
         try {
-            // 设备名称现在是硬编码的，无法在运行时修改
-            // 仅保存到 SharedPreferences 供其他模块参考
+            // Device name is currently hardcoded, cannot be modified at runtime
+            // Only save to SharedPreferences for reference by other modules
             SharedPreferences prefs = reactContext.getSharedPreferences(DEVICE_PREFS_NAME, Context.MODE_PRIVATE);
             prefs.edit().putString(DEVICE_NAME_KEY, deviceName).apply();
             Log.d(TAG, "Device name saved: " + deviceName);
@@ -80,7 +80,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 获取所有已发现的设备列表
+     * Get list of all discovered devices
      */
     @ReactMethod
     public void getDiscoveredDevices(Promise promise) {
@@ -111,7 +111,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 获取单个设备信息
+     * Get information for a single device
      */
     @ReactMethod
     public void getDeviceById(String deviceId, Promise promise) {
@@ -141,7 +141,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 修改设备信息
+     * Modify device information
      */
     @ReactMethod
     public void modifyDevice(String deviceId, String newName, String newIp, int newPort, Promise promise) {
@@ -157,13 +157,13 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            // 检查设备是否被锁定
+            // Check if device is locked
             if (device.isLocked()) {
                 promise.reject("LOCKED", "Device is locked and cannot be modified");
                 return;
             }
 
-            // 更新设备信息
+            // Update device information
             if (newName != null && !newName.isEmpty()) {
                 device.setName(newName);
             }
@@ -183,7 +183,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 锁定/解锁设备
+     * Lock/Unlock device
      */
     @ReactMethod
     public void setDeviceLocked(String deviceId, boolean locked, Promise promise) {
@@ -209,7 +209,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 移除设备
+     * Remove device
      */
     @ReactMethod
     public void removeDevice(String deviceId, Promise promise) {
@@ -228,7 +228,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 清除所有设备
+     * Clear all devices
      */
     @ReactMethod
     public void clearAllDevices(Promise promise) {
@@ -247,7 +247,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 获取发现日志
+     * Get discovery log
      */
     @ReactMethod
     public void getDiscoveryLog(Promise promise) {
@@ -269,7 +269,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 停止发现服务
+     * Stop discovery service
      */
     @ReactMethod
     public void stopDiscoveryService(Promise promise) {
@@ -288,7 +288,7 @@ public class DeviceDiscoveryModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * 获取设备的 Android ID（用于生成设备名）
+     * Get device's Android ID (used for generating device name)
      */
     @ReactMethod
     public void getAndroidId(Promise promise) {
