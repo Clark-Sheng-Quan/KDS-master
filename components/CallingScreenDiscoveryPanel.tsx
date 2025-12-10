@@ -28,17 +28,9 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
   onSelectDevice,
 }) => {
   const { t } = useLanguage();
-  const { devices, loading, error, initialized, stopDiscovery } = useDeviceDiscovery();
+  const { devices, loading, error, initialized } = useDeviceDiscovery();
   const [connecting, setConnecting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-
-  // 只在 modal 打开时才执行发现，关闭时停止
-  useEffect(() => {
-    if (!visible) {
-      // Modal 关闭时停止发现
-      stopDiscovery().catch(console.error);
-    }
-  }, [visible, stopDiscovery]);
 
   // Connect to device
   const handleConnectDevice = async (device: NetworkDevice) => {
@@ -148,7 +140,7 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
         <ScrollView style={styles.deviceList}>
           {loading && devices.length === 0 ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primaryColor} />
+              <ActivityIndicator size="large" color="#2196F3" />
               <Text style={styles.loadingText}>{t("discoveringDevices")}</Text>
             </View>
           ) : devices.length === 0 ? (
@@ -189,7 +181,7 @@ const CallingScreenDeviceCard: React.FC<CallingScreenDeviceCardProps> = ({
   return (
     <View style={styles.deviceCard}>
       <View style={styles.deviceNameSection}>
-        <Ionicons name="wifi" size={24} color={theme.colors.primaryColor} />
+        <Ionicons name="wifi" size={24} color="#2196F3" />
         <View style={styles.deviceInfoColumn}>
           <Text style={styles.deviceName}>{device.name}</Text>
           <View style={styles.deviceAddressSection}>
@@ -250,10 +242,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     margin: 12,
     padding: 12,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#E3F2FD',
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: theme.colors.primaryColor,
+    borderLeftColor: '#2196F3',
   },
   errorBox: {
     backgroundColor: '#FFEBEE',
@@ -315,7 +307,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     borderLeftWidth: 4,
-    borderLeftColor: theme.colors.primaryColor,
+    borderLeftColor: '#2196F3',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
@@ -357,7 +349,7 @@ const styles = StyleSheet.create({
   addressValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.primaryColor,
+    color: '#2196F3',
   },
   portGroup: {
     flexDirection: 'row',
@@ -372,13 +364,13 @@ const styles = StyleSheet.create({
   portValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.primaryColor,
+    color: '#2196F3',
   },
   connectButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.primaryColor,
+    backgroundColor: '#2196F3',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 6,

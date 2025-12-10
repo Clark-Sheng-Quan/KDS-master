@@ -23,7 +23,7 @@ import { SupportedLanguage } from "../../constants/translations";
 import { DistributionService } from "@/services/distributionService";
 import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
-import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
+// import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
 import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
 import { useFocusEffect } from "@react-navigation/native";
@@ -50,9 +50,7 @@ export default function SettingsScreen() {
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
-  const [masterIP, setMasterIP] = useState<string>("");
-  const [manualMasterIP, setManualMasterIP] = useState<string>("");
-  const [showDeviceDiscovery, setShowDeviceDiscovery] = useState(false);
+
   const [showCallingScreenDiscovery, setShowCallingScreenDiscovery] = useState(false);
   const [connectedCallingScreen, setConnectedCallingScreen] = useState<CallingScreenDevice | null>(null);
   const [deviceName, setDeviceName] = useState<string>("获取中...");
@@ -144,8 +142,7 @@ export default function SettingsScreen() {
         }
 
         // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
-        const currentMasterIP = TCPSocketService.getMasterIP();
-        setMasterIP(currentMasterIP);
+        // const currentMasterIP = TCPSocketService.getMasterIP();
         
         // 获取初始连接状态
         const currentStatus = TCPSocketService.getConnectionStatus();
@@ -186,11 +183,11 @@ export default function SettingsScreen() {
   useEffect(() => {
     const intervalId = setInterval(() => {
       const currentStatus = TCPSocketService.getConnectionStatus();
-      const currentMasterIP = TCPSocketService.getMasterIP();
+      // const currentMasterIP = TCPSocketService.getMasterIP();
       const devices = TCPSocketService.getConnectedPOSDevices();
       
       setConnectionStatus(currentStatus);
-      setMasterIP(currentMasterIP);
+      // setMasterIP(currentMasterIP);
       setConnectedDevices(devices);
     }, 2000); // 每2秒检查一次
 
@@ -501,18 +498,12 @@ export default function SettingsScreen() {
             </View>
           )}
 
-          {/* Device Discovery 按钮 */}
-          <TouchableOpacity
-            style={styles.deviceDiscoveryButton}
-            onPress={() => setShowDeviceDiscovery(true)}
-          >
-            <Text style={styles.deviceDiscoveryButtonText}>📡 {t("deviceDiscovery")}</Text>
-          </TouchableOpacity>
+
         </View>
 
         {/* ========== Calling Screen Connection ========== */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🍽️ Calling Screen</Text>
+          <Text style={styles.sectionTitle}>Calling Screen</Text>
 
           {connectedCallingScreen ? (
             <View style={styles.callingScreenConnectedContainer}>
@@ -562,10 +553,10 @@ export default function SettingsScreen() {
 
           {/* Calling Screen Discovery 按钮 */}
           <TouchableOpacity
-            style={[styles.deviceDiscoveryButton, styles.callingScreenDiscoveryButton]}
+            style={styles.callingScreenDiscoveryButton}
             onPress={() => setShowCallingScreenDiscovery(true)}
           >
-            <Text style={styles.deviceDiscoveryButtonText}>📡 Discover Calling Screen</Text>
+            <Text style={styles.callingScreenDiscoveryButton}>📡 Discover Calling Screen</Text>
           </TouchableOpacity>
         </View>
 
@@ -730,17 +721,10 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      <DeviceDiscoveryPanel
-        visible={showDeviceDiscovery}
-        onClose={() => setShowDeviceDiscovery(false)}
-        // onSelectAsMaster={handleConnectToDevice}
-        currentDeviceIP={ipAddress}
-      />
-
       <CallingScreenDiscoveryPanel
         visible={showCallingScreenDiscovery}
         onClose={() => setShowCallingScreenDiscovery(false)}
-        onSelectDevice={(device) => {
+        onSelectDevice={(device: CallingScreenDevice) => {
           console.log('[Settings] Selected Calling Screen:', device);
           setConnectedCallingScreen(device);
           Alert.alert(
@@ -927,24 +911,7 @@ const styles = StyleSheet.create({
     height: 55,
     color: "#333",
   },
-  deviceDiscoveryButton: {
-    marginTop: 20,
-    marginBottom: 20,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    backgroundColor: "#2196F3",
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    minWidth: 400,
-    
-  },
-  deviceDiscoveryButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1225,7 +1192,19 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   callingScreenDiscoveryButton: {
-    backgroundColor: "#FF6B35",
+    marginTop: 20,
+    marginBottom: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: "#2196F3",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    minWidth: 400,
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });
 
