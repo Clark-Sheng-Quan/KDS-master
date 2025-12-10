@@ -24,8 +24,11 @@ import { DistributionService } from "@/services/distributionService";
 import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { DeviceDiscoveryPanel } from "../../components/DeviceDiscoveryPanel";
+import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
 import { NetworkDevice } from "../../hooks/useDeviceDiscovery";
 import { useFocusEffect } from "@react-navigation/native";
+import { CallingScreenDevice } from "@/services/CallingScreenService";
+import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
 
 // 本地定义 CategoryType - 厨房分类设置
 enum CategoryType {
@@ -50,6 +53,8 @@ export default function SettingsScreen() {
   const [masterIP, setMasterIP] = useState<string>("");
   const [manualMasterIP, setManualMasterIP] = useState<string>("");
   const [showDeviceDiscovery, setShowDeviceDiscovery] = useState(false);
+  const [showCallingScreenDiscovery, setShowCallingScreenDiscovery] = useState(false);
+  const [connectedCallingScreen, setConnectedCallingScreen] = useState<CallingScreenDevice | null>(null);
   const [deviceName, setDeviceName] = useState<string>("获取中...");
 
   // 添加每行卡片数量状态
@@ -505,6 +510,65 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ========== Calling Screen Connection ========== */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>🍽️ Calling Screen</Text>
+
+          {connectedCallingScreen ? (
+            <View style={styles.callingScreenConnectedContainer}>
+              <View style={styles.callingScreenInfo}>
+                <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                <View style={styles.callingScreenInfoText}>
+                  <Text style={styles.callingScreenDeviceName}>{connectedCallingScreen.name}</Text>
+                  <Text style={styles.callingScreenDeviceIP}>
+                    {connectedCallingScreen.ip}:{connectedCallingScreen.port}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.disconnectCallingScreenButton}
+                onPress={() => {
+                  Alert.alert(
+                    t("confirm"),
+                    `Disconnect from ${connectedCallingScreen.name}?`,
+                    [
+                      { 
+                        text: t("cancel"), 
+                        style: 'cancel' 
+                      },
+                      {
+                        text: t("confirm"),
+                        onPress: () => {
+                          setConnectedCallingScreen(null);
+                          callingScreenDiscovery.clearCache();
+                          console.log('[Settings] Disconnected from Calling Screen');
+                        },
+                        style: 'destructive',
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="close-circle" size={18} color="white" />
+                <Text style={styles.disconnectButtonText}>Disconnect</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.noCallingScreenContainer}>
+              <Ionicons name="cloud-offline" size={32} color="#999" />
+              <Text style={styles.noCallingScreenText}>No Calling Screen Connected</Text>
+            </View>
+          )}
+
+          {/* Calling Screen Discovery 按钮 */}
+          <TouchableOpacity
+            style={[styles.deviceDiscoveryButton, styles.callingScreenDiscoveryButton]}
+            onPress={() => setShowCallingScreenDiscovery(true)}
+          >
+            <Text style={styles.deviceDiscoveryButtonText}>📡 Discover Calling Screen</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* 显示设置卡片 */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t("displaySettings")}</Text>
@@ -671,6 +735,19 @@ export default function SettingsScreen() {
         onClose={() => setShowDeviceDiscovery(false)}
         // onSelectAsMaster={handleConnectToDevice}
         currentDeviceIP={ipAddress}
+      />
+
+      <CallingScreenDiscoveryPanel
+        visible={showCallingScreenDiscovery}
+        onClose={() => setShowCallingScreenDiscovery(false)}
+        onSelectDevice={(device) => {
+          console.log('[Settings] Selected Calling Screen:', device);
+          setConnectedCallingScreen(device);
+          Alert.alert(
+            t("success"),
+            `Connected to ${device.name}\n${device.ip}:${device.port}`
+          );
+        }}
       />
     </>
   );
@@ -1092,6 +1169,63 @@ const styles = StyleSheet.create({
   },
   completionModeButtonTextActive: {
     color: "white",
+  },
+  callingScreenConnectedContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginVertical: 8,
+    backgroundColor: "#E8F5E9",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#4CAF50",
+  },
+  callingScreenInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  callingScreenInfoText: {
+    flexDirection: "column",
+    gap: 4,
+  },
+  callingScreenDeviceName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  callingScreenDeviceIP: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  disconnectCallingScreenButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d32f2f",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+    minWidth: 50,
+  },
+  noCallingScreenContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  noCallingScreenText: {
+    fontSize: 14,
+    color: "#999",
+    fontStyle: "italic",
+  },
+  callingScreenDiscoveryButton: {
+    backgroundColor: "#FF6B35",
   },
 });
 

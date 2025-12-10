@@ -15,6 +15,8 @@ import * as TimeUtils from './timeUtils';
 import * as Formatters from './formatters';
 import { POLLING_INTERVAL, API_BASE_URL } from './constants';
 import { DistributionService } from '../distributionService';
+import { callingScreenService } from '../CallingScreenService';
+import { callingScreenDiscovery } from '../CallingScreenDiscovery';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 // 添加订单ID缓存，用于防止重复处理
@@ -284,7 +286,15 @@ export class OrderService {
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
       
-      console.log(`[addNetworkOrder] ✓ 添加新订单: ${order.id}, isRecalled: ${isRecalledOrder}, 当前订单数: ${this.networkOrders.length}`);
+      // Notify Calling Screen about new order (fire and forget)
+      // 通知所有订单：新订单、recalled订单、任何来源都通知
+      const orderNumber = String(order.num || order.id.substring(0, 8));
+      const device = callingScreenDiscovery.getCachedDevice();
+      if (device) {
+        callingScreenService.notifyOrderAdded(device, order._id, orderNumber).catch((error) => {
+          console.warn('[addCallingOrder] Failed to notify Calling Screen:', error);
+        });
+      }
       
       // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
       this.previousFilteredProducts.set(order.id, [...filteredProducts]);

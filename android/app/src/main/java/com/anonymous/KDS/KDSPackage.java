@@ -14,6 +14,7 @@ public class KDSPackage implements ReactPackage {
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
         modules.add(new Printer_K1215(reactContext));
+        modules.add(new DeviceDiscoveryModule(reactContext));
         return modules;
     }
 

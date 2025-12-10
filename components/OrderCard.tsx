@@ -21,6 +21,8 @@ import { useCompletedOrders } from "../contexts/CompletedOrderContext";
 import { theme } from "../styles/theme";
 import { ProductDetailPopup, checkProductHasRecipe } from "./ProductDetailPopup";
 import { TCPSocketService } from "../services/tcpSocketService";
+import { callingScreenService } from "../services/CallingScreenService";
+import { callingScreenDiscovery } from "../services/CallingScreenDiscovery";
 import { settingsListener } from "../services/settingsListener";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_API } from "../config/api";
@@ -132,61 +134,68 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     setShowProductDetail(true);
   }, [disabled]);
 
-    const handleDoneConfirm = async () => {
-    // 立即调用，不等待 API 响应
+  const handleDoneConfirm = async () => {
+    // Update order status locally
     updateOrderStatusToReady(order._id, order.source || "");
 
-    if (order.source?.toLowerCase() === 'tcp') {
-      const { TCPSocketService } = require('../services/tcpSocketService');
-      
-      // 构建订单项数组 - 只发送显示的items（如果有过滤的话）
-      // 如果order._hasFilteredItems为true，只发送当前显示的products（已过滤）
-      // 否则发送所有products
-      const orderitems = order.products?.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        qty: item.quantity || item.qty,
-        category: item.category,
-      })) || [];
-      TCPSocketService.sendOrderItemsCompleted(order._id, orderitems);
-    }
+    // Update order status to ready
+    const updatedOrderWithStatus = updateLocalOrderStatus(order);
 
-    // 在后台添加到已完成订单列表，不等待结果
-    addCompletedOrder(order, (order.source || 'network') as 'network' | 'tcp').catch((error: any) => {
-      console.error('[OrderCard] 添加完成订单失败:', error);
+    // Add to completed orders
+    addCompletedOrder(updatedOrderWithStatus, (order.source || 'network') as 'network' | 'tcp').catch((error: any) => {
+      console.error('[OrderCard] Failed to add completed order:', error);
     });
 
-    onOrderComplete?.(order);
+    // Notify Calling Screen that order is ready (fire and forget)
+    const orderNumber = String(order.num || order.id.substring(0, 8));
+    const device = callingScreenDiscovery.getCachedDevice();
+    if (device) {
+      callingScreenService.notifyOrderReady(device, order._id, orderNumber).catch((error) => {
+        console.warn('[OrderCard] Failed to notify Calling Screen:', error);
+      });
+    }
+
+    onOrderComplete?.(updatedOrderWithStatus);
   };
 
 
 
   const updateOrderStatusToReady = (orderId: string, source: string) => {
     try {
-      // 只有网络订单才需要更新状态
-      if (source.toLowerCase() === "network") {
-        // 在后台获取token并发送请求，不阻塞UI
+      const normalizedSource = source.toLowerCase();
+      
+      
+      // Network orders: also send backend request to update status
+      if (normalizedSource === "network") {
         AsyncStorage.getItem("token").then((token) => {
           if (!token) {
-            console.warn('[updateOrderStatusToReady] 没有token，无法更新状态');
+            console.warn('[updateOrderStatusToReady] No token available, cannot update backend status');
             return;
           }
 
-          // 后台发送请求，不需要等待响应
+          // Send request in background without blocking UI
           fetch(`${BASE_API}/order/update_order_status`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ order_id: orderId, status: "ready", source }),
           }).catch((error) => {
-            console.error('[updateOrderStatusToReady] 异常:', error);
+            console.error('[updateOrderStatusToReady] Exception:', error);
           });
         }).catch((error) => {
-          console.error('[updateOrderStatusToReady] 获取token失败:', error);
+          console.error('[updateOrderStatusToReady] Failed to retrieve token:', error);
         });
-      }
+      } 
     } catch (error) {
-      console.error('[updateOrderStatusToReady] 异常:', error);
+      console.error('[updateOrderStatusToReady] Exception:', error);
     }
+  };
+
+  // Update local order status to "ready"
+  const updateLocalOrderStatus = (updatedOrder: FormattedOrder): FormattedOrder => {
+    return {
+      ...updatedOrder,
+      status: "ready"
+    };
   };
 
   // 完成单个项目 - 从 order.products 中移除该项目
@@ -196,7 +205,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       
       // 从 order.products 中移除该项目
       const updatedProducts = order.products?.filter((p: any) => p.id !== item.id) || [];
-      const updatedOrder = {
+      let updatedOrder = {
         ...order,
         products: updatedProducts,
       };
@@ -211,14 +220,26 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       // 添加单项完成记录到 completed orders
       await addCompletedOrder(order, 'tcp', item.id, itemName);
 
-      console.log(`[OrderCard] 项目完成并移除: ${itemName} (${item.id}), 剩余项目数: ${updatedProducts.length}`);
+      console.log(`[OrderCard] Item completed and removed: ${itemName} (${item.id}), remaining items: ${updatedProducts.length}`);
 
       // 通知父组件项目已移除
       onItemRemoved?.(item.id, itemName, updatedOrder);
 
       // 如果全部项目都移除了，标记订单为完成（立即，不延迟）
       if (updatedProducts.length === 0) {
-        console.log(`[OrderCard] 全部项目已完成，标记订单为完成: ${order.id}`);
+        console.log(`[OrderCard] All items completed, marking order as complete: ${order.id}`);
+        // Update order status to ready before calling onOrderComplete
+        updatedOrder = updateLocalOrderStatus(updatedOrder);
+        
+        // Notify Calling Screen that order is ready (item-level completion)
+        const orderNumber = String(order.num || order.id.substring(0, 8));
+        const device = callingScreenDiscovery.getCachedDevice();
+        if (device) {
+          callingScreenService.notifyOrderReady(device, order._id, orderNumber).catch((error) => {
+            console.warn('[OrderCard] Failed to notify Calling Screen (item-level completion):', error);
+          });
+        }
+        
         // 立即调用，让 home 中的 handleItemRemoved 立即删除订单
         onOrderComplete?.(updatedOrder);
       } else {
@@ -227,7 +248,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         updateOrderStatusToReady(order.id, source);
       }
     } catch (error) {
-      console.error('[completeItemOnly] 异常:', error);
+      console.error('[completeItemOnly] Exception:', error);
       setToastVisible(false);
     }
   }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, onItemCompleted]);
