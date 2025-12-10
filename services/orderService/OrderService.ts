@@ -10,7 +10,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // 导入各模块功能
 import * as StorageService from './storageService';
 import * as NetworkService from './networkService';
-import * as TCPService from './tcpService';
 import * as TimeUtils from './timeUtils';
 import * as Formatters from './formatters';
 import { POLLING_INTERVAL, API_BASE_URL } from './constants';
@@ -541,35 +540,7 @@ export class OrderService {
     }
   }
 
-  /**
-   * 设置TCP回调函数
-   */
-  static setTCPCallback(callback: (orderData: FormattedOrder) => void) {
-    TCPService.setTCPCallback(callback, Formatters.formatTCPOrder, this.addTCPOrder.bind(this));
-  }
 
-  /**
-   * 绑定TCP服务器
-   */
-  static async bindTCPServer(): Promise<boolean> {
-    try {
-      // 绑定TCP服务器
-      const bound = await TCPService.bindTCPServer();
-      
-      // 设置TCP回调函数
-      this.setTCPCallback((data: any) => {
-        // 检查是否为订单数据（没有type字段的消息视为订单数据）
-        if (data && data.id && !data.type) {
-          this.addTCPOrder(data as FormattedOrder);
-        }
-      });
-      
-      return bound;
-    } catch (error) {
-      console.error('绑定TCP服务器失败:', error);
-      return false;
-    }
-  }
 
   /**
    * 开始网络轮询
@@ -750,19 +721,7 @@ export class OrderService {
     return NetworkService.fetchOrdersFromNetwork(timeRange, this.addNetworkOrder.bind(this));
   }
 
-  /**
-   * 向特定IP发送TCP数据
-   */
-  static async sendTCPData(targetIP: string, data: any) {
-    return TCPService.sendTCPData(targetIP, data);
-  }
 
-  /**
-   * 向所有子KDS广播TCP数据
-   */
-  static async broadcastToSubKDS(data: any, subKDSList: string[]) {
-    return TCPService.broadcastToSubKDS(data, subKDSList);
-  }
 
   /**
    * 撤回历史订单到新订单队列
