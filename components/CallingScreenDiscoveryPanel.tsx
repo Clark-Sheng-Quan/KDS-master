@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -28,9 +29,27 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
   onSelectDevice,
 }) => {
   const { t } = useLanguage();
-  const { devices, loading, error, initialized } = useDeviceDiscovery();
+  const {
+    devices,
+    loading,
+    error,
+    initialized,
+    refreshDevices,
+  } = useDeviceDiscovery();
   const [connecting, setConnecting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 过滤出非 KDS 设备（Calling Screen 应该不是 KDS）
+  const callingScreenDevices = devices.filter(
+    (device) => !device.name.startsWith('KDS:')
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshDevices();
+    setRefreshing(false);
+  }
 
   // Connect to device
   const handleConnectDevice = async (device: NetworkDevice) => {
@@ -129,6 +148,13 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
         </View>
 
         {/* Status */}
+        {!initialized && (
+          <View style={styles.statusBox}>
+            <ActivityIndicator size="small" color={theme.colors.primaryColor} />
+            <Text style={styles.statusText}>{t("initializingDiscovery")}</Text>
+          </View>
+        )}
+
         {error && (
           <View style={[styles.statusBox, styles.errorBox]}>
             <Ionicons name="alert-circle" size={20} color="#d32f2f" />
@@ -137,13 +163,18 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
         )}
 
         {/* Device List */}
-        <ScrollView style={styles.deviceList}>
-          {loading && devices.length === 0 ? (
+        <ScrollView
+          style={styles.deviceList}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          {loading && callingScreenDevices.length === 0 ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2196F3" />
+              <ActivityIndicator size="large" color={theme.colors.primaryColor} />
               <Text style={styles.loadingText}>{t("discoveringDevices")}</Text>
             </View>
-          ) : devices.length === 0 ? (
+          ) : callingScreenDevices.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="cloud-offline" size={48} color="#999" />
               <Text style={styles.emptyText}>{t("noDevicesDiscovered")}</Text>
@@ -152,12 +183,13 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
               </Text>
             </View>
           ) : (
-            devices.map((device) => (
+            callingScreenDevices.map((device: NetworkDevice) => (
               <CallingScreenDeviceCard
                 key={`${device.ip}-${device.port}`}
                 device={device}
                 onConnect={() => handleConnectDevice(device)}
                 isConnecting={connecting && selectedDevice === `${device.ip}-${device.port}`}
+                t={t}
               />
             ))
           )}
@@ -171,17 +203,19 @@ interface CallingScreenDeviceCardProps {
   device: NetworkDevice;
   onConnect: () => void;
   isConnecting: boolean;
+  t: (key: string) => string;
 }
 
 const CallingScreenDeviceCard: React.FC<CallingScreenDeviceCardProps> = ({
   device,
   onConnect,
   isConnecting,
+  t,
 }) => {
   return (
     <View style={styles.deviceCard}>
       <View style={styles.deviceNameSection}>
-        <Ionicons name="wifi" size={24} color="#2196F3" />
+        <Ionicons name="wifi" size={24} color={theme.colors.primaryColor} />
         <View style={styles.deviceInfoColumn}>
           <Text style={styles.deviceName}>{device.name}</Text>
           <View style={styles.deviceAddressSection}>
@@ -208,7 +242,7 @@ const CallingScreenDeviceCard: React.FC<CallingScreenDeviceCardProps> = ({
         ) : (
           <>
             <Ionicons name="checkmark-circle" size={16} color="white" />
-            <Text style={styles.connectButtonText}>Connect</Text>
+            <Text style={styles.connectButtonText}>{t('connect')}</Text>
           </>
         )}
       </TouchableOpacity>
@@ -245,7 +279,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
+    borderLeftColor: theme.colors.primaryColor,
   },
   errorBox: {
     backgroundColor: '#FFEBEE',
@@ -307,7 +341,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
+    borderLeftColor: theme.colors.primaryColor,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
@@ -349,7 +383,7 @@ const styles = StyleSheet.create({
   addressValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2196F3',
+    color: theme.colors.primaryColor,
   },
   portGroup: {
     flexDirection: 'row',
@@ -364,13 +398,13 @@ const styles = StyleSheet.create({
   portValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2196F3',
+    color: theme.colors.primaryColor,
   },
   connectButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2196F3',
+    backgroundColor: theme.colors.primaryColor,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 6,

@@ -58,7 +58,20 @@ export const useDeviceDiscovery = (): UseDeviceDiscoveryReturn => {
     try {
       setError(null);
       const discoveredDevices = await DeviceDiscoveryModule.getDiscoveredDevices();
-      setDevices(discoveredDevices || []);
+      
+      if (!discoveredDevices || discoveredDevices.length === 0) {
+        setDevices([]);
+        return;
+      }
+
+      // 去重：用 Map 按 ip:port 保持最新的设备信息
+      const uniqueMap = new Map<string, NetworkDevice>();
+      for (const device of discoveredDevices) {
+        const key = `${device.ip}:${device.port}`;
+        uniqueMap.set(key, device);
+      }
+      
+      setDevices(Array.from(uniqueMap.values()));
     } catch (err: any) {
       const errorMsg = err.message || '获取设备列表失败';
       setError(errorMsg);
