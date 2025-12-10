@@ -1,100 +1,133 @@
 # KDS - Kitchen Display System
 
-KDS is a specialized system designed for the food service industry to receive, process, and display orders from various channels, improving kitchen efficiency and order processing accuracy. The system supports a master/slave architecture, allowing orders to be distributed to different displays based on food categories, with real-time order status updates.
+A Kitchen Display System for food service businesses to receive and display orders from multiple sources in real-time, with Calling Screen device integration.
 
 ## Features
 
-- **Multi-channel Order Reception**: Support for receiving orders from online platforms, self-service kiosks, web, and more
-- **Master/Slave Architecture**: Support for one master KDS and multiple slave KDS in a distributed setup
-- **Category-based Distribution**: Orders are distributed to different displays based on food categories (drinks, hot food, cold food, desserts, etc.)
-- **Real-time Status Updates**: Order status updates in real-time, including new orders, in-process, and completed
-- **Order Prioritization**: Automatic ordering based on urgency and order time
-- **Inventory Management**: Real-time tracking and updating of inventory, with support for low-stock alerts and sold-out marking
-- **Background Service**: Support for Android devices to continuously receive orders even when the app is running in the background
-- **Multi-language Support**: Interface available in Chinese and English
-- **Printing Functionality**: Support for order receipt printing
-- **Data Statistics**: Order data statistics and analysis features
-- **TCP Communication**: Master-slave KDS communication based on TCP protocol, ensuring accurate order information transmission
+- Multi-source order reception (TCP and API)
+- Real-time order management with automatic deduplication
+- Category-based order filtering
+- Calling Screen integration with device discovery
+- Real-time status updates
+- Inventory management
+- Audio alerts for new orders
+- Multi-language support
+- Order receipt printing
 
 ## System Architecture
 
-The system uses a distributed architecture with the following components:
+### Network Communication
 
-1. **Master KDS**:
+```
+POS System
+    ↓ (TCP)
+TCPSocketService
+    ↓
+Backend API
+    ↓ (Polling)
+OrderService
+    ├─ Deduplication
+    ├─ Filtering
+    ├─ Notifications
+    └─ Alerts
+    ↓
+OrderContext
+    ↓
+UI Components
+```
 
-   - Receives orders from all channels
-   - Processes order categorization and distribution
-   - Manages slave KDS connections
-   - Synchronizes order status
+### Data Flow
 
-2. **Slave KDS**:
+1. **TCP Order Flow**:
+   - POS connects and sends orders
+   - TCPSocketService parses requests
+   - OrderService processes orders
+   - CallingScreen notified
+   - Audio alert triggered
 
-   - Receives specific category orders distributed from the master KDS
-   - Reports order status changes to the master KDS
-   - Focuses on processing orders for specific categories
+2. **API Order Flow**:
+   - Backend API polling initiated
+   - Orders fetched and formatted
+   - CallingScreen notified
+   - Audio alert triggered
 
-3. **Background Service**:
+3. **Order Ready Notification**:
+   - User marks order complete
+   - CallingScreen receives notification
+   - Display shows ready status
 
-   - Maintains TCP server running continuously on Android devices
-   - Periodically checks for new orders
-   - Receives orders even when the app is in the background
+### Components
 
-4. **Order Processing Flow**:
-   - Order Reception → Order Formatting → Category Classification → Order Distribution → Status Updates → Order Completion
+| Component | Responsibility |
+|-----------|-----------------|
+| tcpSocketService.ts | TCP server and HTTP parsing |
+| OrderService.ts | Order business logic |
+| CallingScreenService.ts | Calling Screen communication |
+| CallingScreenDiscoveryPanel.tsx | Device discovery UI |
+| OrderContext.tsx | State management |
+| DistributionService.ts | System initialization |
+| DeviceDiscoveryModule.java | mDNS device discovery |
+| NetworkDevice.java | Device data model |
 
-## Technology Stack
-
-- **Frontend**: React Native + Expo
-- **Backend Communication**: TCP Socket
-- **Storage**: AsyncStorage
-- **State Management**: React Context API
-- **UI Components**: React Native Components + Custom Components
-- **Native Modules**: Java/Kotlin (Android)
-- **Printing Support**: Custom Printer Module
-- **Background Service**: Android Foreground Service
-
-## Installation and Usage
+## Installation
 
 ### Requirements
 
 - Node.js 14+
 - npm 6+
-- Android Studio (for Android development)
-- Xcode (for iOS development, Mac only)
+- Android Studio
+- Xcode
 - Expo CLI
 
-### Installation Steps
+### Setup
 
-1. Install dependencies
-
+1. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start development server
-
+2. Start development server:
    ```bash
    npm run android
    ```
 
-3. Run on emulator or physical device (optional)
-   - Press `a` to run on Android emulator
-   - Press `i` to run on iOS simulator (Mac only)
-   - Scan QR code with Expo Go app to run on a physical device
+3. Run on device:
+   - Press `a` for Android emulator
+   - Press `i` for iOS simulator
+   - Scan QR code with Expo Go
 
-### Configuration
+## Configuration
 
-1. **Master KDS Setup**:
+1. **POS System**: Configure to send orders to KDS IP
+2. **Backend API**: Set endpoint in `config/api.ts`
+3. **Calling Screen**: Enable mDNS discovery and connect device
+4. **Order Category**: Set in Settings
 
-   - Select "Master Display" role in the settings page
-   - Configure TCP port (default 4322)
-   - Add IP addresses and categories for slave KDS devices
+### Project Structure
 
-2. **Slave KDS Setup**:
+```
+KDS-master-1/
+├── app/                    # React Native app
+├── components/             # React components
+├── services/               # Business logic
+├── hooks/                  # Custom hooks
+├── contexts/               # React Context
+├── android/                # Android-specific code
+└── config/                 # Configuration
+```
 
-   - Select "Auxiliary Display" role in the settings page
-   - Enter the master KDS IP address
-   - Select the food category to display
+### Key Services
 
-3. **Background Service Configuration** (Android):
-   - Enable "Background Order Reception" option in the settings page
+- **TCPSocketService**: TCP server implementation
+- **OrderService**: Core order management
+- **CallingScreenService**: Device communication
+
+## Troubleshooting
+
+- **Orders not received**: Check TCP server status and POS connection
+- **Calling Screen issues**: Verify device discovery and network connectivity
+- **API orders not fetching**: Check endpoint configuration
+
+## License
+
+Proprietary - All rights reserved
