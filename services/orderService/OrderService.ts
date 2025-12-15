@@ -93,6 +93,13 @@ export class OrderService {
   }
 
   /**
+   * 计算订单的总项目数（所有产品的quantity之和）
+   */
+  private static calculateItemCount(order: FormattedOrder): number {
+    return order.products.reduce((total, item) => total + (item.quantity || 1), 0);
+  }
+
+  /**
    * 比较两个 products 数组是否相同
    */
   private static areProductsEqual(prev: any[], current: any[]): boolean {
@@ -288,9 +295,10 @@ export class OrderService {
       // Notify Calling Screen about new order (fire and forget)
       // 通知所有订单：新订单、recalled订单、任何来源都通知
       const orderNumber = String(order.num || order.id.substring(0, 8));
+      const itemCount = this.calculateItemCount(order);
       const device = callingScreenDiscovery.getCachedDevice();
       if (device) {
-        callingScreenService.notifyOrderAdded(device, order._id, orderNumber).catch((error) => {
+        callingScreenService.notifyOrderAdded(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
           console.warn('[addCallingOrder] Failed to notify Calling Screen:', error);
         });
       }

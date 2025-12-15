@@ -40,9 +40,9 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 过滤出非 KDS 设备（Calling Screen 应该不是 KDS）
+  // 只过滤 Calling Screen 设备（CS: 前缀）
   const callingScreenDevices = devices.filter(
-    (device) => !device.name.startsWith('KDS:')
+    (device) => device.name.startsWith('CS:')
   );
 
   const handleRefresh = async () => {
@@ -57,7 +57,7 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
     setConnecting(true);
 
     try {
-      console.log('[CallingScreenDiscoveryPanel] Connecting to:', device.ip);
+      console.log('[CallingScreenDiscoveryPanel] Connecting to:', device.name, 'at', device.ip + ':' + device.port);
 
       // Create CallingScreenDevice from NetworkDevice
       const callingScreenDevice: CallingScreenDevice = {
@@ -67,56 +67,24 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
         foundAt: Date.now(),
       };
 
-      // Test if device is reachable
-      const isReachable = await callingScreenService.isDeviceReachable(callingScreenDevice);
+      // Cache device directly (no need to wait for registration)
+      console.log('[CallingScreenDiscoveryPanel] Caching device');
+      callingScreenDiscovery.setCachedDevice(callingScreenDevice);
+      callingScreenService.setRegistered(true);
 
-      if (!isReachable) {
-        console.log('[CallingScreenDiscoveryPanel] Device is not reachable');
-        Alert.alert(
-          t('error'),
-          `Cannot connect to ${device.name}. Device may be offline.`,
-          [{ text: 'OK' }]
-        );
-        setConnecting(false);
-        setSelectedDevice(null);
-        return;
-      }
-
-      console.log('[CallingScreenDiscoveryPanel] Device is reachable, now registering...');
-
-      // Send registration message immediately
-      const kdsId = 'KDS:' + Math.random().toString(36).substring(2, 6).toUpperCase();
-      const registered = await callingScreenService.registerWithCallingScreen(callingScreenDevice, kdsId);
-
-      if (registered) {
-        console.log('[CallingScreenDiscoveryPanel] Registration successful');
-        // Cache device in discovery service
-        callingScreenDiscovery.setCachedDevice(callingScreenDevice);
-        // Mark as registered in service
-        callingScreenService.setRegistered(true);
-
-        Alert.alert(
-          t('success'),
-          `Connected to ${device.name}\n${device.ip}:${device.port}`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                onSelectDevice?.(callingScreenDevice);
-                onClose();
-              },
+      Alert.alert(
+        t('success'),
+        `Connected to ${device.name}\n${device.ip}:${device.port}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              onSelectDevice?.(callingScreenDevice);
+              onClose();
             },
-          ]
-        );
-      } else {
-        console.log('[CallingScreenDiscoveryPanel] Registration failed');
-        Alert.alert(
-          t('error'),
-          `Failed to register with ${device.name}. Please try again.`,
-          [{ text: 'OK' }]
-        );
-        callingScreenService.resetRegistration();
-      }
+          },
+        ]
+      );
     } catch (error) {
       console.error('[CallingScreenDiscoveryPanel] Connection error:', error);
       Alert.alert(
@@ -124,7 +92,6 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
         'Connection failed: ' + String(error),
         [{ text: 'OK' }]
       );
-      callingScreenService.resetRegistration();
     } finally {
       setConnecting(false);
       setSelectedDevice(null);

@@ -500,7 +500,7 @@ export default function SettingsScreen() {
 
         {/* ========== Calling Screen Connection ========== */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🍽️ Calling Screen</Text>
+          <Text style={styles.sectionTitle}>Calling Screen</Text>
 
           {connectedCallingScreen ? (
             <View style={styles.callingScreenConnectedContainer}>

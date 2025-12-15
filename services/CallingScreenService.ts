@@ -2,10 +2,12 @@ import TcpSocket from 'react-native-tcp-socket';
 import { callingScreenDiscovery, CallingScreenDevice } from './CallingScreenDiscovery';
 
 export interface CallingScreenMessage {
-  type: 'kds_register' | 'order_added' | 'order_ready' | 'order_served';
+  type: 'order_added' | 'order_ready' | 'order_served';
   orderId?: string;
   orderNumber?: string;
   status?: 'preparing' | 'ready' | 'served';
+  tableNumber?: string;
+  itemCount?: number;
   // Registration fields
   kdsId?: string;
   kdsIp?: string;
@@ -58,151 +60,12 @@ class CallingScreenService {
   }
 
   /**
-   * Register KDS with Calling Screen (send once per connection)
-   */
-  public async registerWithCallingScreen(device: CallingScreenDevice, kdsId: string): Promise<boolean> {
-    console.log(`[CallingScreenService] Registering with Calling Screen: ${device.ip}:${device.port}`);
-
-    try {
-      return new Promise((resolve) => {
-        // Build registration message
-        const registrationMessage: CallingScreenMessage = {
-          type: 'kds_register',
-          kdsId: kdsId,
-          kdsIp: '0.0.0.0',
-          kdsPort: 4322,
-        };
-
-        const messageBody = JSON.stringify(registrationMessage);
-        const contentLength = new TextEncoder().encode(messageBody).length;
-
-        const httpRequest =
-          'POST /api/order HTTP/1.1\r\n' +
-          `Host: ${device.ip}:${device.port}\r\n` +
-          'Content-Type: application/json\r\n' +
-          `Content-Length: ${contentLength}\r\n` +
-          'Connection: close\r\n' +
-          '\r\n' +
-          messageBody;
-
-        console.log(`[CallingScreenService] Registration HTTP Request sent to ${device.ip}:${device.port}`);
-
-        // Create TCP connection to Calling Screen
-        const socket = TcpSocket.createConnection(
-          {
-            port: device.port,
-            host: device.ip,
-          },
-          () => {
-            console.log(`[CallingScreenService] Connected to ${device.ip}:${device.port} for registration`);
-          }
-        );
-
-        let responseTimeout: ReturnType<typeof setTimeout> | null = null;
-        let responseBuffer = '';
-        let responseReceived = false;
-
-        socket.on('connect', () => {
-          console.log(`[CallingScreenService] Socket connected for registration, sending request`);
-
-          try {
-            socket.write(httpRequest);
-            console.log(`[CallingScreenService] Registration request sent (${httpRequest.length} bytes)`);
-
-            // Set timeout for response
-            responseTimeout = setTimeout(() => {
-              if (!responseReceived) {
-                console.warn('[CallingScreenService] Registration response timeout after 5 seconds');
-                socket.destroy();
-                this.isRegistered = true;
-                resolve(true);
-              }
-            }, 5000);
-          } catch (error) {
-            console.error('[CallingScreenService] Error writing registration to socket:', error);
-            if (responseTimeout) clearTimeout(responseTimeout);
-            socket.destroy();
-            resolve(false);
-          }
-        });
-
-        socket.on('data', (data: Buffer | string) => {
-          const chunk = typeof data === 'string' ? data : data.toString('utf-8');
-          responseBuffer += chunk;
-
-          // Try to parse HTTP response (similar to tcpSocketService)
-          const headerEndIndex = responseBuffer.indexOf('\r\n\r\n');
-          if (headerEndIndex !== -1) {
-            const headerPart = responseBuffer.substring(0, headerEndIndex);
-            
-            // Check if response is successful
-            if (headerPart.includes('200 OK') || headerPart.includes('200')) {
-              console.log(`[CallingScreenService] Received successful registration response`);
-              responseReceived = true;
-
-              if (responseTimeout) clearTimeout(responseTimeout);
-              socket.destroy();
-              this.isRegistered = true;
-              resolve(true);
-            } else {
-              console.warn(`[CallingScreenService] Received error response: ${headerPart.substring(0, 100)}`);
-              responseReceived = true;
-
-              if (responseTimeout) clearTimeout(responseTimeout);
-              socket.destroy();
-              resolve(false);
-            }
-          }
-        });
-
-        socket.on('error', (error: any) => {
-          console.error(`[CallingScreenService] Socket error during registration:`, error);
-          if (responseTimeout) clearTimeout(responseTimeout);
-          resolve(false);
-        });
-
-        socket.on('close', () => {
-          console.log('[CallingScreenService] Registration socket closed');
-          if (responseTimeout) clearTimeout(responseTimeout);
-          if (!responseReceived) {
-            this.isRegistered = true;
-            resolve(true);
-          }
-        });
-
-        socket.on('timeout', () => {
-          console.error('[CallingScreenService] Registration socket timeout');
-          if (responseTimeout) clearTimeout(responseTimeout);
-          socket.destroy();
-          resolve(false);
-        });
-
-        socket.setTimeout(5000);
-      });
-    } catch (error) {
-      console.error('[CallingScreenService] Error in registerWithCallingScreen:', error);
-      return false;
-    }
-  }
-
-  /**
    * Send message to Calling Screen using raw HTTP over TCP
    */
   public async sendMessage(message: CallingScreenMessage, device: CallingScreenDevice): Promise<boolean> {
     if (!device) {
       console.warn('[CallingScreenService] No device provided for message send');
       return false;
-    }
-
-    // Register with Calling Screen if not already registered
-    if (!this.isRegistered) {
-      console.log('[CallingScreenService] Not registered yet, registering first...');
-      const kdsId = 'KDS:' + Math.random().toString(36).substring(2, 6).toUpperCase();
-      const registered = await this.registerWithCallingScreen(device, kdsId);
-      if (!registered) {
-        console.warn('[CallingScreenService] Failed to register with Calling Screen');
-        return false;
-      }
     }
 
     console.log(`[CallingScreenService] Sending ${message.type} to ${device.ip}:${device.port}`);
@@ -323,36 +186,42 @@ class CallingScreenService {
   /**
    * Notify when order is added (preparing)
    */
-  public async notifyOrderAdded(device: CallingScreenDevice, orderId: string, orderNumber: string): Promise<boolean> {
+  public async notifyOrderAdded(device: CallingScreenDevice, orderId: string, orderNumber: string, itemCount?: number, tableNumber?: string): Promise<boolean> {
     return this.sendMessage({
       type: 'order_added',
       orderId,
       orderNumber,
       status: 'preparing',
+      itemCount,
+      tableNumber,
     }, device);
   }
 
   /**
    * Notify when order is ready
    */
-  public async notifyOrderReady(device: CallingScreenDevice, orderId: string, orderNumber: string): Promise<boolean> {
+  public async notifyOrderReady(device: CallingScreenDevice, orderId: string, orderNumber: string, itemCount?: number, tableNumber?: string): Promise<boolean> {
     return this.sendMessage({
       type: 'order_ready',
       orderId,
       orderNumber,
       status: 'ready',
+      itemCount,
+      tableNumber,
     }, device);
   }
 
   /**
    * Notify when order is served
    */
-  public async notifyOrderServed(device: CallingScreenDevice, orderId: string, orderNumber: string): Promise<boolean> {
+  public async notifyOrderServed(device: CallingScreenDevice, orderId: string, orderNumber: string, itemCount?: number, tableNumber?: string): Promise<boolean> {
     return this.sendMessage({
       type: 'order_served',
       orderId,
       orderNumber,
       status: 'served',
+      itemCount,
+      tableNumber,
     }, device);
   }
 

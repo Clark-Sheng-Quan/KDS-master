@@ -148,9 +148,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
     // Notify Calling Screen that order is ready (fire and forget)
     const orderNumber = String(order.num || order.id.substring(0, 8));
+    const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
     const device = callingScreenDiscovery.getCachedDevice();
     if (device) {
-      callingScreenService.notifyOrderReady(device, order._id, orderNumber).catch((error) => {
+      callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
         console.warn('[OrderCard] Failed to notify Calling Screen:', error);
       });
     }
@@ -233,9 +234,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         
         // Notify Calling Screen that order is ready (item-level completion)
         const orderNumber = String(order.num || order.id.substring(0, 8));
+        const itemCount = updatedOrder.products.reduce((total, item) => total + (item.quantity || 1), 0);
         const device = callingScreenDiscovery.getCachedDevice();
         if (device) {
-          callingScreenService.notifyOrderReady(device, order._id, orderNumber).catch((error) => {
+          callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
             console.warn('[OrderCard] Failed to notify Calling Screen (item-level completion):', error);
           });
         }

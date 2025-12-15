@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatTCPOrder } from './orderService/formatters';
 
 // TCP server configuration - default port
-const DEFAULT_TCP_PORT = 4322;
+const DEFAULT_TCP_PORT = 8080;
 
 export class TCPSocketService {
   // Server instance
