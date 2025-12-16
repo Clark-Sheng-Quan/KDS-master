@@ -88,12 +88,20 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [lastCompletedItemId, setLastCompletedItemId] = useState<string | null>(null);
   const [lastRemovedItem, setLastRemovedItem] = useState<any>(null);
 
+  // Calling Button 状态
+  const [enableCallingButton, setEnableCallingButton] = useState(false);
+  const [callButtonPressed, setCallButtonPressed] = useState(false);  // 追踪是否点击过 Call 按钮
+
   // 加载项目级完成设置
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const enabled = await AsyncStorage.getItem("item_level_completion");
         setEnableItemLevelCompletion(enabled === "true");
+        
+        // 加载 Calling Button 设置
+        const callingEnabled = await AsyncStorage.getItem("calling_button");
+        setEnableCallingButton(callingEnabled === "true");
       } catch (error) {
         console.error("[OrderCard] 加载设置失败:", error);
       }
@@ -108,10 +116,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       console.log('[OrderCard] 项目级完成模式已更改:', value);
     };
 
+    const handleCallingButtonChange = (value: boolean) => {
+      setEnableCallingButton(value);
+      console.log('[OrderCard] Calling Button 已更改:', value);
+    };
+
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
+    settingsListener.onSettingChange('calling_button', handleCallingButtonChange);
 
     return () => {
       settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
+      settingsListener.offSettingChange('calling_button', handleCallingButtonChange);
     };
   }, []);
 
@@ -146,18 +161,49 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       console.error('[OrderCard] Failed to add completed order:', error);
     });
 
-    // Notify Calling Screen that order is ready (fire and forget)
+    // Notify Calling Screen
+    const orderNumber = String(order.num || order.id.substring(0, 8));
+    const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
+    const device = callingScreenDiscovery.getCachedDevice();
+    if (device) {
+      if (enableCallingButton) {
+        // If Calling Button enabled
+        if (!callButtonPressed) {
+          // If Call button was NOT pressed, send "ready" first, then "served"
+          callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
+            console.warn('[OrderCard] Failed to notify Calling Screen (ready):', error);
+          });
+        }
+        // Always send "served" when Done is pressed
+        callingScreenService.notifyOrderServed(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
+          console.warn('[OrderCard] Failed to notify Calling Screen (served):', error);
+        });
+      } else {
+        // If Calling Button disabled: send "ready" notification only (legacy behavior)
+        callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
+          console.warn('[OrderCard] Failed to notify Calling Screen (ready):', error);
+        });
+      }
+    }
+
+    // Reset call button state for next order
+    setCallButtonPressed(false);
+
+    onOrderComplete?.(updatedOrderWithStatus);
+  };
+
+  // Handle Call button press - send "ready" notification
+  const handleCallPressed = useCallback(() => {
+    setCallButtonPressed(true);  // Mark that Call button has been pressed
     const orderNumber = String(order.num || order.id.substring(0, 8));
     const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
     const device = callingScreenDiscovery.getCachedDevice();
     if (device) {
       callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
-        console.warn('[OrderCard] Failed to notify Calling Screen:', error);
+        console.warn('[OrderCard] Failed to send ready notification:', error);
       });
     }
-
-    onOrderComplete?.(updatedOrderWithStatus);
-  };
+  }, [order]);
 
 
 
@@ -232,15 +278,33 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         // Update order status to ready before calling onOrderComplete
         updatedOrder = updateLocalOrderStatus(updatedOrder);
         
-        // Notify Calling Screen that order is ready (item-level completion)
+        // Notify Calling Screen
         const orderNumber = String(order.num || order.id.substring(0, 8));
         const itemCount = updatedOrder.products.reduce((total, item) => total + (item.quantity || 1), 0);
         const device = callingScreenDiscovery.getCachedDevice();
         if (device) {
-          callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
-            console.warn('[OrderCard] Failed to notify Calling Screen (item-level completion):', error);
-          });
+          if (enableCallingButton) {
+            // If Calling Button enabled
+            if (!callButtonPressed) {
+              // If Call button was NOT pressed, send "ready" first, then "served"
+              callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
+                console.warn('[OrderCard] Failed to notify Calling Screen (ready, item-level):', error);
+              });
+            }
+            // Always send "served" when all items are completed
+            callingScreenService.notifyOrderServed(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
+              console.warn('[OrderCard] Failed to notify Calling Screen (served, item-level):', error);
+            });
+          } else {
+            // If Calling Button disabled: send "ready" notification only (legacy behavior)
+            callingScreenService.notifyOrderReady(device, order._id, orderNumber, itemCount, order.tableNumber).catch((error) => {
+              console.warn('[OrderCard] Failed to notify Calling Screen (ready, item-level):', error);
+            });
+          }
         }
+        
+        // Reset call button state for next order
+        setCallButtonPressed(false);
         
         // 立即调用，让 home 中的 handleItemRemoved 立即删除订单
         onOrderComplete?.(updatedOrder);
@@ -552,6 +616,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             orderId={order.id}
             onDone={handleDoneConfirm}
             onCancel={() => {}}
+            onCall={handleCallPressed}
+            showCallButton={enableCallingButton}
           />
         )}
 

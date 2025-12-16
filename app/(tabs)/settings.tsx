@@ -41,6 +41,7 @@ const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
 const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
+const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
@@ -74,6 +75,9 @@ export default function SettingsScreen() {
 
   // 屏幕方向状态 - 从 SideMenu 的 switch 按键控制，初始值为 landscape
   const [screenOrientation, setScreenOrientation] = useState<"landscape" | "portrait">("landscape");
+
+  // 添加 Calling Button 开关状态
+  const [enableCallingButton, setEnableCallingButton] = useState<boolean>(false);
 
   // 加载保存的设置
   useEffect(() => {
@@ -133,13 +137,19 @@ export default function SettingsScreen() {
           setEnableItemLevelCompletion(savedItemLevelCompletion === "true");
         }
 
+        // 加载 Calling Button 设置
+        const savedCallingButton = await AsyncStorage.getItem(
+          STORAGE_KEY_CALLING_BUTTON
+        );
+        if (savedCallingButton !== null) {
+          setEnableCallingButton(savedCallingButton === "true");
+        }
+
         // 加载子KDS分类设置
         const savedCategory = await AsyncStorage.getItem("kds_category");
         if (savedCategory) {
           setKdsCategory(savedCategory as CategoryType);
-        }
-
-        // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
+        }        // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
         const currentMasterIP = TCPSocketService.getMasterIP();
         setMasterIP(currentMasterIP);
         
@@ -315,6 +325,16 @@ export default function SettingsScreen() {
     // 发出设置变化事件
     settingsListener.emitSettingChange('item_level_completion', value);
     console.log('[Settings] 发出 item_level_completion 设置变化事件，值:', value);
+  }, []);
+
+  // 处理 Calling Button 开关
+  const handleCallingButtonChange = useCallback(async (value: boolean) => {
+    setEnableCallingButton(value);
+    await AsyncStorage.setItem(STORAGE_KEY_CALLING_BUTTON, value.toString());
+    
+    // 发出设置变化事件
+    settingsListener.emitSettingChange('calling_button', value);
+    console.log('[Settings] 发出 calling_button 设置变化事件，值:', value);
   }, []);
 
   // 重置设置
@@ -555,6 +575,17 @@ export default function SettingsScreen() {
           >
             <Text style={styles.deviceDiscoveryButtonText}>📡 Discover Calling Screen</Text>
           </TouchableOpacity>
+
+          {/* Calling Button 开关 */}
+          <View style={[styles.infoRow, { marginTop: 20 }]}>
+            <Text style={styles.infoLabel}>Calling Button</Text>
+            <TouchableOpacity
+              style={[styles.switchButton, enableCallingButton && styles.switchButtonActive]}
+              onPress={() => handleCallingButtonChange(!enableCallingButton)}
+            >
+              <View style={[styles.switchThumb, enableCallingButton && styles.switchThumbActive]} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 显示设置卡片 */}

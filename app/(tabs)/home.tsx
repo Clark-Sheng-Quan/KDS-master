@@ -33,7 +33,7 @@ import {
 } from "../../constants/cardConfig";
 
 export default function HomeScreen() {
-  const { orders, loading, error, removeOrder } = useOrders();
+  const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
   const { completedOrders, removeCompletedOrder } = useCompletedOrders();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
@@ -238,6 +238,13 @@ export default function HomeScreen() {
           OrderService.recallOrder(newUndoOrder).catch(error => {
             console.error('[Home] Undo recall 失败:', error);
           });
+
+          // 只在 home 没有 card 时才刷新
+          if (filteredOrders.length === 0) {
+            refreshOrders().catch(error => {
+              console.error('[Home] 刷新订单失败:', error);
+            });
+          }
         }
 
         // 删除完成记录 - 异步执行，不等待
@@ -252,7 +259,7 @@ export default function HomeScreen() {
         console.error(`[Home] Undo 撤回失败:`, error);
       }
     }
-  }, [lastCompletedItemData, removeCompletedOrder, localOrders]);
+  }, [lastCompletedItemData, removeCompletedOrder, localOrders, refreshOrders]);
 
   // Recall 单个 item - 使用和Undo相同的机制
   const handleRecallItem = useCallback(async (completedItem: any) => {
@@ -325,6 +332,13 @@ export default function HomeScreen() {
         OrderService.recallOrder(newRecalledOrder).catch(error => {
           console.error('[Home] Recall 失败:', error);
         });
+
+        // 只在 home 没有 card 时才刷新
+        if (filteredOrders.length === 0) {
+          refreshOrders().catch(error => {
+            console.error('[Home] 刷新订单失败:', error);
+          });
+        }
       }
 
       // 删除完成记录 - 异步执行，不等待
@@ -342,7 +356,7 @@ export default function HomeScreen() {
         recallingItemsRef.current.delete(completedItem.itemId);
       }, 50);
     }
-  }, [localOrders, removeCompletedOrder]);  useEffect(() => {
+  }, [localOrders, removeCompletedOrder, refreshOrders]);  useEffect(() => {
     const loadShopInfo = async () => {
       try {
         const shopName = await AsyncStorage.getItem("selectedShopName");
