@@ -736,27 +736,22 @@ export class OrderService {
    */
   static async recallOrder(order: FormattedOrder): Promise<boolean> {
     try {
-      console.log("撤回历史订单:", order.id);
-      console.log("原始orderTime:", order.orderTime, "类型:", typeof order.orderTime);
       
       // 获取当前本地时间，格式为 "yyyy-MM-dd HH:mm:ss"
       const currentLocalTime = Formatters.convertToLocalTimeFormatted(new Date().toISOString());
-      console.log("转换后的本地时间:", currentLocalTime);
       
       // 创建一个新的订单副本，避免修改原订单
       const recalledOrder: FormattedOrder = {
         ...order,
-        id: order.id, // 使用原始 ID（isRecalled 标记区分）
-        orderTime: currentLocalTime, // 设置为当前本地时间，格式正确
-        isRecalled: true, // 标记为撤回的订单
+        id: order.id,
+        orderTime: currentLocalTime,
+        isRecalled: true,
       };
-      
-      console.log("recall订单的orderTime:", recalledOrder.orderTime);
       
       // 保存到网络订单存储（不播放提示音）
       await this.addNetworkOrder(recalledOrder, false);
       
-      console.log("订单撤回成功:", recalledOrder.id, "orderTime:", recalledOrder.orderTime);
+      console.log("====== RECALL ORDER 成功 ======\n");
       return true;
     } catch (error) {
       console.error("撤回订单失败:", error);

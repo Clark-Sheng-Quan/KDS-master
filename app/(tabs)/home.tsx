@@ -164,26 +164,19 @@ export default function HomeScreen() {
     }
   }, [localOrders]);
 
-  // 处理撤回项目完成 - 把 item 加回到订单中（不是 recall）
+  // 处理撤回项目完成 - 把 item 加回到订单中（使用和Recall相同的机制）
   const handleItemUndoCompletion = useCallback(async () => {
     if (lastCompletedItemData) {
       try {
-        console.log('[Home] Undo: 开始撤回 item:', {
-          itemId: lastCompletedItemData.itemId,
-          itemName: lastCompletedItemData.itemName,
-          orderId: lastCompletedItemData.orderId
-        });
+        const itemId = lastCompletedItemData.itemId;
+        const itemName = lastCompletedItemData.itemName;
+        const orderId = lastCompletedItemData.orderId;
         
-        // 从订单中找到该 item
-        let itemToUndo = lastCompletedItemData.order.products?.find(
-          p => p.id === lastCompletedItemData.itemId
-        );
-        
-        // 如果没找到，尝试其他可能的 id 字段
+        // 获取完成的item
+        let itemToUndo = lastCompletedItemData.order.products?.find(p => p.id === itemId);
         if (!itemToUndo) {
           itemToUndo = lastCompletedItemData.order.products?.find(p => 
-            (p as any)._id === lastCompletedItemData.itemId || 
-            (p as any).itemId === lastCompletedItemData.itemId
+            (p as any)._id === itemId || (p as any).itemId === itemId
           );
         }
         
@@ -192,69 +185,82 @@ export default function HomeScreen() {
           return;
         }
 
-        // 把 item 加回到 localOrders 中的订单（不移除）
-        setLocalOrders((prev) => 
-          prev.map((order) => {
-            if (order.id === lastCompletedItemData.orderId) {
-              // 如果 item 还不在订单中，则加回
-              const itemExists = order.products?.some(p => p.id === lastCompletedItemData.itemId);
-              if (!itemExists && itemToUndo) {
-                return {
-                  ...order,
-                  products: [...(order.products || []), itemToUndo],
-                };
-              }
-            }
-            return order;
-          })
-        );
+        // 检查订单是否存在（和Recall逻辑一致）
+        const existingOrder = localOrders.find(o => o.id === orderId);
+        
+        if (existingOrder) {
+          // 订单存在，检查 item 是否已在其中
+          const itemAlreadyExists = existingOrder.products?.some(p => p.id === itemId);
+          if (itemAlreadyExists) {
+            setToastVisible(false);
+            setLastCompletedItemData(null);
+            return;
+          }
 
-        // 同时更新 filteredOrders
-        setFilteredOrders((prev) =>
-          prev.map((order) => {
-            if (order.id === lastCompletedItemData.orderId) {
-              const itemExists = order.products?.some(p => p.id === lastCompletedItemData.itemId);
-              if (!itemExists && itemToUndo) {
-                return {
-                  ...order,
-                  products: [...(order.products || []), itemToUndo],
-                };
-              }
-            }
-            return order;
-          })
-        );
-
-        // 同步到后端（和 Recall 逻辑一致）
-        const updatedOrder = localOrders.find(o => o.id === lastCompletedItemData.orderId);
-        if (updatedOrder && itemToUndo) {
-          const orderWithRestoredItem = {
-            ...updatedOrder,
-            products: [...(updatedOrder.products || []), itemToUndo],
+          // 添加 item 到现有订单
+          const updatedOrder = {
+            ...existingOrder,
+            products: [...(existingOrder.products || []), itemToUndo],
           };
-          await OrderService.recallOrder(orderWithRestoredItem);
-          console.log(`[Home] ✓ Undo 已同步到后端: ${lastCompletedItemData.itemName}`);
+
+          setLocalOrders(prev =>
+            prev.map(order => order.id === orderId ? updatedOrder : order)
+          );
+          setFilteredOrders(prev =>
+            prev.map(order => order.id === orderId ? updatedOrder : order)
+          );
+
+          // 同步到后端
+          OrderService.recallOrder(updatedOrder).catch(error => {
+            console.error('[Home] Undo recall 失败:', error);
+          });
+        } else {
+          // 订单不存在，创建新的 undo 订单（只包含这个 item）
+          const baseOrder = lastCompletedItemData.order;
+          const newUndoOrder: FormattedOrder = {
+            id: baseOrder.id,
+            _id: baseOrder._id || baseOrder.id,
+            num: baseOrder.num,
+            orderTime: baseOrder.orderTime,
+            pickupMethod: baseOrder.pickupMethod,
+            pickupTime: baseOrder.pickupTime,
+            kdsReceiveTime: baseOrder.kdsReceiveTime,
+            tableNumber: baseOrder.tableNumber,
+            products: [itemToUndo],
+            source: baseOrder.source,
+            isRecalled: true,
+          };
+
+          setLocalOrders(prev => [...prev, newUndoOrder]);
+          setFilteredOrders(prev => [...prev, newUndoOrder]);
+
+          // 同步到后端
+          OrderService.recallOrder(newUndoOrder).catch(error => {
+            console.error('[Home] Undo recall 失败:', error);
+          });
         }
-        
-        // 从 completed orders 中删除该 item，同时恢复 item 到 completed order 中
-        await removeCompletedOrder(lastCompletedItemData.orderId, lastCompletedItemData.itemId, itemToUndo);
-        
+
+        // 删除完成记录 - 异步执行，不等待
+        removeCompletedOrder(orderId, itemId).catch(error => {
+          console.error('[Home] 删除完成记录失败:', error);
+        });
+
         setToastVisible(false);
         setLastCompletedItemData(null);
-        console.log(`[Home] ✓ Undo 撤回 item: ${lastCompletedItemData.itemName}，item 已加回到订单`);
+        console.log(`[Home] ✓ Undo 成功: ${itemName}`);
       } catch (error) {
         console.error(`[Home] Undo 撤回失败:`, error);
       }
     }
-  }, [lastCompletedItemData, removeCompletedOrder]);
+  }, [lastCompletedItemData, removeCompletedOrder, localOrders]);
 
-  // Recall 单个 item - 检查订单是否在 localOrders 中
+  // Recall 单个 item - 使用和Undo相同的机制
   const handleRecallItem = useCallback(async (completedItem: any) => {
     try {
       const itemId = completedItem.itemId;
       const itemName = completedItem.itemName;
       const orderId = completedItem.completedOrder.order.id;
-      const itemToRecall = completedItem.item;  // 这是单个item的数据
+      const itemToRecall = completedItem.item;
       
       // 竞速保护
       if (recallingItemsRef.current.has(itemId)) {
@@ -262,20 +268,13 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log('[Home] handleRecallItem 开始:', {
-        itemId,
-        itemName,
-        orderId,
-      });
-
-      // 立即标记为正在 recall
       recallingItemsRef.current.add(itemId);
 
-      // 检查 item 是否已经在某个 order 中
+      // 检查订单是否存在
       const existingOrder = localOrders.find(o => o.id === orderId);
       
       if (existingOrder) {
-        // 订单已存在，检查 item 是否已在该订单中
+        // 订单存在，检查 item 是否已在其中
         const itemAlreadyExists = existingOrder.products?.some(p => p.id === itemId);
         if (itemAlreadyExists) {
           console.log(`[Home] Item 已在订单中，无需 recall`);
@@ -297,15 +296,17 @@ export default function HomeScreen() {
           prev.map(order => order.id === orderId ? updatedOrder : order)
         );
 
-        // 同步到后端
-        await OrderService.recallOrder(updatedOrder);
-        console.log(`[Home] ✓ Item recall 并添加到现有订单: ${itemName}`);
+        // 同步到后端 - 异步执行，不等待
+        OrderService.recallOrder(updatedOrder).catch(error => {
+          console.error('[Home] Recall 失败:', error);
+        });
       } else {
         // 订单不存在，创建新的 recall 订单（只包含这个 item）
         const baseOrder = completedItem.completedOrder.order;
+        
         const newRecalledOrder: FormattedOrder = {
-          id: orderId,
-          _id: orderId,
+          id: baseOrder.id,
+          _id: baseOrder._id || baseOrder.id,
           num: baseOrder.num,
           orderTime: baseOrder.orderTime,
           pickupMethod: baseOrder.pickupMethod,
@@ -320,16 +321,19 @@ export default function HomeScreen() {
         setLocalOrders(prev => [...prev, newRecalledOrder]);
         setFilteredOrders(prev => [...prev, newRecalledOrder]);
 
-        // 同步到后端
-        await OrderService.recallOrder(newRecalledOrder);
-        console.log(`[Home] ✓ Item recall 并创建新订单: ${itemName}`);
+        // 同步到后端 - 异步执行，不等待
+        OrderService.recallOrder(newRecalledOrder).catch(error => {
+          console.error('[Home] Recall 失败:', error);
+        });
       }
 
-      // 从 completed orders 中删除该 item
-      await removeCompletedOrder(orderId, itemId);
+      // 删除完成记录 - 异步执行，不等待
+      removeCompletedOrder(orderId, itemId).catch(error => {
+        console.error('[Home] 删除完成记录失败:', error);
+      });
 
-      console.log(`[Home] ✓ 成功 recall item: ${itemName}`);
       setShowRecentItemsMenu(false);
+      console.log(`[Home] ✓ Recall 成功: ${itemName}`);
     } catch (error) {
       console.error('[Home] Recall item 失败:', error);
     } finally {
@@ -453,7 +457,7 @@ export default function HomeScreen() {
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#000' }}>
-                最近完成
+                Recent Completed Items
               </Text>
               <TouchableOpacity
                 onPress={() => setShowRecentItemsMenu(false)}
@@ -474,8 +478,9 @@ export default function HomeScreen() {
                     tableNumber: co.order.tableNumber,
                     itemName: item.name,
                     itemId: item.id,
+                    itemQuantity: item.quantity || 1,  // 保存数量
                     completedOrder: co,
-                    item: item,
+                    item: item,  // 完整item对象包含所有信息（包括quantity）
                   }))
                 )}
                 renderItem={({ item: menuItem }) => (
@@ -511,7 +516,7 @@ export default function HomeScreen() {
                       </Text>
                     )}
 
-                    {/* Item Name */}
+                    {/* Item Name with Quantity */}
                     <Text
                       style={{
                         fontSize: 13,
@@ -519,7 +524,7 @@ export default function HomeScreen() {
                         color: '#000',
                       }}
                     >
-                      {menuItem.itemName}
+                      {menuItem.itemName} {menuItem.itemQuantity > 1 ? `x${menuItem.itemQuantity}` : ''}
                     </Text>
 
                     {/* Recall Button */}
