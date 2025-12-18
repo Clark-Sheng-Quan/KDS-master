@@ -157,7 +157,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     const updatedOrderWithStatus = updateLocalOrderStatus(order);
 
     // Add to completed orders
-    addCompletedOrder(updatedOrderWithStatus, (order.source || 'network') as 'network' | 'tcp').catch((error: any) => {
+    addCompletedOrder(updatedOrderWithStatus, updatedOrderWithStatus.products || []).catch((error: any) => {
       console.error('[OrderCard] Failed to add completed order:', error);
     });
 
@@ -265,7 +265,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       onItemCompleted?.(itemName, item.id, order.id);  // 通知父组件显示全局 Toast
 
       // 添加单项完成记录到 completed orders
-      await addCompletedOrder(order, 'tcp', item.id, itemName);
+      await addCompletedOrder(order, [item]);
 
       console.log(`[OrderCard] Item completed and removed: ${itemName} (${item.id}), remaining items: ${updatedProducts.length}`);
 
@@ -530,7 +530,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
         )}
 
-        {/* 召回订单指示器 - 在updateBadge右边 */}
+        {/* 召回订单指示器 - 在updateBadge右边
         {!hideBadges && order.isRecalled && (
           <View style={[
             styles.recallBadge,
@@ -539,7 +539,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             <Ionicons name="arrow-redo" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.recallBadgeText}>RECALLED</Text>
           </View>
-        )}
+        )} */}
 
         {selectedProduct && (
           <ProductDetailPopup

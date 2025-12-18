@@ -12,7 +12,7 @@ const RETENTION_CONFIG = {
 
 interface CompletedOrderContextType {
   completedOrders: CompletedOrder[];
-  addCompletedOrder: (order: FormattedOrder, source: 'network' | 'tcp', itemId?: string, itemName?: string) => Promise<void>;
+  addCompletedOrder: (order: FormattedOrder, itemsToComplete: any[]) => Promise<void>;
   removeCompletedOrder: (orderId: string, itemId?: string, itemToRestore?: any) => Promise<void>;
   clearCompletedOrders: () => Promise<void>;
   cleanExpiredOrdersNow: () => Promise<void>;
@@ -91,101 +91,49 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
 
   /**
    * 添加已完成的订单
-   * 支持两种模式：
-   * 1. 全单完成：order 完成，itemId 为空
-   * 2. 单项完成：只有单个 item 完成，itemId 和 itemName 不为空
+   * @param order 订单信息
+   * @param itemsToComplete 要完成的产品数组（单个或多个）
    */
-  const addCompletedOrder = async (order: FormattedOrder, source: 'network' | 'tcp', itemId?: string, itemName?: string) => {
+  const addCompletedOrder = async (order: FormattedOrder, itemsToComplete: any[] = []) => {
     try {
+      // 防守：确保 itemsToComplete 是数组
+      if (!Array.isArray(itemsToComplete)) {
+        console.warn('[CompletedOrderContext] itemsToComplete 不是数组，重置为空数组');
+        itemsToComplete = [];
+      }
+
       const now = new Date().toISOString();
       let updated = [...completedOrders];
 
-      // 订单元数据（含空products数组，因为实际产品在completedItems中）
+      // 订单元数据（products 为空，实际产品在 completedItems）
       const orderMetadata: FormattedOrder = {
-        id: order.id,
-        _id: order._id,
-        num: order.num,
-        orderTime: order.orderTime,
-        pickupMethod: order.pickupMethod,
-        pickupTime: order.pickupTime,
-        kdsReceiveTime: order.kdsReceiveTime,
-        tableNumber: order.tableNumber,
-        source: order.source,
+        ...order,
+        products: [],
       };
 
-      if (itemId) {
-        // ======= 单项完成模式 =======
-        const itemToRemove = order.products?.find(p => p.id === itemId);
-        if (!itemToRemove) return;
+      // 查找已存在的记录（按 order.id）
+      const existingIndex = updated.findIndex(co => co.order.id === order.id);
 
-        const existingIndex = updated.findIndex(
-          co => co.order.id === order.id && co.itemId
-        );
+      if (existingIndex !== -1) {
+        // 合并已完成的产品（去重）
+        const existingItems = updated[existingIndex].completedItems || [];
+        const existingIds = new Set(existingItems.map(p => p.id));
+        const newItems = itemsToComplete.filter(p => !existingIds.has(p.id));
+        const completedItems = [...existingItems, ...newItems];
 
-        // 检查是否已完成（避免重复）
-        if (existingIndex !== -1 && updated[existingIndex].completedItems?.some(p => p.id === itemId)) {
-          return;
-        }
-
-        const completedItems = [
-          ...(updated[existingIndex]?.completedItems || []),
-          itemToRemove
-        ];
-
-        if (existingIndex !== -1) {
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            order: orderMetadata,
-            completedItems,
-            completedAt: now,
-          };
-        } else {
-          updated.unshift({
-            order: orderMetadata,
-            completedAt: now,
-            source,
-            itemId,
-            itemName,
-            completedItems: [itemToRemove],
-            isFullOrder: false,
-          });
-        }
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          order: orderMetadata,
+          completedItems,
+          completedAt: now,
+        };
       } else {
-        // ======= 全单完成模式 =======
-        const itemLevelIndex = updated.findIndex(
-          co => co.order.id === order.id && co.itemId
-        );
-
-        const allCompletedItems = order.products || [];
-
-        if (itemLevelIndex !== -1) {
-          // 从单项完成升级到全单完成：合并items
-          const completedItems = [
-            ...(updated[itemLevelIndex].completedItems || []),
-            ...allCompletedItems
-          ];
-
-          updated[itemLevelIndex] = {
-            ...updated[itemLevelIndex],
-            order: orderMetadata,
-            completedItems,
-            completedAt: now,
-            isFullOrder: true,
-            itemId: undefined,
-          };
-        } else if (!updated.some(co => co.order.id === order.id && !co.itemId)) {
-          // 直接全单完成（无单项记录）
-          updated.unshift({
-            order: orderMetadata,
-            completedAt: now,
-            source,
-            completedItems: allCompletedItems,
-            isFullOrder: true,
-          });
-        } else {
-          console.warn(`[CompletedOrderContext] ⚠ 订单已存在: ${order.id}`);
-          return;
-        }
+        // 创建新记录
+        updated.unshift({
+          order: orderMetadata,
+          completedAt: now,
+          completedItems: itemsToComplete,
+        });
       }
 
       setCompletedOrders(updated);

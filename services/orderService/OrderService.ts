@@ -743,7 +743,6 @@ export class OrderService {
       // 创建一个新的订单副本，避免修改原订单
       const recalledOrder: FormattedOrder = {
         ...order,
-        id: order.id,
         orderTime: currentLocalTime,
         isRecalled: true,
       };
