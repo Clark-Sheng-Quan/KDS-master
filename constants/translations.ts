@@ -18,6 +18,7 @@ export const translations = {
     completedAt: "完成于",
     completedOrders: "已完成订单",
     todayCompletedOrders: "今天的已完成订单",
+    updated: "已更新",
     historyQuery: "历史查询",
     searchHistory: "搜索历史",
     recall: "召回",
@@ -38,6 +39,14 @@ export const translations = {
     confirmRemove: "确认移除",
     areYouSureRecall: "确定要召回该订单吗？",
     areYouSureRemove: "确定要移除该订单吗？",
+    done: "完成",
+    call: "叫号",
+    due: "出餐时间",
+    prepare: "准备时间",
+    table: "桌号",
+    moreItems: "更多订单项",
+    am: "上午",
+    pm: "下午",
     
     // 登出相关
     logoutConfirmTitle: "确认登出",
@@ -52,6 +61,10 @@ export const translations = {
     temp: "临时订单",
     unknown: "未知来源",
     
+    // 取餐方式
+    takeAway: "外带",
+    dineIn: "堂食",
+    
     // 设置界面
     language: "语言",
     chinese: "中文",
@@ -63,11 +76,24 @@ export const translations = {
     copyright: "© Vend88 Pty Ltd - 2025",
     confirm: "确认",
     confirmReset: "确定要重置所有设置吗？",
-    cardsPerRow: "每行显示卡片数量",
+    cardsPerRow: "卡片宽度",
+    cardsPerColumn: "卡片高度",
+    small: "小",
+    medium: "中",
+    large: "大",
     displaySettings: "显示设置",
+    screenOrientation: "屏幕方向",
+    landscape: "横屏",
+    portrait: "竖屏",
+    callingScreen: "叫号屏",
+    discoverCallingScreen: "发现叫号屏",
+    showCallingButton: "显示叫号按钮",
+    showPrintButton: "显示打印按钮",
+    noCallingScreenConnected: "未连接叫号屏",
+    disconnect: "断开连接",
     applyChanges: "应用更改",
     orderCompletionMode: "订单完成模式",
-    fullOrder: "完整订单",
+    fullOrder: "整订完成",
     itemLevel: "逐项完成",
     
     // 库存管理
@@ -316,6 +342,7 @@ export const translations = {
     completedAt: "Completed at",
     completedOrders: "Completed Orders",
     todayCompletedOrders: "Today's Completed Orders",
+    updated: "Updated",
     historyQuery: "History Query",
     searchHistory: "Search History",
     recall: "Recall",
@@ -336,6 +363,14 @@ export const translations = {
     confirmRemove: "Confirm Remove",
     areYouSureRecall: "Are you sure you want to recall this order?",
     areYouSureRemove: "Are you sure you want to remove this order?",
+    done: "Done",
+    call: "Call",
+    due: "Time Due",
+    prepare: "Prepare",
+    table: "Table",
+    moreItems: "more items",
+    am: "AM",
+    pm: "PM",
     
     // Logout related
     logoutConfirmTitle: "Logout Confirmation",
@@ -350,6 +385,10 @@ export const translations = {
     temp: "Temp",
     unknown: "Unknown",
     
+    // Pickup methods
+    takeAway: "Take-Away",
+    dineIn: "Dine-In",
+    
     // Settings screen
     language: "Language",
     chinese: "中文",
@@ -361,12 +400,25 @@ export const translations = {
     copyright: "© Vend88 Pty Ltd – 2025",
     confirm: "Confirm",
     confirmReset: "Are you sure you want to reset all settings?",
-    cardsPerRow: "Cards Per Row",
+    cardsPerRow: "Cards Width",
+    cardsPerColumn: "Cards Height",
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
     displaySettings: "Display Settings",
+    screenOrientation: "Screen Orientation",
+    landscape: "Landscape",
+    portrait: "Portrait",
+    callingScreen: "Calling Screen",
+    discoverCallingScreen: "Discover Calling Screen",
+    showCallingButton: "Show Calling Button",
+    showPrintButton: "Show Print Button",
+    noCallingScreenConnected: "No Calling Screen Connected",
+    disconnect: "Disconnect",
     applyChanges: "Apply Changes",
     orderCompletionMode: "Order Completion Mode",
     fullOrder: "Full Order",
-    itemLevel: "Item-level",
+    itemLevel: "Item-by-item",
     
     // Stock management
     stockList: "Stock List",

@@ -132,8 +132,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   useEffect(() => {
     if (contentHeight > 0 && scrollViewHeight > 0) {
-      // 比较内容高度和ScrollView容器高度
-      setIsScrollable(contentHeight > scrollViewHeight);
+      // 比较内容高度和ScrollView容器高度，加大判断阈值
+      setIsScrollable(contentHeight > scrollViewHeight + 30);
     } else {
       setIsScrollable(false);
     }
@@ -365,12 +365,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const date = new Date(order.pickupTime);
       if (isNaN(date.getTime())) return order.pickupTime;
 
-      let hours = date.getHours();
+      const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12; // 0点显示为12
-      const hoursStr = String(hours).padStart(2, '0');
       
       if (showDateInDue) {
         // pre-orders: 显示完整日期
@@ -378,10 +374,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const month = monthNames[date.getMonth()];
         const year = date.getFullYear();
-        return `${day}-${month}-${year} • ${hoursStr}:${minutes} ${ampm}`;
+        return `${day}-${month}-${year} • ${hours}:${minutes}`;
       } else {
-        // home/history/completed: 只显示12小时制时间
-        return `${hoursStr}:${minutes} ${ampm}`;
+        // home/history/completed: 只显示24小时制时间
+        return `${hours}:${minutes}`;
       }
     } catch (error) {
       return order.pickupTime;
@@ -395,14 +391,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const date = new Date(completedTime);
       if (isNaN(date.getTime())) return completedTime;
 
-      let hours = date.getHours();
+      const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12; // 0点显示为12
-      const hoursStr = String(hours).padStart(2, '0');
       
-      return `${hoursStr}:${minutes} ${ampm}`;
+      return `${hours}:${minutes}`;
     } catch (error) {
       return completedTime;
     }
@@ -410,9 +402,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   const getPickupMethodDisplay = (method?: string) => {
     const lower = method?.toLowerCase() || '';
-    if (lower === 'take-away') return { text: 'Take-Away', color: '#FF9B2F' };
-    if (lower === 'dine_in' || lower === 'dinein') return { text: 'Dine-In', color: '#0096FF' };
-    return { text: method || 'Dine-In', color: '#0096FF' };
+    if (lower === 'take-away') return { text: t("takeAway"), color: '#FF9B2F' };
+    if (lower === 'dine_in' || lower === 'dinein') return { text: t("dineIn"), color: '#0096FF' };
+    return { text: method || t("dineIn"), color: '#0096FF' };
   };
 
 
@@ -437,6 +429,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
     return (
       <View key={`${order.id}-item-${index}`} style={styles.itemContainer}>
+        <View style={styles.itemDivider} />
         <TouchableOpacity
           onPress={handleItemPress}
           onLongPress={() => !disableItems && !isVoided && handleItemLongPress(item)}
@@ -459,8 +452,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             </Text>
           </View>
           {isVoided ? (
-            <Text style={styles.cancelledText}>Cancelled</Text>
-          ) : completedItemsRef.current[`${order.id}-item-${index}`] ? (
+            <Text style={styles.cancelledText}>{t("cancelled")}</Text>
+          ) : !enableItemLevelCompletion && completedItemsRef.current[`${order.id}-item-${index}`] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
             <Text style={[styles.itemQuantity, { color: categoryColor }]}>x{item.quantity}</Text>
@@ -496,7 +489,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
         )}
 
-        <View style={styles.itemDivider} />
       </View>
     );
   }, [disabled, disableItems, getCategoryColor, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger]);
@@ -525,7 +517,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           <View style={styles.updateBadge}>
             <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
             <Text style={styles.updateBadgeText}>
-              UPDATED{order.updateCount > 1 ? ` ${order.updateCount}` : ''}
+              {t("updated")}{order.updateCount > 1 ? ` ${order.updateCount}` : ''}
             </Text>
           </View>
         )}
@@ -577,17 +569,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 </Text>
                 {typeof order.total_prepare_time === 'number' && order.total_prepare_time > 0 && (
                   <Text style={styles.prepareTime}>
-                    {t("Prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
+                    {t("prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
                   </Text>
                 )}
                 <Text style={styles.prepareTime}>
-                  Table: <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
+                  {t("table")}: <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
                 </Text>
 
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                <Text style={styles.dueTimeText}>Due: {formattedDueTime}</Text>
+                <Text style={styles.dueTimeText}>{t("due")}: {formattedDueTime}</Text>
                 {completedTime && (
                   <Text style={styles.completedTimeDisplay}>
                     {t("completedAt")}: {formattedCompletedTime}
@@ -608,7 +600,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         {/* 只在可以滚动时显示提示 - 固定在右下角 */}
         {isScrollable && (
           <View style={[styles.scrollIndicatorText, scrollIndicatorAtBottom && styles.scrollIndicatorAtBottom]}>
-            <Text style={styles.scrollMoreText}>↓ more items</Text>
+            <Text style={styles.scrollMoreText}>↓ {t("moreItems")}</Text>
           </View>
         )}
         {!disabled && !hideActions && (
@@ -618,6 +610,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             onCancel={() => {}}
             onCall={handleCallPressed}
             showCallButton={enableCallingButton}
+            callButtonPressed={callButtonPressed}
           />
         )}
 

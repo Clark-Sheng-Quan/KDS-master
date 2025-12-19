@@ -229,6 +229,15 @@ export class OrderService {
           
           console.log(`[addNetworkOrder] 已更新recall订单 ${order.id}，新增 ${newProducts.length} 个产品`);
           
+          // 通知 Calling Screen 订单产品数量变化
+          const device = callingScreenDiscovery.getCachedDevice();
+          if (device) {
+            const itemCount = mergedOrder.products.reduce((total, item) => total + (item.quantity || 1), 0);
+            callingScreenService.notifyOrderAdded(device, mergedOrder._id, String(mergedOrder.num), itemCount, mergedOrder.tableNumber).catch((error: any) => {
+              console.warn('[OrderService] Failed to notify Calling Screen (network order updated):', error);
+            });
+          }
+          
           // 触发回调通知UI更新
           if (this.networkOrderUpdateCallback) {
             this.networkOrderUpdateCallback(this.networkOrders);
@@ -402,6 +411,15 @@ export class OrderService {
         // 只在确定有变化时才播放更新提示音
         if (hasChanged) {
           AudioService.playNewOrderAlert();
+          
+          // 通知 Calling Screen 订单产品数量变化
+          const device = callingScreenDiscovery.getCachedDevice();
+          if (device) {
+            const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
+            callingScreenService.notifyOrderAdded(device, order._id, String(order.num), itemCount, order.tableNumber).catch((error: any) => {
+              console.warn('[OrderService] Failed to notify Calling Screen (TCP order updated):', error);
+            });
+          }
         }
         
         // 触发回调通知订单已更新（直接传递已过滤的订单）

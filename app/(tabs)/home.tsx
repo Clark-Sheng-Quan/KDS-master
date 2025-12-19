@@ -21,6 +21,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { OrderService } from "../../services/orderService/OrderService";
 import { settingsListener } from "../../services/settingsListener";
+import { callingScreenService } from "../../services/CallingScreenService";
+import { callingScreenDiscovery } from "../../services/CallingScreenDiscovery";
 import {
   PADDING,
   DEFAULT_CARDS_PER_ROW,
@@ -210,6 +212,15 @@ export default function HomeScreen() {
         OrderService.recallOrder(updatedOrder).catch(error => {
           console.error('[Home] Recall 失败:', error);
         });
+
+        // 通知 Calling Screen 订单产品数量变化
+        const device = callingScreenDiscovery.getCachedDevice();
+        if (device) {
+          const itemCount = updatedOrder.products.reduce((total, p) => total + (p.quantity || 1), 0);
+          callingScreenService.notifyOrderAdded(device, updatedOrder._id, String(updatedOrder.num), itemCount, updatedOrder.tableNumber).catch((error: any) => {
+            console.warn('[Home] Failed to notify Calling Screen (updated order):', error);
+          });
+        }
       } else {
         // 订单不存在，创建新订单
         const newOrder: FormattedOrder = {
@@ -224,6 +235,15 @@ export default function HomeScreen() {
         OrderService.recallOrder(newOrder).catch(error => {
           console.error('[Home] Recall 失败:', error);
         });
+
+        // 通知 Calling Screen 新订单
+        const device = callingScreenDiscovery.getCachedDevice();
+        if (device) {
+          const itemCount = newOrder.products.reduce((total, p) => total + (p.quantity || 1), 0);
+          callingScreenService.notifyOrderAdded(device, newOrder._id, String(newOrder.num), itemCount, newOrder.tableNumber).catch((error: any) => {
+            console.warn('[Home] Failed to notify Calling Screen (new order):', error);
+          });
+        }
 
         // 只在 home 没有 card 时才刷新
         if (filteredOrders.length === 0) {

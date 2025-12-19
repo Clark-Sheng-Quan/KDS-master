@@ -165,7 +165,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               onPress={() => navigateTo("/(tabs)/completed")}
             >
               <Ionicons name="checkmark-done" size={20} color="white" />
-              <Text style={styles.menuItemText}>Completed Orders</Text>
+              <Text style={styles.menuItemText}>{t("completedOrders")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

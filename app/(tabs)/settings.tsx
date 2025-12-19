@@ -203,38 +203,30 @@ export default function SettingsScreen() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // 保存设置
-  const saveSettings = useCallback(async () => {
-    try {
-      // 保存端口（使用 TCPSocketService.setTcpPort）
-      const portNum = parseInt(port, 10);
-      if (portNum > 0 && portNum < 65536) {
-        await TCPSocketService.setTcpPort(portNum);
+  // 监听 Calling Screen 连接状态变化，自动更新 Calling Button 状态
+  useEffect(() => {
+    const updateCallingButtonState = async () => {
+      if (connectedCallingScreen) {
+        // 如果 Calling Screen 已连接，自动启用 Calling Button
+        if (!enableCallingButton) {
+          setEnableCallingButton(true);
+          await AsyncStorage.setItem(STORAGE_KEY_CALLING_BUTTON, "true");
+          settingsListener.emitSettingChange('calling_button', true);
+          console.log('[Settings] Calling Screen connected - Calling Button automatically enabled');
+        }
       } else {
-        Alert.alert("错误", "端口号必须在 1-65535 之间");
-        return;
+        // 如果 Calling Screen 已断开，自动禁用 Calling Button
+        if (enableCallingButton) {
+          setEnableCallingButton(false);
+          await AsyncStorage.setItem(STORAGE_KEY_CALLING_BUTTON, "false");
+          settingsListener.emitSettingChange('calling_button', false);
+          console.log('[Settings] Calling Screen disconnected - Calling Button automatically disabled');
+        }
       }
+    };
 
-      // 保存每行卡片数量
-      await AsyncStorage.setItem(
-        STORAGE_KEY_CARDS_PER_ROW,
-        cardsPerRow.toString()
-      );
-
-      // 保存垂直卡片数量
-      await AsyncStorage.setItem(
-        STORAGE_KEY_CARDS_PER_COLUMN,
-        cardsPerColumn.toString()
-      );
-
-      // 保存分类设置
-      await AsyncStorage.setItem("kds_category", kdsCategory);
-
-      Alert.alert("成功", "设置已保存");
-    } catch (error) {
-      Alert.alert("错误", "保存设置失败");
-    }
-  }, [port, cardsPerRow, cardsPerColumn, kdsCategory]);
+    updateCallingButtonState();
+  }, [connectedCallingScreen]);
 
  
 
@@ -513,6 +505,7 @@ export default function SettingsScreen() {
             </View>
           ) : (
             <View style={styles.noConnectionsContainer}>
+              <Ionicons name="cloud-offline" size={24} color="#999" />
               <Text style={styles.noConnectionsText}>{t("noConnections")}</Text>
             </View>
           )}
@@ -520,7 +513,7 @@ export default function SettingsScreen() {
 
         {/* ========== Calling Screen Connection ========== */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Calling Screen</Text>
+          <Text style={styles.sectionTitle}>{t("callingScreen")}</Text>
 
           {connectedCallingScreen ? (
             <View style={styles.callingScreenConnectedContainer}>
@@ -558,27 +551,27 @@ export default function SettingsScreen() {
                 }}
               >
                 <Ionicons name="close-circle" size={18} color="white" />
-                <Text style={styles.disconnectButtonText}>Disconnect</Text>
+                <Text style={styles.disconnectButtonText}>{t("disconnect")}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.noCallingScreenContainer}>
-              <Ionicons name="cloud-offline" size={32} color="#999" />
-              <Text style={styles.noCallingScreenText}>No Calling Screen Connected</Text>
+              <Ionicons name="cloud-offline" size={24} color="#999" />
+              <Text style={styles.noCallingScreenText}>{t("noCallingScreenConnected")}</Text>
             </View>
           )}
 
           {/* Calling Screen Discovery 按钮 */}
           <TouchableOpacity
-            style={[styles.deviceDiscoveryButton]}
+            style={styles.deviceDiscoveryButton}
             onPress={() => setShowCallingScreenDiscovery(true)}
           >
-            <Text style={styles.deviceDiscoveryButtonText}>📡 Discover Calling Screen</Text>
+            <Text style={styles.deviceDiscoveryButtonText}>📡 {t("discoverCallingScreen")}</Text>
           </TouchableOpacity>
 
           {/* Calling Button 开关 */}
-          <View style={[styles.infoRow, { marginTop: 20 }]}>
-            <Text style={styles.infoLabel}>Calling Button</Text>
+          <View style={[styles.infoRow, styles.callingButtonRow]}>
+            <Text style={styles.infoLabel}>{t("showCallingButton")}</Text>
             <TouchableOpacity
               style={[styles.switchButton, enableCallingButton && styles.switchButtonActive]}
               onPress={() => handleCallingButtonChange(!enableCallingButton)}
@@ -594,79 +587,90 @@ export default function SettingsScreen() {
 
           {/* 屏幕方向切换 */}
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Screen Orientation</Text>
-            <TouchableOpacity
-              style={styles.orientationButton}
-              onPress={handleToggleScreenOrientation}
-            >
-              <Ionicons
-                name={screenOrientation === "portrait" ? "phone-portrait" : "phone-landscape"}
-                size={20}
-                color="white"
-              />
-              <Text style={styles.orientationButtonText}>
-                {screenOrientation === "portrait" ? "Portrait" : "Landscape"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
-            <View style={styles.pickerContainer}>
-              {screenOrientation === "landscape" && (
-                <Picker
-                  selectedValue={cardsPerRow || 5}
-                  style={styles.textPicker}
-                  onValueChange={handleCardsPerRowChange}
-                  dropdownIconColor="#666"
-                >
-                  <Picker.Item label="4" value={4} />
-                  <Picker.Item label="5" value={5} />
-                  <Picker.Item label="6" value={6} />
-                </Picker>
-              )}
-              {screenOrientation === "portrait" && (
-                <Picker
-                  selectedValue={cardsPerRow || 4}
-                  style={styles.textPicker}
-                  onValueChange={handleCardsPerRowChange}
-                  dropdownIconColor="#666"
-                >
-                  <Picker.Item label="3" value={3} />
-                  <Picker.Item label="4" value={4} />
-                  <Picker.Item label="5" value={5} />
-                </Picker>
-              )}
+            <Text style={styles.infoLabel}>{t("screenOrientation")}</Text>
+            <View style={styles.orientationModeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.orientationModeButton,
+                  screenOrientation === "landscape" && styles.orientationModeButtonActive
+                ]}
+                onPress={() => handleToggleScreenOrientation()}
+              >
+                <Ionicons
+                  name="phone-landscape"
+                  size={18}
+                  color={screenOrientation === "landscape" ? "white" : "#333"}
+                />
+                <Text style={[
+                  styles.orientationModeButtonText,
+                  screenOrientation === "landscape" && styles.orientationModeButtonTextActive
+                ]}>
+                  {t("landscape")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.orientationModeButton,
+                  screenOrientation === "portrait" && styles.orientationModeButtonActive
+                ]}
+                onPress={() => handleToggleScreenOrientation()}
+              >
+                <Ionicons
+                  name="phone-portrait"
+                  size={18}
+                  color={screenOrientation === "portrait" ? "white" : "#333"}
+                />
+                <Text style={[
+                  styles.orientationModeButtonText,
+                  screenOrientation === "portrait" && styles.orientationModeButtonTextActive
+                ]}>
+                  {t("portrait")}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Cards Per Column</Text>
-            <View style={styles.pickerContainer}>
-              {screenOrientation === "landscape" && (
-                <Picker
-                  selectedValue={cardsPerColumn || 2}
-                  style={styles.textPicker}
-                  onValueChange={handleCardsPerColumnChange}
-                  dropdownIconColor="#666"
-                >
-                  <Picker.Item label="1.75" value={1.75} />
-                  <Picker.Item label="2" value={2} />
-                  <Picker.Item label="2.25" value={2.25} />
-                </Picker>
-              )}
-              {screenOrientation === "portrait" && (
-                <Picker
-                  selectedValue={cardsPerColumn || 3.5}
-                  style={styles.textPicker}
-                  onValueChange={handleCardsPerColumnChange}
-                  dropdownIconColor="#666"
-                >
-                  <Picker.Item label="3.25" value={3.25} />
-                  <Picker.Item label="3.5" value={3.5} />
-                  <Picker.Item label="3.75" value={3.75} />
-                </Picker>
-              )}
+            <Text style={styles.infoLabel}>{t("orderCompletionMode")}</Text>
+            <View style={styles.completionModeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.completionModeButton,
+                  !enableItemLevelCompletion && styles.completionModeButtonActive
+                ]}
+                onPress={() => handleItemLevelCompletionChange(false)}
+              >
+                <Ionicons
+                  name="receipt"
+                  size={18}
+                  color={!enableItemLevelCompletion ? "white" : "#333"}
+                />
+                <Text style={[
+                  styles.completionModeButtonText,
+                  !enableItemLevelCompletion && styles.completionModeButtonTextActive
+                ]}>
+                  {t("fullOrder")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.completionModeButton,
+                  enableItemLevelCompletion && styles.completionModeButtonActive
+                ]}
+                onPress={() => handleItemLevelCompletionChange(true)}
+              >
+                <Ionicons
+                  name="checkmark"
+                  size={18}
+                  color={enableItemLevelCompletion ? "white" : "#333"}
+                />
+                <Text style={[
+                  styles.completionModeButtonText,
+                  enableItemLevelCompletion && styles.completionModeButtonTextActive
+                ]}>
+                  {t("itemLevel")}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -688,7 +692,67 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Show Print Button</Text>
+            <Text style={styles.infoLabel}>{t("cardsPerRow")}</Text>
+            <View style={styles.pickerContainer}>
+              {screenOrientation === "landscape" && (
+                <Picker
+                  selectedValue={cardsPerRow || 5}
+                  style={styles.textPicker}
+                  onValueChange={handleCardsPerRowChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label={t("large")} value={4} />
+                  <Picker.Item label={t("medium")} value={5} />
+                  <Picker.Item label={t("small")} value={6} />
+                </Picker>
+              )}
+              {screenOrientation === "portrait" && (
+                <Picker
+                  selectedValue={cardsPerRow || 4}
+                  style={styles.textPicker}
+                  onValueChange={handleCardsPerRowChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label={t("large")} value={3} />
+                  <Picker.Item label={t("medium")} value={4} />
+                  <Picker.Item label={t("small")} value={5} />
+                </Picker>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("cardsPerColumn")}</Text>
+            <View style={styles.pickerContainer}>
+              {screenOrientation === "landscape" && (
+                <Picker
+                  selectedValue={cardsPerColumn || 2}
+                  style={styles.textPicker}
+                  onValueChange={handleCardsPerColumnChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label={t("large")} value={1.75} />
+                  <Picker.Item label={t("medium")} value={2} />
+                  <Picker.Item label={t("small")} value={2.25} />
+                </Picker>
+              )}
+              {screenOrientation === "portrait" && (
+                <Picker
+                  selectedValue={cardsPerColumn || 3.5}
+                  style={styles.textPicker}
+                  onValueChange={handleCardsPerColumnChange}
+                  dropdownIconColor="#666"
+                >
+                  <Picker.Item label={t("large")} value={3.25} />
+                  <Picker.Item label={t("medium")} value={3.5} />
+                  <Picker.Item label={t("small")} value={3.75} />
+                </Picker>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("showPrintButton")}</Text>
             <TouchableOpacity
               style={[
                 styles.switchButton,
@@ -701,40 +765,6 @@ export default function SettingsScreen() {
                 showPrintButton && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("orderCompletionMode")}</Text>
-            <View style={styles.completionModeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.completionModeButton,
-                  !enableItemLevelCompletion && styles.completionModeButtonActive
-                ]}
-                onPress={() => handleItemLevelCompletionChange(false)}
-              >
-                <Text style={[
-                  styles.completionModeButtonText,
-                  !enableItemLevelCompletion && styles.completionModeButtonTextActive
-                ]}>
-                  {t("fullOrder")}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.completionModeButton,
-                  enableItemLevelCompletion && styles.completionModeButtonActive
-                ]}
-                onPress={() => handleItemLevelCompletionChange(true)}
-              >
-                <Text style={[
-                  styles.completionModeButtonText,
-                  enableItemLevelCompletion && styles.completionModeButtonTextActive
-                ]}>
-                  {t("itemLevel")}
-                </Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
 
@@ -755,10 +785,6 @@ export default function SettingsScreen() {
         onSelectDevice={(device) => {
           console.log('[Settings] Selected Calling Screen:', device);
           setConnectedCallingScreen(device);
-          Alert.alert(
-            t("success"),
-            `Connected to ${device.name}\n${device.ip}:${device.port}`
-          );
         }}
       />
     </>
@@ -862,7 +888,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
-    marginTop: 16,
+    marginVertical: 10,
+    minHeight: 65,
   },
   infoRowColumn: {
     paddingVertical: 8,
@@ -870,7 +897,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f0f0f0",
     alignItems: "flex-start",
     gap: 10,
-    marginTop: 16,
   },
   infoLabel: {
     fontSize: 16,
@@ -1124,14 +1150,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   noConnectionsContainer: {
+    flexDirection: "row",
     paddingVertical: 20,
     alignItems: "center",
     justifyContent: "center",
+    gap: 12,
   },
   noConnectionsText: {
     fontSize: 14,
     color: "#999",
     fontStyle: "italic",
+  },
+  orientationModeContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  orientationModeButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#e0e0e0",
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  orientationModeButtonActive: {
+    backgroundColor: "#2196F3",
+  },
+  orientationModeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  orientationModeButtonTextActive: {
+    color: "white",
   },
   orientationButton: {
     flexDirection: "row",
@@ -1164,6 +1217,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     minWidth: 100,
+    flexDirection: "row",
+    gap: 8,
   },
   completionModeButtonActive: {
     backgroundColor: "#2196F3",
@@ -1175,6 +1230,11 @@ const styles = StyleSheet.create({
   },
   completionModeButtonTextActive: {
     color: "white",
+  },
+  callingButtonRow: {
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    marginTop: 10,
   },
   callingScreenConnectedContainer: {
     flexDirection: "row",
@@ -1220,6 +1280,7 @@ const styles = StyleSheet.create({
     minWidth: 50,
   },
   noCallingScreenContainer: {
+    flexDirection: "row",
     paddingVertical: 20,
     alignItems: "center",
     justifyContent: "center",

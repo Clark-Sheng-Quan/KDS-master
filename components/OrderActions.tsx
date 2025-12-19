@@ -7,6 +7,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { colors } from "../styles/color";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface OrderActionsProps {
   orderId: string;
@@ -14,6 +15,7 @@ interface OrderActionsProps {
   onCancel: () => void;
   onCall?: () => void;
   showCallButton?: boolean;
+  callButtonPressed?: boolean;
   style?: ViewStyle;
 }
 
@@ -23,23 +25,31 @@ export const OrderActions: React.FC<OrderActionsProps> = React.memo(({
   onCancel,
   onCall,
   showCallButton = false,
+  callButtonPressed = false,
   style,
 }) => {
+  const { t } = useLanguage();
+  const isDoneDisabled = showCallButton && !callButtonPressed;
+  
   return (
     <View style={[styles.buttonContainer, style]}>
       {showCallButton ? (
         <>
-          <TouchableOpacity style={[styles.button, styles.doneButton]} onPress={onDone}>
-            <Text style={styles.buttonText}>Done</Text>
+          <TouchableOpacity 
+            style={[styles.button, styles.doneButton, isDoneDisabled && styles.buttonDisabled]} 
+            onPress={onDone}
+            disabled={isDoneDisabled}
+          >
+            <Text style={[styles.buttonText, isDoneDisabled && styles.buttonTextDisabled]}>{t("done")}</Text>
           </TouchableOpacity>
           <View style={styles.buttonDivider} />
           <TouchableOpacity style={[styles.button, styles.callButton]} onPress={onCall}>
-            <Text style={styles.buttonText}>Call</Text>
+            <Text style={styles.buttonText}>{t("call")}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <TouchableOpacity style={styles.button} onPress={onDone}>
-          <Text style={styles.buttonText}>Done</Text>
+          <Text style={styles.buttonText}>{t("done")}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -77,5 +87,11 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonTextDisabled: {
+    color: "rgba(255, 255, 255, 0.5)",
   },
 });
