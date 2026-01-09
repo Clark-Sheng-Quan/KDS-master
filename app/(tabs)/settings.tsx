@@ -24,8 +24,9 @@ import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
 import { useFocusEffect } from "@react-navigation/native";
-import { CallingScreenDevice } from "@/services/CallingScreenService";
+import { CallingScreenDevice, callingScreenService } from "@/services/CallingScreenService";
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
+import { OrderService } from "@/services/orderService/OrderService";
 
 // 本地定义 CategoryType - 厨房分类设置
 enum CategoryType {
@@ -226,6 +227,55 @@ export default function SettingsScreen() {
     };
 
     updateCallingButtonState();
+  }, [connectedCallingScreen]);
+
+  // 监听 Calling Screen 连接，同步已有订单到 Calling Screen
+  useEffect(() => {
+    const syncOrdersToCallingScreen = async () => {
+      if (connectedCallingScreen) {
+        try {
+          console.log('[Settings] Calling Screen connected - Syncing existing orders');
+          
+          // 获取所有当前订单（合并网络订单和TCP订单）
+          const allOrders = await OrderService.getAllOrders();
+          
+          if (allOrders && allOrders.length > 0) {
+            console.log(`[Settings] Found ${allOrders.length} orders to sync`);
+            
+            // 逐个发送订单通知
+            for (const order of allOrders) {
+              try {
+                const orderNumber = String(order.num || order.id.substring(0, 8));
+                const itemCount = order.products?.reduce((total, item) => total + (item.quantity || 1), 0) || 0;
+                
+                await callingScreenService.notifyOrderAdded(
+                  connectedCallingScreen,
+                  order._id,
+                  orderNumber,
+                  itemCount,
+                  order.tableNumber
+                );
+                
+                console.log(`[Settings] Synced order ${orderNumber} to Calling Screen`);
+              } catch (error) {
+                console.warn(`[Settings] Failed to sync order ${order.id}:`, error);
+              }
+            }
+            
+            console.log(`[Settings] Finished syncing ${allOrders.length} orders`);
+          } else {
+            console.log('[Settings] No orders to sync');
+          }
+        } catch (error) {
+          console.error('[Settings] Error syncing orders to Calling Screen:', error);
+        }
+      }
+    };
+
+    // 仅在 connectedCallingScreen 从 null 变为有值时同步
+    if (connectedCallingScreen) {
+      syncOrdersToCallingScreen();
+    }
   }, [connectedCallingScreen]);
 
  
