@@ -163,10 +163,10 @@ export default function CompletedScreen() {
   const handleCleanExpired = async () => {
     try {
       await cleanExpiredOrdersNow();
-      Alert.alert(t("success") || "成功", "已清理过期订单");
+      Alert.alert(t("success") || "成功", t("cleanedExpiredOrders"));
     } catch (error) {
       console.error("清理过期订单失败:", error);
-      Alert.alert(t("error"), "清理过期订单失败");
+      Alert.alert(t("error"), t("failedToCleanExpiredOrders"));
     }
   };
 
@@ -229,7 +229,7 @@ export default function CompletedScreen() {
               style={styles.buttonIcon}
             />
             <Text style={styles.cleanButtonText}>
-              清理过期
+              {t("cleanExpiredOrders")}
             </Text>
           </TouchableOpacity>
         </View>

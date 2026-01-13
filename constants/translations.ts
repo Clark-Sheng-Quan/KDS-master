@@ -322,6 +322,10 @@ export const translations = {
     days: "天",
     day: "天",
     today: "今天",
+    cleanExpiredOrders: "清理过期",
+    cleanedExpiredOrders: "已清理过期订单",
+    failedToCleanExpiredOrders: "清理过期订单失败",
+    queryRange: "查询范围",
   },
   
   en: {
@@ -634,6 +638,10 @@ export const translations = {
     days: "Days",
     day: "Day",
     today: "Today",
+    cleanExpiredOrders: "Clean Expired",
+    cleanedExpiredOrders: "Expired orders cleaned",
+    failedToCleanExpiredOrders: "Failed to clean expired orders",
+    queryRange: "Query Range",
   }
 };
 

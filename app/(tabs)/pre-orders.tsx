@@ -132,14 +132,21 @@ export default function PreOrdersScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={{ flexGrow: 1 }}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+      >
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>
-            {selectedShopName
-              ? `${selectedShopName.toUpperCase()} ${t("preOrders")}`
-              : t("preOrders")}{" "}
-            ({orders.length})
-          </Text>
+          <View style={styles.titleSection}>
+            <Text style={styles.title}>
+              {selectedShopName
+                ? `${selectedShopName.toUpperCase()} ${t("preOrders")}`
+                : t("preOrders")}{" "}
+              ({orders.length})
+            </Text>
+          </View>
           <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
         </View>
 
@@ -166,28 +173,4 @@ export default function PreOrdersScreen() {
   );
 }
 
-const preOrdersStyles = {
-  headerContainer: {
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    alignItems: "center" as const,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold" as const,
-    color: "#1a1a1a",
-    flex: 1,
-  },
-  timeDisplay: {
-    fontSize: 18,
-    fontWeight: "bold" as const,
-    color: "#333",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 6,
-  },
-};
-
-const styles = { ...cardStyles, ...preOrdersStyles };
+const styles = cardStyles;

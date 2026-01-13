@@ -16,7 +16,6 @@ import { PrintButton } from "./PrintButton";
 import { ConfirmModal, showConfirmAlert } from "./ReuseComponents/ConfirmModal";
 import { colors, sourceColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
-import { useCategoryColors } from "../contexts/CategoryColorContext";
 import { useCompletedOrders } from "../contexts/CompletedOrderContext";
 import { theme } from "../styles/theme";
 import { ProductDetailPopup, checkProductHasRecipe } from "./ProductDetailPopup";
@@ -69,7 +68,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   hideBadges = false,
 }) => {
   const { t } = useLanguage();
-  const { getCategoryColor, categoryColorMap } = useCategoryColors();
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
@@ -409,7 +407,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
 
   const renderProductItem = useCallback((item: any, index: number) => {
-    const categoryColor = getCategoryColor(item.category);
     const isVoided = item.itemState === 'VOIDED';
 
     const handleItemPress = () => {
@@ -456,7 +453,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           ) : !enableItemLevelCompletion && completedItemsRef.current[`${order.id}-item-${index}`] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
-            <Text style={[styles.itemQuantity, { color: categoryColor }]}>x{item.quantity}</Text>
+            <Text style={styles.itemQuantity}>x{item.quantity}</Text>
           )}
         </TouchableOpacity>
 
@@ -491,7 +488,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
       </View>
     );
-  }, [disabled, disableItems, getCategoryColor, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger]);
+  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger]);
 
   if (!order.products || !Array.isArray(order.products)) {
     console.error('[OrderCard] Order has no products array:', order);
@@ -546,7 +543,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={true}
           nestedScrollEnabled={true}
-          scrollIndicatorInsets={{ right: 1 }}
+          scrollIndicatorInsets={{ right: 0 }}
           style={styles.scrollViewContainer}
           onLayout={(event) => {
             // 获取ScrollView容器的实际高度
@@ -597,12 +594,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
         </ScrollView>
 
-        {/* 只在可以滚动时显示提示 - 固定在右下角 */}
-        {isScrollable && (
-          <View style={[styles.scrollIndicatorText, scrollIndicatorAtBottom && styles.scrollIndicatorAtBottom]}>
-            <Text style={styles.scrollMoreText}>↓ {t("moreItems")}</Text>
-          </View>
-        )}
         {!disabled && !hideActions && (
           <OrderActions
             orderId={order.id}
@@ -710,6 +701,8 @@ const styles = StyleSheet.create({
   scrollViewContainer: {
     flex: 1,
     minHeight: 0,
+    borderRightWidth: 3,
+    borderRightColor: "#e0e0e0",
   },
   textContainer: {
     flex: 1,
@@ -868,21 +861,5 @@ const styles = StyleSheet.create({
     right: 8,
     borderRadius: 12,
     padding: 2,
-  },
-  scrollIndicatorText: {
-    position: "absolute",
-    bottom: 50,
-    right: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-  },
-  scrollIndicatorAtBottom: {
-    bottom: 0,
-  },
-  scrollMoreText: {
-    fontSize: 11,
-    color: "#00a8e8",
-    fontWeight: "600",
   },
 });

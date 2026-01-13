@@ -18,6 +18,7 @@ const listeners = new Set<AuthStateListener>();
 export const getToken = async (): Promise<string | null> => {
   try {
     const token = await AsyncStorage.getItem('token');
+    // console.log("Retrieved token:", token);
     return token;
   } catch (error) {
     console.error("获取token错误:", error);

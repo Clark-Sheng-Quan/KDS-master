@@ -8,6 +8,7 @@ import {
   Alert,
   FlatList,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { OrderCard } from "../../components/OrderCard";
 import { OrderService } from "../../services/orderService";
 import { FormattedOrder } from "../../services/types";
@@ -40,6 +41,7 @@ export default function HistoryScreen() {
   const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
+  const [queryRange, setQueryRange] = useState<string>("today");
 
   // 处理订单选择 - 使用 useCallback 避免在每次渲染时创建新函数
   const handleOrderSelect = useCallback((order: FormattedOrder) => {
@@ -53,22 +55,31 @@ export default function HistoryScreen() {
 
   // FlatList renderItem 回调 - 只在显示时才渲染
   const renderOrderCard = useCallback(
-    ({ item, index }: { item: FormattedOrder; index: number }) => (
-      <OrderCard
-        order={item}
-        style={[styles.cardStyle, cardStylesMap[index]]}
-        disabled={false}
-        selectable={true}
-        selected={selectedOrder?.id === item.id}
-        onSelect={() => handleOrderSelect(item)}
-        hideTimer={true}
-        hideActions={true}
-        rightCompact={true}
-        scrollIndicatorAtBottom={true}
-        disableItems={true}
-      />
-    ),
-    [selectedOrder?.id]
+    ({ item, index }: { item: FormattedOrder; index: number }) => {
+      // 使用默认样式，如果 cardStylesMap 还没计算出来
+      const defaultStyle = {
+        width: (availableWidth) / cardsPerRow - 10,
+        height: 400,
+      };
+      const cardStyle = cardStylesMap[index] || defaultStyle;
+      
+      return (
+        <OrderCard
+          order={item}
+          style={[styles.cardStyle, cardStyle]}
+          disabled={false}
+          selectable={true}
+          selected={selectedOrder?.id === item.id}
+          onSelect={() => handleOrderSelect(item)}
+          hideTimer={true}
+          hideActions={true}
+          rightCompact={true}
+          scrollIndicatorAtBottom={true}
+          disableItems={true}
+        />
+      );
+    },
+    [selectedOrder?.id, cardStylesMap, cardsPerRow]
   );
 
   // 加载历史订单
@@ -175,10 +186,24 @@ export default function HistoryScreen() {
         <Text style={styles.headerText}>
           {t("searchHistory")} ({historyOrders.length})
         </Text>
+        
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterLabel}>{t("queryRange")}:</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={queryRange}
+              style={styles.picker}
+              onValueChange={(itemValue) => setQueryRange(itemValue)}
+              dropdownIconColor="#333"
+            >
+              <Picker.Item label={t("today")} value="today" />
+            </Picker>
+          </View>
+        </View>
       </View>
 
       <FlatList
-        data={cardStylesMap.length > 0 ? historyOrders : []}
+        data={historyOrders}
         renderItem={renderOrderCard}
         keyExtractor={(item) => item?.id || Math.random().toString()}
         numColumns={cardsPerRow}
@@ -214,10 +239,38 @@ const historyStyles = {
     backgroundColor: theme.colors.backgroundColor,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
+    zIndex: 1000,
   },
   headerText: {
     fontSize: 24,
     fontWeight: "bold" as const,
+  },
+  filterContainer: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 12,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: "500" as const,
+    color: "#333",
+    minWidth: 70,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 6,
+    overflow: "visible" as const,
+    backgroundColor: "white",
+    minWidth: 160,
+    height: 60,
+    justifyContent: "center" as const,
+  },
+  picker: {
+    height: 60,
+    width: 160,
+    color: "#333",
+    fontSize: 16,
   },
   scrollContainer: {
     flex: 1,
