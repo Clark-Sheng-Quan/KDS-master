@@ -9,8 +9,9 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
-  Modal,
+  Animated,
   Alert,
+  Modal,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { StockService, StockItem } from "../services/stockService";
@@ -63,6 +64,36 @@ const StockManagementScreen = () => {
     id: string;
     name: string;
   } | null>(null);
+
+  // 动画值
+  const refillFadeAnim = new Animated.Value(refillModalVisible ? 1 : 0);
+  const prepTimeFadeAnim = new Animated.Value(prepTimeModalVisible ? 1 : 0);
+  const colorPickerFadeAnim = new Animated.Value(showColorPicker ? 1 : 0);
+
+  // 动画 useEffect
+  useEffect(() => {
+    Animated.timing(refillFadeAnim, {
+      toValue: refillModalVisible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [refillModalVisible]);
+
+  useEffect(() => {
+    Animated.timing(prepTimeFadeAnim, {
+      toValue: prepTimeModalVisible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [prepTimeModalVisible]);
+
+  useEffect(() => {
+    Animated.timing(colorPickerFadeAnim, {
+      toValue: showColorPicker ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [showColorPicker]);
 
   // 修改仓库相关状态类型
   const [warehouses, setWarehouses] = useState<{ [key: string]: string }>({});
@@ -594,13 +625,29 @@ const StockManagementScreen = () => {
 
   // 添加颜色选择器模态框
   const renderColorPickerModal = () => (
-    <Modal
-      visible={showColorPicker}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowColorPicker(false)}
-    >
-      <View style={styles.modalOverlay}>
+    <>
+      <Animated.View
+        style={[
+          styles.backdrop,
+          { opacity: colorPickerFadeAnim },
+          showColorPicker && styles.backdropVisible,
+        ]}
+        pointerEvents={showColorPicker ? "auto" : "none"}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowColorPicker(false)}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.animatedModalContainer,
+          { opacity: colorPickerFadeAnim },
+          showColorPicker && styles.animatedModalVisible,
+        ]}
+        pointerEvents={showColorPicker ? "auto" : "none"}
+      >
         <View style={styles.colorPickerModal}>
           <Text style={styles.modalTitle}>
             {t("selectColor")} - {categoryForColoring}
@@ -632,8 +679,8 @@ const StockManagementScreen = () => {
             <Text style={styles.cancelButtonText}>{t("cancel")}</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </Modal>
+      </Animated.View>
+    </>
   );
 
   // 更新准备时间 - 显示输入对话框
@@ -719,13 +766,29 @@ const StockManagementScreen = () => {
       <StatusBar barStyle="dark-content" backgroundColor="#f8f8f8" />
 
       {/* 库存补充输入弹窗 */}
-      <Modal
-        visible={refillModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setRefillModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
+      <>
+        <Animated.View
+          style={[
+            styles.backdrop,
+            { opacity: refillFadeAnim },
+            refillModalVisible && styles.backdropVisible,
+          ]}
+          pointerEvents={refillModalVisible ? "auto" : "none"}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setRefillModalVisible(false)}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.animatedModalContainer,
+            { opacity: refillFadeAnim },
+            refillModalVisible && styles.animatedModalVisible,
+          ]}
+          pointerEvents={refillModalVisible ? "auto" : "none"}
+        >
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>{t("updateStock")}</Text>
             <Text style={styles.modalSubtitle}>{t("enterStockQuantity")}:</Text>
@@ -752,17 +815,33 @@ const StockManagementScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Animated.View>
+      </>
 
       {/* 准备时间更新弹窗 */}
-      <Modal
-        visible={prepTimeModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setPrepTimeModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
+      <>
+        <Animated.View
+          style={[
+            styles.backdrop,
+            { opacity: prepTimeFadeAnim },
+            prepTimeModalVisible && styles.backdropVisible,
+          ]}
+          pointerEvents={prepTimeModalVisible ? "auto" : "none"}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setPrepTimeModalVisible(false)}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.animatedModalContainer,
+            { opacity: prepTimeFadeAnim },
+            prepTimeModalVisible && styles.animatedModalVisible,
+          ]}
+          pointerEvents={prepTimeModalVisible ? "auto" : "none"}
+        >
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>{t("updatePrepTime")}</Text>
             <Text style={styles.modalSubtitle}>{t("enterPrepTime")}:</Text>
@@ -789,8 +868,8 @@ const StockManagementScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Animated.View>
+      </>
 
       {/* 添加颜色选择器模态框 */}
       {renderColorPickerModal()}
@@ -1267,6 +1346,31 @@ const styles = StyleSheet.create({
   },
 
   // ========== Modal Styles ==========
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 998,
+  },
+  backdropVisible: {
+    zIndex: 998,
+  },
+  animatedModalContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  animatedModalVisible: {
+    zIndex: 999,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

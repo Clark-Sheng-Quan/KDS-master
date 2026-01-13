@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
+  Animated,
   Alert,
   RefreshControl,
 } from 'react-native';
@@ -39,6 +39,17 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
   const [connecting, setConnecting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // 动画值
+  const fadeAnim = useMemo(() => new Animated.Value(visible ? 1 : 0), [visible]);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: visible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [visible, fadeAnim]);
 
   // 只过滤 Calling Screen 设备（CS: 前缀）
   const callingScreenDevices = devices.filter(
@@ -99,12 +110,31 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <>
+      {/* 背景 */}
+      <Animated.View
+        style={[
+          styles.backdrop,
+          { opacity: fadeAnim, pointerEvents: visible ? "auto" : "none" },
+        ]}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={onClose}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
+
+      {/* 面板 */}
+      <Animated.View
+        style={[
+          styles.panelContainer,
+          {
+            opacity: fadeAnim,
+            pointerEvents: visible ? "auto" : "none",
+          },
+        ]}
+      >
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -162,7 +192,8 @@ export const CallingScreenDiscoveryPanel: React.FC<CallingScreenDiscoveryPanelPr
           )}
         </ScrollView>
       </View>
-    </Modal>
+      </Animated.View>
+    </>
   );
 };
 
@@ -218,6 +249,18 @@ const CallingScreenDeviceCard: React.FC<CallingScreenDeviceCardProps> = ({
 };
 
 const styles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  panelContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#f5f5f5",
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

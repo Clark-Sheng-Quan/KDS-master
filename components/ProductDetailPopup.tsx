@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   View,
   Text,
-  Modal,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -186,12 +186,32 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
   const [productDetail, setProductDetail] =
     React.useState<ProductDetail | null>(null);
   const [loading, setLoading] = React.useState(false);
+  
+  // 动画值
+  const fadeAnim = useMemo(() => new Animated.Value(visible ? 1 : 0), [visible]);
+  const scaleAnim = useMemo(() => new Animated.Value(visible ? 1 : 0.8), [visible]);
 
   React.useEffect(() => {
     if (visible && productId) {
       loadProductDetail();
     }
   }, [visible, productId]);
+
+  // 处理动画
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: visible ? 1 : 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: visible ? 1 : 0.8,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [visible, fadeAnim, scaleAnim]);
 
   const loadProductDetail = async () => {
     try {
@@ -209,18 +229,37 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
     }
   };
 
-  if (!productDetail) {
+  if (!productDetail || !visible) {
     return null;
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
+    <>
+      {/* 背景遮挡 */}
+      <Animated.View
+        style={[
+          styles.backdrop,
+          { opacity: fadeAnim, pointerEvents: visible ? "auto" : "none" },
+        ]}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={onClose}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
+
+      {/* 弹窗内容 */}
+      <Animated.View
+        style={[
+          styles.modalOverlay,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+            pointerEvents: visible ? "auto" : "none",
+          },
+        ]}
+      >
         <View style={styles.modalContainer}>
           <View style={styles.header}>
             <Text style={styles.title}>{productDetail.name}</Text>
@@ -268,17 +307,26 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
             )}
           </ScrollView>
         </View>
-      </View>
-    </Modal>
+      </Animated.View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.6)",
+    zIndex: 999,
+  },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1000,
   },
   modalContainer: {
     height: "80%",

@@ -7,8 +7,8 @@ import {
   Image,
   Alert,
   ScrollView,
-  Modal,
   Dimensions,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
@@ -83,22 +83,46 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
 
   const menuWidth = useMemo(() => Math.min(width * 0.4, 400), [width]); // 菜单宽度为屏幕的40%，最大400px
 
+  // 添加动画值
+  const slideAnim = useMemo(() => new Animated.Value(isOpen ? 0 : -menuWidth), [isOpen, menuWidth]);
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isOpen ? 0 : -menuWidth,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [isOpen, slideAnim, menuWidth]);
+
+  if (!isOpen) {
+    return null; // 菜单关闭时不渲染
+  }
+
   return (
-    <Modal
-      visible={isOpen}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      {/* 半透明背景 */}
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      />
+    <>
+      {/* 全屏背景 */}
+      <Animated.View
+        style={[styles.backdrop, { opacity: slideAnim.interpolate({
+          inputRange: [-menuWidth, 0],
+          outputRange: [0, 1],
+        })}]}
+        pointerEvents={isOpen ? "auto" : "none"}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={onClose}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
 
       {/* 侧边菜单 */}
-      <View style={[styles.menuContainer, { width: menuWidth }]}>
+      <Animated.View
+        style={[
+          styles.menuContainer,
+          { width: menuWidth, transform: [{ translateX: slideAnim }] },
+        ]}
+        pointerEvents={isOpen ? "auto" : "none"}
+      >
         <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* 关闭按钮 */}
           <TouchableOpacity
@@ -220,13 +244,13 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
             <Text style={styles.logoutButtonText}>{t("logout")}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </View>
-    </Modal>
+      </Animated.View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
