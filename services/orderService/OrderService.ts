@@ -578,8 +578,8 @@ export class OrderService {
       this.stopNetworkPolling();
     }
     
-    // 使用更长的轮询间隔 (5秒)
-    const pollingInterval = 5000; // 5秒
+    // 使用更长的轮询间隔 (30秒)
+    const pollingInterval = 30000; // 30秒
     console.log(`开始网络订单轮询，间隔: ${pollingInterval}ms，当前时间: ${new Date().toISOString()}`);
     
     // 立即执行一次

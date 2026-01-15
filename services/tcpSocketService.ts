@@ -489,8 +489,9 @@ export class TCPSocketService {
       this.executeOrderCallbacks(formattedOrder);
       
     } else {
-      // Other message types - log and ignore
-      console.log(`[TCP] Ignoring message type: ${messageType}`);
+      // Other message types - log with full data
+      console.log(`[TCP] Received non-order message type: ${messageType}`);
+      console.log(`[TCP] Message data:`, JSON.stringify(jsonData, null, 2));
     }
   }
 

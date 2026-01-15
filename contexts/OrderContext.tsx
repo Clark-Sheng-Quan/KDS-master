@@ -118,6 +118,14 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         // 再初始化DistributionService
         await DistributionService.initialize();
 
+        // // 启动TCP Server
+        // const tcpStarted = await TCPSocketService.startServer();
+        // if (tcpStarted) {
+        //   console.log('[OrderContext] TCP Server started successfully');
+        // } else {
+        //   console.warn('[OrderContext] Failed to start TCP Server');
+        // }
+
         // 加载已保存的订单
         const savedNetworkOrders = await OrderService.loadNetworkOrders();
         const savedTcpOrders = await OrderService.loadTCPOrders();
