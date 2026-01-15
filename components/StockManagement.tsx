@@ -797,7 +797,7 @@ const StockManagementScreen = () => {
               value={refillQuantity}
               onChangeText={setRefillQuantity}
               keyboardType="numeric"
-              autoFocus={true}
+              autoFocus={refillModalVisible}
               placeholder={t("enterStockQuantity")}
             />
             <View style={styles.modalButtons}>
@@ -850,7 +850,7 @@ const StockManagementScreen = () => {
               value={prepareTime}
               onChangeText={setPrepareTime}
               keyboardType="numeric"
-              autoFocus={true}
+              autoFocus={prepTimeModalVisible}
               placeholder={t("enterPrepTime")}
             />
             <View style={styles.modalButtons}>
