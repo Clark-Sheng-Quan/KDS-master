@@ -121,7 +121,6 @@ export class TCPSocketService {
           // Save POS IP for reference
           this.masterIP = remoteIP;
           this.posIP = remoteIP;
-          console.log(`[TCP] Saved masterIP: ${this.masterIP}, posIP: ${this.posIP}`);
           
           
           // Update connection status - mark as connected
@@ -281,7 +280,6 @@ export class TCPSocketService {
                   charPosition++;
                 }
                 
-                console.log(`[HTTP] ========== COMPLETE HTTP MESSAGE RECEIVED ==========`);
                 
                 // Reset buffer for next request (keep any excess data)
                 const excessData = dataBuffer.substring(charPosition);
@@ -356,7 +354,7 @@ export class TCPSocketService {
               // No more connections from this IP
               this.connectionStatus.set(remoteIP, false);
               console.log(`[TCP] All connections from ${remoteIP} closed`);
-              
+              console.log(`[HTTP] ========== HTTP CONNECTION COMPLETE ==========`);
               if (this.connectionStatusCallback) {
                 this.connectionStatusCallback('disconnected');
               }
@@ -470,9 +468,11 @@ export class TCPSocketService {
       }
       
     } else if ((jsonData.type === 'POS' || jsonData.orderType === 'POS') && jsonData.orderitems && jsonData.id) {
-      // Handle POS order format (contains orderitems array, needs formatting)
-      // Convert format and process
+      // Handle POS order format (contains orderitems array, needs formatting);
+      console.log(`[TCP] Message data:`, JSON.stringify(jsonData, null, 2));
+        // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
+      console.log(`[TCP] Formatted Order: ${formattedOrder}`);
       
       // Also try to capture device name from order if this is first connection
       const clientIP = this.getSocketIP(socket);
@@ -490,8 +490,7 @@ export class TCPSocketService {
       
     } else {
       // Other message types - log with full data
-      console.log(`[TCP] Received non-order message type: ${messageType}`);
-      console.log(`[TCP] Message data:`, JSON.stringify(jsonData, null, 2));
+      // console.log(`[TCP] Received non-order message type: ${messageType}`);
     }
   }
 
@@ -598,6 +597,7 @@ export class TCPSocketService {
       this.persistentConnections.clear();
       
       console.log(`[TCP] All connections closed - Ready for new connection`);
+      
     }
     
     if (this.connectionStatusCallback) {

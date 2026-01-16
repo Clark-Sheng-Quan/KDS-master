@@ -1,13 +1,13 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   ScrollView,
   ActivityIndicator,
   Text,
   Dimensions,
-  Modal,
   TouchableOpacity,
   FlatList,
+  Animated,
 } from "react-native";
 import { OrderCard } from "../../components/OrderCard";
 import { ItemCompletionToast } from "../../components/ItemCompletionToast";
@@ -52,6 +52,16 @@ export default function HomeScreen() {
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
   const recallingItemsRef = useRef<Set<string>>(new Set());  // 用 useRef 来同步控制，避免竞速问题，不显示 UI
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
+  const recentMenuAnimValue = useMemo(() => new Animated.Value(0), []);
+
+  // 动画处理 - 最近订单菜单
+  useEffect(() => {
+    Animated.timing(recentMenuAnimValue, {
+      toValue: showRecentItemsMenu ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [showRecentItemsMenu, recentMenuAnimValue]);
 
   // 更新当前时间
   useEffect(() => {
@@ -347,16 +357,17 @@ export default function HomeScreen() {
               {t("newOrders")} ({filteredOrders.length})
             </Text>
           </View>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
             {enableItemLevelCompletion && (
               <TouchableOpacity 
                 onPress={() => setShowRecentItemsMenu(true)}
-                style={{padding: 8}}
               >
-                <Ionicons name="list" size={24} color={theme.colors.primaryColor} />
+                <Ionicons name="list" size={40} color={theme.colors.primaryColor} />
               </TouchableOpacity>
             )}
-            <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
+            <View style={styles.timeDisplayContainer}>
+              <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
+            </View>
           </View>
         </View>
 
@@ -382,48 +393,73 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <Modal
-        visible={showRecentItemsMenu && enableItemLevelCompletion}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowRecentItemsMenu(false)}
-      >
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          {/* Transparent left 2/3 for dismissing */}
+      {/* Recent Items Menu - Animated Overlay */}
+      {showRecentItemsMenu && enableItemLevelCompletion && (
+        <>
+          {/* Backdrop */}
           <TouchableOpacity
-            style={{ flex: 2 }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 999,
+            }}
             onPress={() => setShowRecentItemsMenu(false)}
             activeOpacity={1}
           />
 
-          {/* Right 1/3 menu */}
-          <View
+          {/* Animated Menu - Top aligned */}
+          <Animated.View
             style={{
-              flex: 1,
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              height: dimensions.height * 0.7,
+              width: Math.max(dimensions.width * 0.35, 320),
+              maxWidth: dimensions.width * 0.55,
               backgroundColor: '#fff',
-              borderLeftWidth: 1,
-              borderLeftColor: '#ddd',
+              borderRadius: 16,
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              zIndex: 1000,
+              overflow: 'hidden',
+              transform: [
+                {
+                  translateX: recentMenuAnimValue.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [Math.max(dimensions.width * 0.35, 320) + 32, 0],
+                  }),
+                },
+              ],
             }}
           >
             {/* Header */}
             <View
               style={{
-                padding: 16,
+                padding: 18,
+                paddingBottom: 14,
                 flexDirection: 'row',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 borderBottomWidth: 1,
-                borderBottomColor: '#ddd',
+                borderBottomColor: '#f0f0f0',
+                backgroundColor: '#fafafa',
               }}
             >
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#000' }}>
-                Recent Completed Items
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', flex: 1 }}>
+                {t("recentlyCompleted")}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowRecentItemsMenu(false)}
-                style={{ padding: 4 }}
+                style={{ padding: 8, marginLeft: 8 }}
               >
-                <Ionicons name="close" size={24} color="#000" />
+                <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
 
@@ -447,45 +483,47 @@ export default function HomeScreen() {
                 renderItem={({ item: menuItem }) => (
                   <View
                     style={{
-                      padding: 12,
+                      padding: 14,
                       borderBottomWidth: 1,
-                      borderBottomColor: '#eee',
+                      borderBottomColor: '#f5f5f5',
                     }}
                   >
                     {/* Order Number */}
                     <Text
                       style={{
-                        fontWeight: 'bold',
-                        fontSize: 14,
-                        marginBottom: 4,
-                        color: '#000',
+                        fontWeight: '700',
+                        fontSize: 16,
+                        marginBottom: 6,
+                        color: '#1a1a1a',
                       }}
                     >
-                      Order #{menuItem.orderNum}
+                      {t("order")} #{menuItem.orderNum}
                     </Text>
 
                     {/* Table Number */}
                     {menuItem.tableNumber && (
                       <Text
                         style={{
-                          fontSize: 12,
-                          marginBottom: 4,
-                          color: '#666',
+                          fontSize: 14,
+                          marginBottom: 6,
+                          color: '#888',
+                          fontWeight: '500',
                         }}
                       >
-                        Table: {menuItem.tableNumber}
+                        {t("table")} {menuItem.tableNumber}
                       </Text>
                     )}
 
                     {/* Item Name with Quantity */}
                     <Text
                       style={{
-                        fontSize: 13,
-                        marginBottom: 8,
-                        color: '#000',
+                        fontSize: 14,
+                        marginBottom: 10,
+                        color: '#333',
+                        fontWeight: '600',
                       }}
                     >
-                      {menuItem.itemName} {menuItem.itemQuantity > 1 ? `x${menuItem.itemQuantity}` : ''}
+                      {menuItem.itemName} {menuItem.itemQuantity > 1 ? `× ${menuItem.itemQuantity}` : ''}
                     </Text>
 
                     {/* Recall Button */}
@@ -495,10 +533,15 @@ export default function HomeScreen() {
                         handleRecallItem(menuItem);
                       }}
                       style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
                         backgroundColor: theme.colors.primaryColor,
-                        borderRadius: 4,
+                        borderRadius: 8,
+                        elevation: 1,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 2,
                       }}
                     >
                       <Text
@@ -506,10 +549,10 @@ export default function HomeScreen() {
                           color: 'white',
                           textAlign: 'center',
                           fontWeight: '600',
-                          fontSize: 12,
+                          fontSize: 14,
                         }}
                       >
-                        Recall
+                        {t("recall")}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -518,17 +561,19 @@ export default function HomeScreen() {
                   `${item.completedOrder.order.id}-${item.itemId}-${idx}`
                 }
                 contentContainerStyle={{ paddingBottom: 16 }}
+                scrollEnabled={true}
               />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={{ color: '#999', fontSize: 14 }}>
-                  No recent items
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
+                <Ionicons name="list" size={48} color="#ddd" />
+                <Text style={{ color: '#aaa', fontSize: 15, marginTop: 12, textAlign: 'center' }}>
+                  {t("noRecentlyCompletedItems")}
                 </Text>
               </View>
             )}
-          </View>
-        </View>
-      </Modal>
+          </Animated.View>
+        </>
+      )}
       
       <ItemCompletionToast
         visible={toastVisible}
@@ -542,4 +587,59 @@ export default function HomeScreen() {
   );
 }
 
-const styles = cardStylesSheet;
+const styles = {
+  ...cardStylesSheet,
+  cardsContainer: {
+    ...cardStylesSheet.cardsContainer,
+    backgroundColor: "#ccc8c8",
+  },
+  cardStyle: {
+    ...cardStylesSheet.cardStyle,
+    borderRadius: 12,
+    backgroundColor: "white",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  container: {
+    ...cardStylesSheet.container,
+    backgroundColor: "#ccc8c8",
+  },
+  scrollContainer: {
+    ...cardStylesSheet.scrollContainer,
+    backgroundColor: "#ccc8c8",
+  },
+  headerContainer: {
+    ...cardStylesSheet.headerContainer,
+    backgroundColor: "#ddd9d9",
+    borderRadius: 12,
+    marginBottom: 24,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  title: {
+    ...cardStylesSheet.title,
+    color: "#1a1a1a",
+  },
+  timeDisplayContainer: {
+    backgroundColor: "#007bff",
+    borderRadius: 8,
+    // paddingVertical: 8,
+    // paddingHorizontal: 12,
+  },
+  timeDisplay: {
+    ...cardStylesSheet.timeDisplay,
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600" as any,
+  },
+  noOrdersText: {
+    ...cardStylesSheet.noOrdersText,
+    color: "#888",
+  },
+};

@@ -160,6 +160,8 @@ export const translations = {
     // 其他
     noOrders: "暂无订单...",
     noCompletedOrders: "暂无已完成订单...",
+    recentlyCompleted: "最近完成的",
+    noRecentlyCompletedItems: "暂无最近完成的项目",
     todayOrderHistory: "今日订单历史",
     save: "保存",
     edit: "编辑",
@@ -488,6 +490,8 @@ export const translations = {
     // Others
     noOrders: "Waiting for orders...",
     noCompletedOrders: "No completed orders...",
+    recentlyCompleted: "Recently Completed",
+    noRecentlyCompletedItems: "No recently completed items",
     todayOrderHistory: "Today's Order History",
     save: "Save",
     edit: "Edit",

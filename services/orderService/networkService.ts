@@ -62,14 +62,7 @@ export const getProductPrepareTime = async (productId: string): Promise<number> 
   }
 };
 
-/**
- * 从网络获取订单
- * 
- * ⚠️ TODO: 性能问题标记
- * order_search_v2 API 获取 online order 时会导致服务器卡顿
- * 需要优化：考虑增量获取、分页查询、或更换API接口
- * 优先级：低（当前专注TCP问题）
- */
+
 export const fetchOrdersFromNetwork = async (
   timeRange: [string, string],
   onNewOrder: (order: FormattedOrder) => Promise<void>
@@ -118,7 +111,8 @@ export const fetchOrdersFromNetwork = async (
     }
     
     const result = await response.json();
-    
+    console.log(result);
+    console.log(`[网络获取订单完整信息:`, JSON.stringify(result, null, 2));
     // 检查返回的订单数据
     if (result && result.orders && Array.isArray(result.orders)) {
       // 增强订单数据：获取商品准备时间并计算总准备时间

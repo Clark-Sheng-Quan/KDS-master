@@ -23,6 +23,7 @@ import {
   DEFAULT_CARDS_PER_COLUMN,
   STORAGE_KEY_CARDS_PER_ROW,
   STORAGE_KEY_CARDS_PER_COLUMN,
+  CARD_MARGIN,
   cardStyles,
   preCalculateCardStyles,
 } from "../../constants/cardConfig";
@@ -195,6 +196,7 @@ export default function HistoryScreen() {
               style={styles.picker}
               onValueChange={(itemValue) => setQueryRange(itemValue)}
               dropdownIconColor="#333"
+              itemStyle={{ display: 'none' }}
             >
               <Picker.Item label={t("today")} value="today" />
             </Picker>
@@ -228,22 +230,31 @@ export default function HistoryScreen() {
 const historyStyles = {
   mainContainer: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
+    backgroundColor: "#ccc8c8",
   },
   headerContainer: {
     flexDirection: "row" as const,
     justifyContent: "space-between" as const,
     alignItems: "center" as const,
     paddingHorizontal: PADDING,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.backgroundColor,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    paddingVertical: 14,
+    backgroundColor: "#333333",
+    borderBottomWidth: 0,
     zIndex: 1000,
+    marginHorizontal: PADDING,
+    marginTop: PADDING,
+    marginBottom: 16,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
   headerText: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "bold" as const,
+    color: "#ffffff",
   },
   filterContainer: {
     flexDirection: "row" as const,
@@ -253,29 +264,52 @@ const historyStyles = {
   filterLabel: {
     fontSize: 14,
     fontWeight: "500" as const,
-    color: "#333",
+    color: "#aaa",
     minWidth: 70,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 6,
+    borderColor: "#bbb",
+    borderRadius: 8,
     overflow: "visible" as const,
-    backgroundColor: "white",
-    minWidth: 160,
-    height: 60,
+    backgroundColor: "#ffffff",
+    minWidth: 60,
+    width: 60,
+    height: 40,
     justifyContent: "center" as const,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   picker: {
-    height: 60,
-    width: 160,
+    height: 40,
+    width: 60,
     color: "#333",
     fontSize: 16,
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
+    backgroundColor: "#ccc8c8",
     padding: PADDING,
+  },
+  cardsContainer: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    justifyContent: "flex-start" as const,
+    paddingBottom: 20,
+    paddingHorizontal: 0,
+  },
+  cardStyle: {
+    marginBottom: CARD_MARGIN,
+    borderRadius: 12,
+    backgroundColor: "white",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   recallButton: {
     flexDirection: "row" as const,
@@ -299,6 +333,11 @@ const historyStyles = {
   },
   buttonIcon: {
     marginRight: 6,
+  },
+  noOrdersText: {
+    fontSize: 38,
+    color: "#888",
+    textAlign: "center" as const,
   },
 };
 

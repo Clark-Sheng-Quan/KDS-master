@@ -147,7 +147,9 @@ export default function PreOrdersScreen() {
               ({orders.length})
             </Text>
           </View>
-          <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
+          <View style={styles.timeDisplayContainer}>
+            <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
+          </View>
         </View>
 
         {orders.length === 0 ? (
@@ -173,4 +175,48 @@ export default function PreOrdersScreen() {
   );
 }
 
-const styles = cardStyles;
+const styles = {
+  ...cardStyles,
+  cardsContainer: {
+    ...cardStyles.cardsContainer,
+    backgroundColor: "#ccc8c8",
+  },
+  cardStyle: {
+    ...cardStyles.cardStyle,
+    borderRadius: 12,
+    backgroundColor: "white",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  container: {
+    ...cardStyles.container,
+    backgroundColor: "#ccc8c8",
+  },
+  scrollContainer: {
+    ...cardStyles.scrollContainer,
+    backgroundColor: "#ccc8c8",
+  },
+  headerContainer: {
+    ...cardStyles.headerContainer,
+    backgroundColor: "#ddd9d9",
+  },
+  title: {
+    ...cardStyles.title,
+    color: "#1a1a1a",
+  },
+  timeDisplayContainer: {
+    backgroundColor: "#007bff",
+    borderRadius: 8,
+    // paddingVertical: 8,
+    // paddingHorizontal: 12,
+  },
+  timeDisplay: {
+    ...cardStyles.timeDisplay,
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600" as const,
+  },
+};

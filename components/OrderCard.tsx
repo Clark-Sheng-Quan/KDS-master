@@ -497,7 +497,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   const CardWrapper = selectable ? TouchableOpacity : View;
   const cardWrapperProps = selectable
-    ? { activeOpacity: disabled ? 1 : 0.7, onPress: onSelect }
+    ? { activeOpacity: 1, onPress: onSelect }
     : {};
 
   return (

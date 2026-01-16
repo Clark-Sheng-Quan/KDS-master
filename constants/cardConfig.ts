@@ -20,17 +20,27 @@ export const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
 export const cardStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundColor,
+    backgroundColor: "#ccc8c8",
   },
   scrollContainer: {
     flex: 1,
     padding: PADDING,
+    backgroundColor: "#ccc8c8",
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+    backgroundColor: "#ddd9d9",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
   titleSection: {
     flex: 1,
@@ -40,17 +50,17 @@ export const cardStyles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1a1a1a",
+    color: "#ffffff",
     marginRight: 15,
   },
   timeDisplay: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    paddingHorizontal: 12,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "white",
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 6,
+    backgroundColor: "#007bff",
+    borderRadius: 8,
   },
   cardsContainer: {
     flexDirection: "row",
@@ -60,6 +70,12 @@ export const cardStyles = StyleSheet.create({
   },
   cardStyle: {
     marginBottom: CARD_MARGIN,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   centerContent: {
     flex: 1,
@@ -73,7 +89,7 @@ export const cardStyles = StyleSheet.create({
   },
   noOrdersText: {
     fontSize: 38,
-    color: "#151010",
+    color: "#888",
     textAlign: "center",
   },
 });
