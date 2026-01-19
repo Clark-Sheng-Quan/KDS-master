@@ -459,30 +459,66 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
         {item.options?.length > 0 && (
           <View style={styles.optionsContainer}>
-            {item.options.map((option: any, optIndex: number) => (
-              <View
-                key={`${order.id}-item-${index}-option-${optIndex}`}
-                style={[
-                  styles.optionRow,
-                  isVoided && styles.voidedOption,
-                  optIndex === item.options.length - 1 && {
-                    borderBottomLeftRadius: 4,
-                    borderBottomRightRadius: 4,
-                  }
-                ]}
-              >
-                <View style={styles.optionContent}>
-                  <Text style={[styles.optionName, isVoided && styles.voidedText]}>
-                    - {option.name}{''}
-                  </Text>
-                  {shouldShowQuantity(option.value) && (
-                    <Text style={[styles.optionValue, isVoided && styles.voidedText]}>
-                       x{option.value}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            ))}
+            {item.options.map((option: any, optIndex: number) => {
+              // 判断是否为 POS order 格式（有 option_items）
+              const isPOSFormat = option.option_items && Array.isArray(option.option_items);
+              
+              if (isPOSFormat) {
+                // POS order 格式：检查是否有选中的选项（qty > 0）
+                const selectedItems = option.option_items.filter((optItem: any) => optItem.qty > 0) || [];
+                
+                // 如果没有选中的选项，则不显示
+                if (selectedItems.length === 0) {
+                  return null;
+                }
+                
+                return (
+                  <View
+                    key={`${order.id}-item-${index}-option-${optIndex}`}
+                    style={[
+                      styles.optionRow,
+                      isVoided && styles.voidedOption,
+                      optIndex === item.options.length - 1 && {
+                        borderBottomLeftRadius: 4,
+                        borderBottomRightRadius: 4,
+                      }
+                    ]}
+                  >
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionName, isVoided && styles.voidedText]}>
+                        - {selectedItems.map((item: any) => item.name).join(', ')}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              } else {
+                // Network order 格式：直接显示 option.name 和 option.value
+                return (
+                  <View
+                    key={`${order.id}-item-${index}-option-${optIndex}`}
+                    style={[
+                      styles.optionRow,
+                      isVoided && styles.voidedOption,
+                      optIndex === item.options.length - 1 && {
+                        borderBottomLeftRadius: 4,
+                        borderBottomRightRadius: 4,
+                      }
+                    ]}
+                  >
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionName, isVoided && styles.voidedText]}>
+                        - {option.name}{''}
+                      </Text>
+                      {shouldShowQuantity(option.value) && (
+                        <Text style={[styles.optionValue, isVoided && styles.voidedText]}>
+                          {'  '}x{option.value}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              }
+            })}
           </View>
         )}
 
