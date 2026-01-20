@@ -360,8 +360,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   // 格式化Due时间 - 根据showDateInDue决定是否显示日期
   const formattedDueTime = useMemo(() => {
     try {
-      const date = new Date(order.pickupTime);
-      if (isNaN(date.getTime())) return order.pickupTime;
+      const date = new Date(order.orderTime);
+      if (isNaN(date.getTime())) return order.orderTime;
 
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -378,9 +378,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         return `${hours}:${minutes}`;
       }
     } catch (error) {
-      return order.pickupTime;
+      return order.orderTime;
     }
-  }, [order.pickupTime, showDateInDue]);
+  }, [order.orderTime, showDateInDue]);
 
   // 格式化完成时间 - 仅显示时间部分
   const formattedCompletedTime = useMemo(() => {
@@ -612,7 +612,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                <Text style={styles.dueTimeText}>{t("due")}: {formattedDueTime}</Text>
+                <Text style={styles.dueTimeText}>{t("createdAt")}: {formattedDueTime}</Text>
                 {completedTime && (
                   <Text style={styles.completedTimeDisplay}>
                     {t("completedAt")}: {formattedCompletedTime}
