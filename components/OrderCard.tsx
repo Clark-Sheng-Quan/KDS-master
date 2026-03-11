@@ -95,7 +95,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     const loadSettings = async () => {
       try {
         const enabled = await AsyncStorage.getItem("item_level_completion");
-        setEnableItemLevelCompletion(enabled === "true");
+        // 默认为 true（item-level 模式），除非显式设置为 "false"
+        setEnableItemLevelCompletion(enabled !== "false");
         
         // 加载 Calling Button 设置
         const callingEnabled = await AsyncStorage.getItem("calling_button");
@@ -405,6 +406,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return { text: method || t("dineIn"), color: '#0096FF' };
   };
 
+  const getSourceDisplay = (source?: string) => {
+    const lower = source?.toLowerCase() || '';
+    if (lower === 'network') return { text: 'QR', color: '#7C3AED' }; // Purple
+    return { text: 'POS', color: '#10B981' }; // Green
+  };
+
 
   const renderProductItem = useCallback((item: any, index: number) => {
     const isVoided = item.itemState === 'VOIDED';
@@ -597,14 +604,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               {/* 左列 */}
               <View style={styles.leftColumn}>
                 <Text style={styles.orderId}>#{getOrderDisplayNumber()}</Text>
+                <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
+                  {getSourceDisplay(order.source).text}
+                </Text>
                 <Text style={[styles.pickupMethodText, { color: getPickupMethodDisplay(order.pickupMethod).color }]}>
                   {getPickupMethodDisplay(order.pickupMethod).text}
                 </Text>
-                {typeof order.total_prepare_time === 'number' && order.total_prepare_time > 0 && (
+                {/* {typeof order.total_prepare_time === 'number' && order.total_prepare_time > 0 && (
                   <Text style={styles.prepareTime}>
                     {t("prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
                   </Text>
-                )}
+                )} */}
                 <Text style={styles.prepareTime}>
                   {t("table")}: <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
                 </Text>
@@ -638,6 +648,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             onCall={handleCallPressed}
             showCallButton={enableCallingButton}
             callButtonPressed={callButtonPressed}
+            itemLevelMode={enableItemLevelCompletion}
           />
         )}
 
@@ -770,6 +781,11 @@ const styles = StyleSheet.create({
   },
   rightColumnCompact: {
     marginTop: 25,
+  },
+  sourceText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 4,
   },
   pickupMethodText: {
     fontSize: 18,

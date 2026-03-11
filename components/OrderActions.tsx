@@ -16,6 +16,7 @@ interface OrderActionsProps {
   onCall?: () => void;
   showCallButton?: boolean;
   callButtonPressed?: boolean;
+  itemLevelMode?: boolean;
   style?: ViewStyle;
 }
 
@@ -26,10 +27,12 @@ export const OrderActions: React.FC<OrderActionsProps> = React.memo(({
   onCall,
   showCallButton = false,
   callButtonPressed = false,
+  itemLevelMode = false,
   style,
 }) => {
   const { t } = useLanguage();
   const isDoneDisabled = showCallButton && !callButtonPressed;
+  const doneButtonText = itemLevelMode ? t("allDone") : t("done");
   
   return (
     <View style={[styles.buttonContainer, style]}>
@@ -40,7 +43,7 @@ export const OrderActions: React.FC<OrderActionsProps> = React.memo(({
             onPress={onDone}
             disabled={isDoneDisabled}
           >
-            <Text style={[styles.buttonText, isDoneDisabled && styles.buttonTextDisabled]}>{t("done")}</Text>
+            <Text style={[styles.buttonText, isDoneDisabled && styles.buttonTextDisabled]}>{doneButtonText}</Text>
           </TouchableOpacity>
           <View style={styles.buttonDivider} />
           <TouchableOpacity style={[styles.button, styles.callButton]} onPress={onCall}>
@@ -49,7 +52,7 @@ export const OrderActions: React.FC<OrderActionsProps> = React.memo(({
         </>
       ) : (
         <TouchableOpacity style={styles.button} onPress={onDone}>
-          <Text style={styles.buttonText}>{t("done")}</Text>
+          <Text style={styles.buttonText}>{doneButtonText}</Text>
         </TouchableOpacity>
       )}
     </View>

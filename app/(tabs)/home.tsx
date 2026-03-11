@@ -51,7 +51,7 @@ export default function HomeScreen() {
   const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder} | null>(null);
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
   const recallingItemsRef = useRef<Set<string>>(new Set());  // 用 useRef 来同步控制，避免竞速问题，不显示 UI
-  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
+  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(true);
   const recentMenuAnimValue = useMemo(() => new Animated.Value(0), []);
 
   // 动画处理 - 最近订单菜单
@@ -106,6 +106,9 @@ export default function HomeScreen() {
           );
           if (savedItemLevelCompletion !== null) {
             setEnableItemLevelCompletion(savedItemLevelCompletion === "true");
+          } else {
+            // 如果没有保存的值，默认为 true（item-level 模式）
+            setEnableItemLevelCompletion(true);
           }
         } catch (error) {
           console.error("加载设置失败:", error);

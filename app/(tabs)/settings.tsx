@@ -65,7 +65,7 @@ export default function SettingsScreen() {
   const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
 
   // 添加项目级完成模式状态
-  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
+  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(true);
 
   // KDS分类设置（仅用于UI显示，Master-Slave功能已移除）
   const [kdsCategory, setKdsCategory] = useState<CategoryType>(CategoryType.ALL);
