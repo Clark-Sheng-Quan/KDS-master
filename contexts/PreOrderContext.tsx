@@ -19,11 +19,11 @@ const PreOrderContext = createContext<PreOrderContextType>({
 
 export function PreOrderProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<FormattedOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 过滤预订单的辅助函数 - 筛选未来7天内的订单
-  const filterPreOrders = (allOrders: FormattedOrder[]): FormattedOrder[] => {
+  const filterPreOrders = useCallback((allOrders: FormattedOrder[]): FormattedOrder[] => {
     const timeRange = getNextSevenDaysRange();
     const startTime = new Date(timeRange[0]).getTime();
     const endTime = new Date(timeRange[1]).getTime();
@@ -32,44 +32,29 @@ export function PreOrderProvider({ children }: { children: React.ReactNode }) {
       const orderTime = new Date(order.orderTime).getTime();
       return orderTime >= startTime && orderTime <= endTime;
     });
-  };
-
-  // 初始化订单系统
-  useEffect(() => {
-    const initSystem = async () => {
-      try {
-        console.log("初始化预订单系统...");
-        setLoading(true);
-
-        // 获取未来7天的时间范围
-        const timeRange = getNextSevenDaysRange();
-
-        // 获取预订单
-        const preOrders = await OrderService.fetchOrdersFromNetwork(timeRange);
-        if (preOrders) {
-          setOrders(preOrders);
-        }
-
-        setLoading(false);
-
-        // 订阅 OrderService 的订单更新回调
-        // 这样 PreOrderContext 会自动接收 OrderService 轮询到的新订单
-        OrderService.setOrderUpdateCallback((allOrders) => {
-          // 从所有订单中过滤出预订单
-          const filteredPreOrders = filterPreOrders(allOrders);
-          setOrders(filteredPreOrders);
-        });
-      } catch (error) {
-        console.error("初始化预订单系统失败:", error);
-        setError("系统初始化失败");
-        setLoading(false);
-      }
-    };
-
-    initSystem();
-
-    // 无需轮询，通过 OrderService 的回调接收更新
   }, []);
+
+  // 初始化：订阅 OrderService 的订单更新
+  useEffect(() => {
+    console.log("初始化预订单Context - 订阅 OrderService 更新...");
+    
+    // 订阅 OrderService 的更新
+    const unsubscribe = OrderService.setOrderUpdateCallback((allOrders) => {
+      console.log(`[PreOrderContext] 收到订单更新回调 - ${allOrders.length} 个订单`);
+      
+      // 过滤出预订单
+      const filteredPreOrders = filterPreOrders(allOrders);
+      console.log(`[PreOrderContext] 过滤后预订单: ${filteredPreOrders.length} 个`);
+      
+      setOrders(filteredPreOrders);
+    });
+
+    // 清理订阅
+    return () => {
+      console.log("清理预订单Context订阅");
+      unsubscribe?.();
+    };
+  }, [filterPreOrders]);
 
   const removeOrder = useCallback(async (orderId: string) => {
     try {

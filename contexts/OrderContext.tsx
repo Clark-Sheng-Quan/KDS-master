@@ -107,6 +107,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
   // 初始化订单系统
   useEffect(() => {
+    let isMounted = true;
+    let unsubscribe: (() => void) | null = null;
+
     const initSystem = async () => {
       try {
         console.log("初始化订单系统...");
@@ -118,14 +121,6 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         // 再初始化DistributionService
         await DistributionService.initialize();
 
-        // // 启动TCP Server
-        // const tcpStarted = await TCPSocketService.startServer();
-        // if (tcpStarted) {
-        //   console.log('[OrderContext] TCP Server started successfully');
-        // } else {
-        //   console.warn('[OrderContext] Failed to start TCP Server');
-        // }
-
         // 加载已保存的订单
         const savedNetworkOrders = await OrderService.loadNetworkOrders();
         const savedTcpOrders = await OrderService.loadTCPOrders();
@@ -136,9 +131,16 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         );
         savedTcpOrders.forEach((order) => distributedOrderIds.add(order.id));
 
+        if (!isMounted) return;
+
         // 设置订单更新回调函数 - 这是唯一的分发入口点
-        OrderService.setOrderUpdateCallback(async (updatedOrders) => {
-          
+        unsubscribe = OrderService.setOrderUpdateCallback((updatedOrders) => {
+          if (!isMounted) {
+            console.log('[OrderContext] 组件已卸载，忽略回调');
+            return;
+          }
+
+          console.log(`[OrderContext] 收到订单更新回调 - ${updatedOrders.length} 个订单`);
 
           // 首先对所有订单进行去重
           const uniqueOrders = [];
@@ -150,6 +152,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
               seenIds.add(order.id);
             }
           }
+
+          console.log(`[OrderContext] 去重后: ${uniqueOrders.length} 个订单`);
 
           // 按订单时间排序（最新的在前）
           const sortedOrders = uniqueOrders.sort((a, b) => {
@@ -170,28 +174,37 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           setTcpOrders(tcpOrdersList);
           setOrders(sortedOrders);
 
+          console.log(`[OrderContext] 订单状态已更新`);
+
           // 注意：我们不再在这里分发订单，因为OrderService的addNetworkOrder方法
           // 已经负责在添加新网络订单时调用DistributionService.processAndDistributeOrder
           // 这样可以避免重复分发订单
-          
         });
 
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       } catch (error) {
         console.error("初始化失败:", error);
-        setError("系统初始化失败");
-        setLoading(false);
+        if (isMounted) {
+          setError("系统初始化失败");
+          setLoading(false);
+        }
       }
     };
 
     initSystem();
 
     return () => {
-      // 清理函数
-      OrderService.stopNetworkPolling(); // 停止网络轮询
+      isMounted = false;
+      // 清理订阅和轮询
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      OrderService.stopNetworkPolling();
       DistributionService.shutdown();
     };
-  }, []); // 移除 distributedOrderIds 依赖，避免重复初始化
+  }, []);
 
   // 移除订单
   const removeOrder = useCallback(

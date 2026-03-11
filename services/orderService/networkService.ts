@@ -24,8 +24,60 @@ export const getDeviceIP = async (): Promise<string> => {
 }
 
 /**
+ * 带超时的 fetch 包装函数
+ */
+const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: number = 15000): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`请求超时（${timeoutMs}ms）`);
+    }
+    throw error;
+  }
+};
+
+/**
+ * 带重试的网络请求
+ */
+const fetchWithRetry = async (
+  url: string,
+  options: any,
+  maxRetries: number = 2
+): Promise<Response> => {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url, options, 15000);
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`[重试 ${attempt + 1}/${maxRetries + 1}] 请求失败: ${error.message}`);
+      
+      if (attempt < maxRetries) {
+        // 指数退避：第一次等 500ms，第二次等 1000ms
+        const backoffMs = 500 * Math.pow(2, attempt);
+        console.log(`等待 ${backoffMs}ms 后重试...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+    }
+  }
+  
+  throw lastError;
+};
+
+/**
  * 从服务器获取产品详情
- * 
  */
 export const getProductDetail = async (productId: string): Promise<ProductDetailResponse> => {
   try {
@@ -96,8 +148,8 @@ export const fetchOrdersFromNetwork = async (
       page_idx: 0
     };
     
-    // 发送请求
-    const response = await fetch(`${API_BASE_URL}/search/order_search_v2`, {
+    // 发送请求（带超时和重试）
+    const response = await fetchWithRetry(`${API_BASE_URL}/search/order_search_v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,10 +163,10 @@ export const fetchOrdersFromNetwork = async (
     }
     
     const result = await response.json();
-    console.log(result);
-    console.log(`[网络获取订单完整信息:`, JSON.stringify(result, null, 2));
+    
     // 检查返回的订单数据
     if (result && result.orders && Array.isArray(result.orders)) {
+      console.log(`[networkService] 30s Got ${result.orders.length} orders from API`);
       // 增强订单数据：获取商品准备时间并计算总准备时间
       for (const order of result.orders) {
         if (order.products && Array.isArray(order.products)) {
@@ -146,14 +198,18 @@ export const fetchOrdersFromNetwork = async (
                          order.pick_method !== 'TEMP'
       );
       
-      // console.log(`[请求${requestId}] 过滤后返回 ${filteredOrders.length} 个订单`);
       return filteredOrders;
     }
     
-    console.log(`[请求${requestId}] 订单处理完成，当前时间: ${new Date().toISOString()}`);
     return [];
-  } catch (error) {
-    console.error(`[请求${requestId}] 网络获取订单失败:`, error);
+  } catch (error: any) {
+    console.error(`[请求${requestId}] 网络获取订单失败:`, error?.message || error);
+    if (error?.code) {
+      console.error(`[请求${requestId}] 错误代码: ${error.code}`);
+    }
+    if (error?.errno) {
+      console.error(`[请求${requestId}] 系统错误码: ${error.errno}`);
+    }
     return [];
   }
 };
@@ -187,8 +243,8 @@ export const fetchHistoryOrders = async (timeRange: [string, string]) => {
       page_idx: 0
     };
     
-    // 发送请求
-    const response = await fetch(`${API_BASE_URL}/search/order_search_v2`, {
+    // 发送请求（带超时和重试）
+    const response = await fetchWithRetry(`${API_BASE_URL}/search/order_search_v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
