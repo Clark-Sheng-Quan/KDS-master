@@ -75,9 +75,29 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     }, 0);
     
     // Convert times to local timezone
-    const localOrderTime = convertToLocalTimeFormatted(
-      orderData.timestamp || orderData.createdAt || new Date().toISOString()
-    );
+    // 注意：POS 发送的 timestamp 已经是本地时间格式，直接提取 HH:mm
+    let localOrderTime = orderData.timestamp || orderData.createdAt || new Date().toISOString();
+    
+    // 只保留 HH:mm 格式（和 network order 一致）
+    try {
+      // 尝试解析 POS 格式: "Oct 30, 2025 10:44:43 PM"
+      const dt = DateTime.fromFormat(localOrderTime, 'MMM d, yyyy h:mm:ss a', { locale: 'en-US' });
+      if (dt.isValid) {
+        localOrderTime = dt.toFormat('HH:mm');
+      } else {
+        // 用正则简单提取 HH:mm
+        const match = localOrderTime.match(/(\d{1,2}):(\d{2})/);
+        if (match) {
+          localOrderTime = `${String(parseInt(match[1])).padStart(2, '0')}:${match[2]}`;
+        }
+      }
+    } catch (e) {
+      // 如果出错，用正则提取
+      const match = localOrderTime.match(/(\d{1,2}):(\d{2})/);
+      if (match) {
+        localOrderTime = `${String(parseInt(match[1])).padStart(2, '0')}:${match[2]}`;
+      }
+    }
 
     // Extract pickup method from POS format - ensure it's a string, not an object
     let pickupMethod = "DINEIN";

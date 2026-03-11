@@ -43,6 +43,7 @@ export class OrderService {
   private static tcpOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   private static combinedOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   private static combinedOrderUpdateCallbacks: Array<(orders: FormattedOrder[]) => void> = [];
+  private static orderCompletionCallbacks: Array<(order: FormattedOrder) => void> = [];
   
   /**
    * 设置 KDS 配置（kdsCategory）
@@ -56,26 +57,52 @@ export class OrderService {
    * 设置订单更新回调函数（支持多个订阅者）
    */
   public static setOrderUpdateCallback(callback: (orders: FormattedOrder[]) => void) {
-    console.log(`[OrderService] 注册订单更新回调，当前回调数: ${this.combinedOrderUpdateCallbacks.length}`);
     this.combinedOrderUpdateCallbacks.push(callback);
-    console.log(`[OrderService] 订单更新回调已注册，总计: ${this.combinedOrderUpdateCallbacks.length} 个回调`);
     
     // 立即发送当前合并的订单列表（已经是过滤后的）
     if (callback) {
       const currentOrders = [...this.networkOrders, ...this.tcpOrders];
-      console.log(`[OrderService] 立即分发当前订单 (${currentOrders.length} 个) 给新注册的回调`);
       callback(currentOrders);
     }
     
     // 返回 unsubscribe 函数
     return () => {
-      console.log(`[OrderService] 取消订单更新回调，当前回调数: ${this.combinedOrderUpdateCallbacks.length}`);
       const index = this.combinedOrderUpdateCallbacks.indexOf(callback);
       if (index > -1) {
         this.combinedOrderUpdateCallbacks.splice(index, 1);
-        console.log(`[OrderService] 回调已取消，剩余: ${this.combinedOrderUpdateCallbacks.length} 个回调`);
       }
     };
+  }
+
+  /**
+   * 设置订单完成回调函数（支持多个订阅者）
+   * 当订单被自动完成时触发（如用于 addCompletedOrder)
+   */
+  public static setOrderCompletionCallback(callback: (order: FormattedOrder) => void) {
+    this.orderCompletionCallbacks.push(callback);
+    
+    // 返回 unsubscribe 函数
+    return () => {
+      const index = this.orderCompletionCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.orderCompletionCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * 触发所有已注册的订单完成回调
+   */
+  private static emitOrderCompletion(order: FormattedOrder) {
+    console.log(`[OrderService] emitOrderCompletion - 订单 ${order.id} 已完成，通知 ${this.orderCompletionCallbacks.length} 个监听者`);
+    
+    this.orderCompletionCallbacks.forEach((callback, index) => {
+      try {
+        callback(order);
+      } catch (error) {
+        console.error(`[OrderService] 完成回调 #${index + 1} 执行出错:`, error);
+      }
+    });
   }
 
   /**
@@ -87,9 +114,7 @@ export class OrderService {
     
     this.combinedOrderUpdateCallbacks.forEach((callback, index) => {
       try {
-        console.log(`[OrderService] 调用回调 #${index + 1}`);
         callback(updatedOrders);
-        console.log(`[OrderService] 回调 #${index + 1} 执行成功`);
       } catch (error) {
         console.error(`[OrderService] 回调 #${index + 1} 执行出错:`, error);
       }
@@ -497,6 +522,42 @@ export class OrderService {
   }
 
   /**
+   * 完成订单（完整流程：触发完成回调 -> 删除订单）
+   * 这与"Done"按钮的效果一致，包括 addCompletedOrder 的记录
+   */
+  static async completeOrder(orderId: string) {
+    try {
+      console.log(`[OrderService] completeOrder - 开始完成订单 ${orderId}`);
+      
+      // 查找订单（可能在网络或TCP中）
+      const networkOrder = this.networkOrders.find(order => order.id === orderId);
+      const tcpOrder = this.tcpOrders.find(order => order.id === orderId);
+      const order = networkOrder || tcpOrder;
+      
+      if (!order) {
+        console.warn(`[OrderService] completeOrder - 订单 ${orderId} 不存在`);
+        return;
+      }
+      
+      // 标记状态为就绪
+      const completedOrder = {
+        ...order,
+        status: 'ready'
+      };
+      
+      // 1. 触发完成回调（让UI层处理 addCompletedOrder、CallingScreen通知等）
+      this.emitOrderCompletion(completedOrder);
+      
+      // 2. 从订单列表中删除
+      await this.removeOrder(orderId);
+      
+      console.log(`[OrderService] completeOrder - 订单 ${orderId} 已完成并删除`);
+    } catch (error) {
+      console.error('[OrderService] completeOrder - 完成订单失败:', error);
+    }
+  }
+
+  /**
    * 删除订单（网络和TCP）
    */
   static async removeOrder(orderId: string) {
@@ -611,6 +672,42 @@ export class OrderService {
   }
 
   /**
+   * 自动完成超过 24 小时的订单
+   */
+  private static async autoCompleteExpiredOrders() {
+    try {
+      const now = Date.now();
+      const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+      
+      const expiredNetworkOrders = this.networkOrders.filter(order => {
+        const orderTime = new Date(order.orderTime).getTime();
+        return (now - orderTime) > twentyFourHoursInMs;
+      });
+      
+      const expiredTcpOrders = this.tcpOrders.filter(order => {
+        const orderTime = new Date(order.orderTime).getTime();
+        return (now - orderTime) > twentyFourHoursInMs;
+      });
+      
+      if (expiredNetworkOrders.length > 0) {
+        console.log(`[OrderService] 自动完成 ${expiredNetworkOrders.length} 个超期网络订单（执行完整的Done流程）`);
+        for (const order of expiredNetworkOrders) {
+          await this.completeOrder(order.id);
+        }
+      }
+      
+      if (expiredTcpOrders.length > 0) {
+        console.log(`[OrderService] 自动完成 ${expiredTcpOrders.length} 个超期 TCP 订单（执行完整的Done流程）`);
+        for (const order of expiredTcpOrders) {
+          await this.completeOrder(order.id);
+        }
+      }
+    } catch (error) {
+      console.error('[OrderService] 自动完成订单失败:', error);
+    }
+  }
+
+  /**
    * 停止网络轮询
    */
   static stopNetworkPolling() {
@@ -625,7 +722,6 @@ export class OrderService {
    */
   private static async fetchOrdersFromNetworkAndProcess() {
     try {
-      console.log('[networkService] 30s network order checking');
       
       // 获取当前时间范围
       const timeRange = TimeUtils.getTimeRangeAroundNow();
@@ -634,11 +730,9 @@ export class OrderService {
       const orders = await NetworkService.fetchOrdersFromNetwork(timeRange, async () => {});
       
       if (!orders || orders.length === 0) {
-        console.log('[networkService] No new orders');
+      
         return;
       }
-      
-      console.log(`[networkService] Processing ${orders.length} orders`);
       
       // 处理每个订单
       let newOrdersCount = 0;
@@ -679,9 +773,10 @@ export class OrderService {
         newOrdersCount++;
       }
       
-      console.log(`[networkService] New: ${newOrdersCount}, Skipped: ${skippedCount}`);
+      // 自动完成超过 24 小时的订单
+      await this.autoCompleteExpiredOrders();
     } catch (error) {
-      console.error('[networkService] Error fetching orders:', error);
+      console.error('[orderService] Error fetching orders:', error);
     }
   }
 
@@ -711,7 +806,7 @@ export class OrderService {
       // 格式化订单
       return await Formatters.formatOrders(result);
     } catch (error) {
-      console.error('[HistoryScreen] 获取历史订单失败:', error);
+      console.error('[orderService] 获取历史订单失败:', error);
       return []; // 返回空数组而不是抛出错误
     }
   }

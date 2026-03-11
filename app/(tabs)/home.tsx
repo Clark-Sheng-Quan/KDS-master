@@ -36,7 +36,7 @@ import {
 
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
-  const { completedOrders, removeCompletedOrder } = useCompletedOrders();
+  const { completedOrders, addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
@@ -149,6 +149,35 @@ export default function HomeScreen() {
     setFilteredOrders(orders);
     setLocalOrders(orders);  // 同步到本地副本
   }, [orders]);
+
+  // 监听订单自动完成（24小时后）并记录到已完成订单列表
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    
+    const registerCompletionCallback = async () => {
+      try {
+        unsubscribe = OrderService.setOrderCompletionCallback((order: FormattedOrder) => {
+          console.log(`[Home] 订单自动完成回调：${order.id}（24小时自动完成）`);
+          // 记录完成 - 与手动 Done 的效果完全一致
+          addCompletedOrder(order, order.products || []).catch((error: any) => {
+            console.error('[Home] 添加完成订单失败:', error);
+          });
+        });
+      } catch (error) {
+        console.error('[Home] 注册订单完成回调失败:', error);
+      }
+    };
+    
+    // 延迟注册，确保 OrderService 已初始化
+    const timeoutId = setTimeout(registerCompletionCallback, 500);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [addCompletedOrder]);
 
   // 添加这个适配器函数
   const handleOrderRemove = (order: FormattedOrder) => {
