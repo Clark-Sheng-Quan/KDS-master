@@ -158,6 +158,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       orderTime: new Date().toISOString(),
       pickupMethod: "n/a",
       pickupTime: new Date().toISOString(),
+      kdsReceiveTime: new Date().toISOString(), 
       num: orderData.id || String(Date.now()),  // 订单号
       products: [],
       source: 'tcp',
@@ -233,6 +234,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       num: (order._id || Date.now()).toString(),    // 订单号
       status: order.status || 'unknown',
       products: [],
+      kdsReceiveTime: new Date().toISOString(), 
       source: 'network',
       total_prepare_time: 0,
       tableNumber: 'n/a',

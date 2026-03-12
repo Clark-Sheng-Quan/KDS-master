@@ -17,6 +17,7 @@ import { DistributionService } from '../distributionService';
 import { callingScreenService } from '../CallingScreenService';
 import { callingScreenDiscovery } from '../CallingScreenDiscovery';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { log } from 'console';
 
 // 添加订单ID缓存，用于防止重复处理
 const PROCESSED_ORDER_CACHE_SIZE = 100; // 缓存最近处理的100个订单ID
@@ -672,34 +673,32 @@ export class OrderService {
   }
 
   /**
-   * 自动完成超过 24 小时的订单
+   * 自动完成超过配置时间的订单
    */
   private static async autoCompleteExpiredOrders() {
     try {
       const now = Date.now();
-      const twentyFourHoursInMs = 20 * 60 * 60 * 1000;
-      
+      // 硬编码 1 小时用于测试
+      const twoHoursInMs = 24 * 60 * 60 * 1000;
       const expiredNetworkOrders = this.networkOrders.filter(order => {
-        // Use kdsReceiveTime (order entry time into KDS) instead of orderTime (order creation time)
-        const orderStartTime = new Date(order.kdsReceiveTime || order.orderTime).getTime();
-        return (now - orderStartTime) > twentyFourHoursInMs;
+        const orderStartTime = new Date(order.kdsReceiveTime).getTime();
+        return (now - orderStartTime) > twoHoursInMs;
       });
       
       const expiredTcpOrders = this.tcpOrders.filter(order => {
-        // Use kdsReceiveTime (order entry time into KDS) instead of orderTime (order creation time)
-        const orderStartTime = new Date(order.kdsReceiveTime || order.orderTime).getTime();
-        return (now - orderStartTime) > twentyFourHoursInMs;
+        const orderStartTime = new Date(order.kdsReceiveTime).getTime();
+        return (now - orderStartTime) > twoHoursInMs;
       });
       
       if (expiredNetworkOrders.length > 0) {
-        console.log(`[OrderService] 自动完成 ${expiredNetworkOrders.length} 个超期网络订单（执行完整的Done流程）`);
+        console.log(`[OrderService] 自动完成 ${expiredNetworkOrders.length} 个网络订单`);
         for (const order of expiredNetworkOrders) {
           await this.completeOrder(order.id);
         }
       }
       
       if (expiredTcpOrders.length > 0) {
-        console.log(`[OrderService] 自动完成 ${expiredTcpOrders.length} 个超期 TCP 订单（执行完整的Done流程）`);
+        console.log(`[OrderService] 自动完成 ${expiredTcpOrders.length} 个TCP订单`);
         for (const order of expiredTcpOrders) {
           await this.completeOrder(order.id);
         }
@@ -724,6 +723,8 @@ export class OrderService {
    */
   private static async fetchOrdersFromNetworkAndProcess() {
     try {
+      // 先执行自动清理（无论有没有新订单都要执行）
+      await this.autoCompleteExpiredOrders();
       
       // 获取当前时间范围
       const timeRange = TimeUtils.getTimeRangeAroundNow();
@@ -776,8 +777,6 @@ export class OrderService {
         newOrdersCount++;
       }
       
-      // 自动完成超过 24 小时的订单
-      await this.autoCompleteExpiredOrders();
     } catch (error) {
       console.error('[orderService] Error fetching orders:', error);
     }
