@@ -140,7 +140,6 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          console.log(`[OrderContext] 收到订单更新回调 - ${updatedOrders.length} 个订单`);
 
           // 首先对所有订单进行去重
           const uniqueOrders = [];
@@ -153,13 +152,15 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             }
           }
 
-          console.log(`[OrderContext] 去重后: ${uniqueOrders.length} 个订单`);
 
-          // 按订单时间排序（最新的在前）
+          // Sort by elapsed time (longest elapsed time first - most urgent)
+          const now = Date.now();
           const sortedOrders = uniqueOrders.sort((a, b) => {
-            const timeA = new Date(a.orderTime).getTime();
-            const timeB = new Date(b.orderTime).getTime();
-            return timeA - timeB; // 降序，最新的在前
+            const startTimeA = new Date(a.kdsReceiveTime || a.orderTime).getTime();
+            const startTimeB = new Date(b.kdsReceiveTime || b.orderTime).getTime();
+            const elapsedA = now - startTimeA;
+            const elapsedB = now - startTimeB;
+            return elapsedB - elapsedA; // Descending: longest elapsed time first
           });
 
           // 区分网络订单和TCP订单
@@ -173,8 +174,6 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           setNetworkOrders(networkOrdersList);
           setTcpOrders(tcpOrdersList);
           setOrders(sortedOrders);
-
-          console.log(`[OrderContext] 订单状态已更新`);
 
           // 注意：我们不再在这里分发订单，因为OrderService的addNetworkOrder方法
           // 已经负责在添加新网络订单时调用DistributionService.processAndDistributeOrder
@@ -252,12 +251,15 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       const savedNetworkOrders = await OrderService.loadNetworkOrders();
       const savedTcpOrders = await OrderService.loadTCPOrders();
 
-      // 合并所有订单并按时间排序
+      // Merge all orders and sort by elapsed time (longest first - most urgent)
       const allOrders = [...savedNetworkOrders, ...savedTcpOrders];
+      const now = Date.now();
       const sortedOrders = allOrders.sort((a, b) => {
-        const timeA = new Date(a.orderTime).getTime();
-        const timeB = new Date(b.orderTime).getTime();
-        return timeB - timeA; // 降序，最新的在前
+        const startTimeA = new Date(a.kdsReceiveTime || a.orderTime).getTime();
+        const startTimeB = new Date(b.kdsReceiveTime || b.orderTime).getTime();
+        const elapsedA = now - startTimeA;
+        const elapsedB = now - startTimeB;
+        return elapsedB - elapsedA; // Descending: longest elapsed time first
       });
 
       setNetworkOrders(savedNetworkOrders);

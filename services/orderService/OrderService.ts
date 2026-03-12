@@ -244,36 +244,36 @@ export class OrderService {
   }
 
   /**
-   * 添加新网络订单
+   * Add new network order
    */
   public static async addNetworkOrder(order: FormattedOrder, shouldPlaySound: boolean = true): Promise<void> {
     try {
-      // 确保订单有ID
+      // Ensure the order has an ID
       if (!order.id) {
-        console.error('网络订单缺少ID，无法处理');
+        console.error('Network order is missing an ID, cannot process');
         return;
       }
       
-      // 检查是否为 recalled 订单，如果不是则标记为 network
+      // Check if it's a recalled order, if not, mark it as network
       const isRecalledOrder = order.isRecalled === true;
       if (!isRecalledOrder) {
         order.source = 'network';
       }
       
-      // 检查订单是否已处理过（recalled 订单跳过此检查，因为需要合并产品）
+      // Check if the order has already been processed (skip for recalled orders as they need product merging)
       if (!isRecalledOrder && this.isOrderProcessed(order.id)) {
-        console.log(`[addNetworkOrder] 订单 ${order.id} 已处理过，跳过`);
+        console.log(`[addNetworkOrder] Order ${order.id} has already been processed, skipping`);
         return;
       }
       
-      // 检查订单是否已存在
+      // Check if the order already exists
       const existingOrderIndex = this.networkOrders.findIndex((o) => o.id === order.id);
       
       if (existingOrderIndex !== -1) {
-        // 订单已存在，对于 recalled 订单进行产品合并更新
+        // Order already exists, merge products for recalled orders
         if (isRecalledOrder) {
           const existingOrder = this.networkOrders[existingOrderIndex];
-          // 合并产品：保留现有产品，添加新产品（避免重复）
+          // Merge products: keep existing products, add new products (avoid duplicates)
           const existingProductIds = new Set(existingOrder.products?.map(p => p.id) || []);
           const newProducts = order.products?.filter(p => !existingProductIds.has(p.id)) || [];
           
@@ -285,9 +285,9 @@ export class OrderService {
           this.networkOrders[existingOrderIndex] = mergedOrder;
           await StorageService.saveNetworkOrders(this.networkOrders);
           
-          console.log(`[addNetworkOrder] 已更新recall订单 ${order.id}，新增 ${newProducts.length} 个产品`);
+          console.log(`[addNetworkOrder] Updated recalled order ${order.id}, added ${newProducts.length} new products`);
           
-          // 通知 Calling Screen 订单产品数量变化
+          // Notify Calling Screen of order product count change
           const device = callingScreenDiscovery.getCachedDevice();
           if (device) {
             const itemCount = mergedOrder.products.reduce((total, item) => total + (item.quantity || 1), 0);
@@ -296,7 +296,7 @@ export class OrderService {
             });
           }
           
-          // 触发回调通知UI更新
+          // Trigger callback to notify UI of updates
           if (this.networkOrderUpdateCallback) {
             this.networkOrderUpdateCallback(this.networkOrders);
           }
@@ -306,17 +306,17 @@ export class OrderService {
         return;
       }
 
-      // 添加到处理缓存（recalled 订单不添加到缓存，以便可以重复合并）
+      // Add to processed cache (recalled orders are not added to cache to allow product re-merging)
       if (!isRecalledOrder) {
         this.addToProcessedCache(order.id);
       }
 
-      // 将新订单状态从 confirmed 更新为 processing（只对非 recalled 订单）
+      // Update order status from confirmed to processing (non-recalled orders only)
       if (!isRecalledOrder) {
         try {
           const token = await AsyncStorage.getItem("token");
           if (!token) {
-            console.warn('[addNetworkOrder] 没有token，跳过状态更新');
+            console.warn('[addNetworkOrder] No token available, skip status update');
           } else {
 
             const updateResponse = await fetch(`${API_BASE_URL}/order/update_order_status`, {
@@ -332,33 +332,33 @@ export class OrderService {
             });
             
             if (!updateResponse.ok) {
-              console.warn(`更新订单 ${order.id} 状态为 processing 失败`);
+              console.warn(`Failed to update order ${order.id} status to processing`);
             }
           }
         } catch (error) {
-          console.error('[addNetworkOrder] 更新订单状态异常:', error);
+          console.error('[addNetworkOrder] Error updating order status:', error);
         }
       }
 
-      // 对于 recalled 订单，不进行产品过滤，直接保留所有产品
+      // For recalled orders, do not filter products, keep all products
       let filteredProducts = order.products;
       if (!isRecalledOrder) {
-        // 函数1：过滤产品（直接修改 order.products）
+        // Function: filter products (directly modify order.products)
         filteredProducts = this.filterOrderProducts(order);
         
-        // 如果过滤后没有产品，不存储此订单（对当前 KDS 无关）
+        // If no products after filtering, do not store this order (not relevant to current KDS)
         if (filteredProducts.length === 0) {
-          console.log(`[addNetworkOrder] 订单 ${order.id} 过滤后无产品，不存储`);
+          console.log(`[addNetworkOrder] Order ${order.id} has no products after filtering, not storing`);
           return;
         }
       }
       
-      // 添加新订单到末尾（已经是过滤后的）
+      // Add new order to end (already filtered)
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
       
       // Notify Calling Screen about new order (fire and forget)
-      // 通知所有订单：新订单、recalled订单、任何来源都通知
+      // Notify all orders: new orders, recalled orders, any source should notify
       const orderNumber = String(order.num || order.id.substring(0, 8));
       const itemCount = this.calculateItemCount(order);
       const device = callingScreenDiscovery.getCachedDevice();
@@ -368,15 +368,15 @@ export class OrderService {
         });
       }
       
-      // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
+      // Save initial filtered products to previousFilteredProducts for subsequent comparison
       this.previousFilteredProducts.set(order.id, [...filteredProducts]);
      
-      // 根据 shouldPlaySound 参数条件性播放提示音
+      // Conditionally play alert sound based on shouldPlaySound parameter
       if (shouldPlaySound) {
         AudioService.playNewOrderAlert();
       }
       
-      // 触发网络订单和合并订单回调（直接传递已过滤的订单）
+      // Trigger network order and merged order callbacks (pass already filtered orders)
       if (this.networkOrderUpdateCallback) {
         this.networkOrderUpdateCallback(this.networkOrders);
       }
@@ -677,16 +677,18 @@ export class OrderService {
   private static async autoCompleteExpiredOrders() {
     try {
       const now = Date.now();
-      const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+      const twentyFourHoursInMs = 20 * 60 * 60 * 1000;
       
       const expiredNetworkOrders = this.networkOrders.filter(order => {
-        const orderTime = new Date(order.orderTime).getTime();
-        return (now - orderTime) > twentyFourHoursInMs;
+        // Use kdsReceiveTime (order entry time into KDS) instead of orderTime (order creation time)
+        const orderStartTime = new Date(order.kdsReceiveTime || order.orderTime).getTime();
+        return (now - orderStartTime) > twentyFourHoursInMs;
       });
       
       const expiredTcpOrders = this.tcpOrders.filter(order => {
-        const orderTime = new Date(order.orderTime).getTime();
-        return (now - orderTime) > twentyFourHoursInMs;
+        // Use kdsReceiveTime (order entry time into KDS) instead of orderTime (order creation time)
+        const orderStartTime = new Date(order.kdsReceiveTime || order.orderTime).getTime();
+        return (now - orderStartTime) > twentyFourHoursInMs;
       });
       
       if (expiredNetworkOrders.length > 0) {
@@ -765,10 +767,11 @@ export class OrderService {
           continue;
         }
         
-        // 格式化订单
+        // Format the order
         const formattedOrder = await Formatters.formatNetworkOrder(order);
         
-        // 添加新订单
+        
+        // Add the new order
         await this.addNetworkOrder(formattedOrder);
         newOrdersCount++;
       }

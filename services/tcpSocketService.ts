@@ -199,7 +199,7 @@ export class TCPSocketService {
                 incompleteDataTimeout = null;
               }
               
-              // 处理缓冲区中的所有完整消息 - 使用循环而不是 return
+              // Process all complete messages in buffer - use loop instead of return
               while (true) {
                 // Filter out data that is only whitespace
                 if (dataBuffer.trim() === '') {
@@ -217,7 +217,7 @@ export class TCPSocketService {
                     dataBuffer = '';
                     incompleteDataTimeout = null;
                   }, 5000);
-                  break; // 退出循环，等待更多数据
+                  break; // Exit loop, wait for more data
                 }
                 
                 // Parse headers to get Content-Length
@@ -227,7 +227,7 @@ export class TCPSocketService {
                 if (!contentLengthMatch) {
                   console.warn(`[TCP] No Content-Length header found`);
                   dataBuffer = '';
-                  break; // 退出循环
+                  break; // Exit loop
                 }
                 
                 const contentLength = parseInt(contentLengthMatch[1], 10);
@@ -250,8 +250,8 @@ export class TCPSocketService {
                     console.error(`[TCP] Last 100 chars of buffer: ${dataBuffer.slice(-100)}`);
                     dataBuffer = '';
                     incompleteDataTimeout = null;
-                  }, 10000);
-                  break; // 退出循环，等待更多数据
+                  }, 30000);
+                  break; // Exit loop, wait for more data
                 }
                 
                 // Clear timeout - we have complete message
@@ -259,6 +259,9 @@ export class TCPSocketService {
                   clearTimeout(incompleteDataTimeout);
                   incompleteDataTimeout = null;
                 }
+                
+                // Log complete message received
+                console.log(`[TCP] ✓ Complete message received: ${currentBodyBytes} bytes`);
                 
                 // Extract body - need to find exact byte boundary
                 // Since Content-Length is in bytes, we need to extract exactly that many bytes
@@ -463,16 +466,21 @@ export class TCPSocketService {
       this.persistentConnections.set(clientIP, socket);
       
       // Call connection status callback
+      
       if (this.connectionStatusCallback) {
         this.connectionStatusCallback('connected');
       }
       
-    } else if ((jsonData.type === 'POS' || jsonData.orderType === 'POS') && jsonData.orderitems && jsonData.id) {
-      // Handle POS order format (contains orderitems array, needs formatting);
-      console.log(`[TCP] Message data:`, JSON.stringify(jsonData, null, 2));
-        // Convert format and process
+    } else if ((jsonData.orderType === 'POS' || jsonData.orderType === 'TABLE_SESSION') && jsonData.orderitems && jsonData.id) {
+      // Handle POS and TABLE_SESSION order formats (contains orderitems array, needs formatting)
+      console.log(`[TCP] ========== Received TCP order (${jsonData.type || jsonData.orderType}) ==========`);
+      console.log(`[TCP] Raw order data:`, JSON.stringify(jsonData, null, 2));
+      
+      // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
-      console.log(`[TCP] Formatted Order: ${formattedOrder}`);
+      
+      console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
+      console.log(`[TCP] ================================`);
       
       // Also try to capture device name from order if this is first connection
       const clientIP = this.getSocketIP(socket);

@@ -164,11 +164,14 @@ export const fetchOrdersFromNetwork = async (
     
     const result = await response.json();
     
-    // 检查返回的订单数据
+    // Check returned order data
     if (result && result.orders && Array.isArray(result.orders)) {
-      console.log(`[networkService] 30s Got ${result.orders.length} orders from API`);
-      // 增强订单数据：获取商品准备时间并计算总准备时间
+      console.log(`[networkService] 30s Fetched ${result.orders.length} orders from API`);
+      // Log raw order data
       for (const order of result.orders) {
+        console.log(`[networkService] ========== Raw network order ==========`);
+        console.log(`[networkService] Raw order data:`, JSON.stringify(order, null, 2));
+        
         if (order.products && Array.isArray(order.products)) {
           let totalPrepareTime = 0;
           
