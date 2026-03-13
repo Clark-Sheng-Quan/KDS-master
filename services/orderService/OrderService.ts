@@ -748,33 +748,40 @@ export class OrderService {
           continue;
         }
         
+        // 先格式化订单，得到统一的 order.id
+        const formattedOrder = await Formatters.formatNetworkOrder(order);
+        
+        // 使用格式化后的 order.id 进行所有重复检测
         // 检查是否已经处理过此订单
-        if (this.isOrderProcessed(order._id)) {
+        if (this.isOrderProcessed(formattedOrder.id)) {
           skippedCount++;
+          console.log(`[fetchOrdersFromNetworkAndProcess] 订单 ${formattedOrder.id} 已处理，跳过`);
           continue;
         }
         
         // 检查订单是否已存在于网络订单列表中
-        const existingOrderIndex = this.networkOrders.findIndex((o) => o.id === order.id);
+        const existingOrderIndex = this.networkOrders.findIndex((o) => o.id === formattedOrder.id);
         if (existingOrderIndex !== -1) {
           skippedCount++;
+          console.log(`[fetchOrdersFromNetworkAndProcess] 订单 ${formattedOrder.id} 已存在于网络订单列表，跳过`);
           continue;
         }
         
         // 检查订单是否已存在于TCP订单列表中
-        const existingTcpOrderIndex = this.tcpOrders.findIndex((o) => o._id === order._id);
+        const existingTcpOrderIndex = this.tcpOrders.findIndex((o) => o.id === formattedOrder.id);
         if (existingTcpOrderIndex !== -1) {
           skippedCount++;
+          console.log(`[fetchOrdersFromNetworkAndProcess] 订单 ${formattedOrder.id} 已存在于TCP订单列表，跳过`);
           continue;
         }
         
-        // Format the order
-        const formattedOrder = await Formatters.formatNetworkOrder(order);
-        
-        
-        // Add the new order
+        // 添加新订单
         await this.addNetworkOrder(formattedOrder);
         newOrdersCount++;
+      }
+      
+      if (newOrdersCount > 0 || skippedCount > 0) {
+        console.log(`[fetchOrdersFromNetworkAndProcess] 新增: ${newOrdersCount} 个订单, 跳过: ${skippedCount} 个重复订单`);
       }
       
     } catch (error) {

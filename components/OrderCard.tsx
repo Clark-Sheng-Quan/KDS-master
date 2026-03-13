@@ -604,12 +604,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               {/* 左列 */}
               <View style={styles.leftColumn}>
                 <Text style={styles.orderId}>#{getOrderDisplayNumber()}</Text>
-                <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
+                {/* <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
                   {getSourceDisplay(order.source).text}
-                </Text>
-                <Text style={[styles.pickupMethodText, { color: getPickupMethodDisplay(order.pickupMethod).color }]}>
+                </Text> */}
+                {/* <Text style={[styles.pickupMethodText, { color: getPickupMethodDisplay(order.pickupMethod).color }]}>
                   {getPickupMethodDisplay(order.pickupMethod).text}
-                </Text>
+                </Text> */}
                 {/* {typeof order.total_prepare_time === 'number' && order.total_prepare_time > 0 && (
                   <Text style={styles.prepareTime}>
                     {t("prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
@@ -622,7 +622,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                <Text style={styles.dueTimeText}>{t("createdAt")}: {formattedDueTime}</Text>
+                {/* <Text style={styles.dueTimeText}>{t("createdAt")}: {formattedDueTime}</Text> */}
                 {completedTime && (
                   <Text style={styles.completedTimeDisplay}>
                     {t("completedAt")}: {formattedCompletedTime}
@@ -682,19 +682,14 @@ const styles = StyleSheet.create({
   orderCard: {
     backgroundColor: "white",
     borderRadius: 8,
-    padding: 16,
-    paddingBottom: 0,
-    paddingLeft: 0,
-    paddingRight: 0,
+    // paddingBottom: 0,
+    // paddingLeft: 0,
+    // paddingRight: 0,
     // height: 600,
     // width: 360,
     display: "flex",
     flexDirection: "column",
-    position: "relative",
-    marginRight: 6,
-  },
-  compactCard: {
-    paddingTop: 0,
+    position: "relative"
   },
   updateBadge: {
     position: "absolute",
@@ -753,8 +748,8 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
-    paddingLeft: 10,
-    paddingRight: 10,
+    // paddingLeft: 10,
+    // paddingRight: 10,
     display: "flex",
     flexDirection: "column",
   },
@@ -767,8 +762,11 @@ const styles = StyleSheet.create({
   headerLayout: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 12,
-    marginBottom: 12,
+    marginTop: 0,
+    marginBottom: 0,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 10
   },
   leftColumn: {
     flex: 1,
@@ -817,7 +815,7 @@ const styles = StyleSheet.create({
     textAlign: "right" as const,
   },
   itemsContainer: {
-    marginTop: 20, 
+    marginTop: 0, 
     marginBottom: 8,
   },
   itemRow: {
@@ -829,6 +827,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
     opacity: 1,
+    paddingLeft: 10,
+    paddingRight: 10,
   },
   itemNameContainer: {
     flexDirection: "column",

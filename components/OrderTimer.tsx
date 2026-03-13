@@ -111,16 +111,18 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   return (
     <View style={styles.headerRight}>
       {/* 状态按钮 */}
-      <View
+      {/* <View
         style={[styles.statusButton, { backgroundColor: statusInfo.color }]}
       >
         <Text style={styles.statusButtonText}>{statusInfo.text}</Text>
-      </View>
+      </View> */}
       
       {/* 已过时间 */}
-      <Text style={[styles.elapsedTimeText, { color: statusInfo.color }]}>
-        {formatTime(elapsedTime)}
-      </Text>
+      <View style={styles.timerBackground}>
+        <Text style={[styles.elapsedTimeText, { color: statusInfo.color }]}>
+          {formatTime(elapsedTime)}
+        </Text>
+      </View>
     </View>
   );
 };
@@ -145,6 +147,12 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  timerBackground: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   elapsedTimeText: {
     fontSize: 20,
