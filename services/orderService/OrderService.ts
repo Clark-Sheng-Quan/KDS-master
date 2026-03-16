@@ -436,6 +436,10 @@ export class OrderService {
         }
         
         // 非 recalled 订单的正常更新逻辑
+        // 重复的 TCP order 总是增加 updateCount
+        const currentUpdateCount = order.updateCount || 0;
+        order.updateCount = currentUpdateCount + 1;
+        
         // 函数1：获取新订单的过滤后产品
         const newFilteredProducts = this.filterOrderProducts(order);
         
@@ -450,27 +454,22 @@ export class OrderService {
           return;
         }
         
-        // 函数2：检测变化并更新 updateCount（返回是否有变化）
-        const hasChanged = this.updateCountIfProductsChanged(order, newFilteredProducts);
-        
         order.updatedAt = Date.now();
         
         // 替换旧订单为新订单（已经是过滤后的）
         this.tcpOrders[existingOrderIndex] = order;
         await StorageService.saveTCPOrders(this.tcpOrders);
         
-        // 只在确定有变化时才播放更新提示音
-        if (hasChanged) {
-          AudioService.playNewOrderAlert();
-          
-          // 通知 Calling Screen 订单产品数量变化
-          const device = callingScreenDiscovery.getCachedDevice();
-          if (device) {
-            const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
-            callingScreenService.notifyOrderAdded(device, order._id, String(order.num), itemCount, order.tableNumber).catch((error: any) => {
-              console.warn('[OrderService] Failed to notify Calling Screen (TCP order updated):', error);
-            });
-          }
+        // 重复的 TCP order 总是播放更新提示音
+        AudioService.playUpdateOrderAlert();
+        
+        // 通知 Calling Screen 订单产品数量变化
+        const device = callingScreenDiscovery.getCachedDevice();
+        if (device) {
+          const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
+          callingScreenService.notifyOrderAdded(device, order._id, String(order.num), itemCount, order.tableNumber).catch((error: any) => {
+            console.warn('[OrderService] Failed to notify Calling Screen (TCP order updated):', error);
+          });
         }
         
         // 触发回调通知订单已更新（直接传递已过滤的订单）
