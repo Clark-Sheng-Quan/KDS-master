@@ -245,7 +245,7 @@ export default function SettingsScreen() {
             // 逐个发送订单通知
             for (const order of allOrders) {
               try {
-                const orderNumber = String(order.num || order.id.substring(0, 8));
+                const orderNumber = String(order.num);
                 const itemCount = order.products?.reduce((total, item) => total + (item.quantity || 1), 0) || 0;
                 
                 await callingScreenService.notifyOrderAdded(

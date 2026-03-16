@@ -360,7 +360,7 @@ export class OrderService {
       
       // Notify Calling Screen about new order (fire and forget)
       // Notify all orders: new orders, recalled orders, any source should notify
-      const orderNumber = String(order.num || order.id.substring(0, 8));
+      const orderNumber = String(order.num);
       const itemCount = this.calculateItemCount(order);
       const device = callingScreenDiscovery.getCachedDevice();
       if (device) {

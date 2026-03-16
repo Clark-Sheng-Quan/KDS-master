@@ -27,7 +27,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     const items = Array.isArray(orderData.orderitems) ? orderData.orderitems : [];
     
     const formattedItems = items.map((item: any, index: number) => {
-        // POS format: { product: { name, category, options, ... }, qty, itemState }
+        // POS format: { product: { name, category, options, ... }, qty, itemState, orderItems }
         const product = item.product || {};
         const itemState = item.itemState || 'PROCESSED'; // Track item state
         
@@ -39,22 +39,14 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
           productCategory = product.category;
         }
   
-        // Process product options (POS format)
-        // Include ALL available options, not just selected ones (qty = 0 means not yet selected)
+        // orderItems contains the actual selected options/preferences
         let options: any[] = [];
-        const optionsArray = product.options || [];
-        
-        if (Array.isArray(optionsArray)) {
-          options = optionsArray.map((optionGroup: any) => {
-            const optionItems = optionGroup.option_items || [];
-            return {
-              name: optionGroup.name || 'Option Group',
-              items: optionItems.map((opt: any) => ({
-                name: opt.name || 'Option',
-                price_adjust: opt.price_adjust || 0
-              }))
-            };
-          });
+        const orderItemsArray = item.orderItems;
+        if (Array.isArray(orderItemsArray)) {
+          options = orderItemsArray.map((orderItem: any) => ({
+            name: orderItem.optionItem?.name,
+            value: String(orderItem.qty),
+          }));
         }
         
         return {
@@ -107,13 +99,14 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       pickupMethod = orderData.PickMethod;
     }
     
-    // Extract order number - ensure it's a string, not an object
-    let orderNumber = orderId;
-    if (typeof orderData.orderNumber === 'string' && orderData.orderNumber) {
-      orderNumber = orderData.orderNumber;
-    } else if (typeof orderData.orderNumber === 'number') {
-      orderNumber = String(orderData.orderNumber);
-    }
+    // 生成订单号：优先用 orderNumber，否则用 ID 最后4位
+    const finalOrderNum = (
+      typeof orderData.orderNumber === 'string' && orderData.orderNumber
+        ? orderData.orderNumber
+        : typeof orderData.orderNumber === 'number'
+        ? String(orderData.orderNumber)
+        : orderId.slice(-4)
+    );
     
     // Extract total prepare time - ensure it's a number, not an object
     let totalPrepareTime = totalPrepareTimeFromItems;
@@ -139,7 +132,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       pickupMethod: pickupMethod,
       pickupTime: localOrderTime, // POS doesn't have separate pickup time, use order time
       kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
-      num: orderNumber,              // 订单号 (用于显示)
+      num: finalOrderNum,              // 订单号 (用于显示)
       status: orderData.status,
       products: formattedItems,
       source: 'tcp', // Mark source as TCP
@@ -152,14 +145,15 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
   } catch (error) {
     console.error('[Format] Failed to format POS TCP order:', error, orderData);
     // Return basic order object
+    const fallbackId = String(Date.now());
     return {
-      id: String(Date.now()),
-      _id: String(Date.now()),
+      id: fallbackId,
+      _id: fallbackId,
       orderTime: new Date().toISOString(),
       pickupMethod: "n/a",
       pickupTime: new Date().toISOString(),
       kdsReceiveTime: new Date().toISOString(), 
-      num: orderData.id || String(Date.now()),  // 订单号
+      num: (orderData.orderNumber || fallbackId).toString().slice(-4),  // 订单号
       products: [],
       source: 'tcp',
       total_prepare_time: 0,
@@ -207,6 +201,11 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     const localPickupTime = convertToLocalTimeFormatted(order.pick_time);
     const localOrderTime = convertToLocalTimeFormatted(order.time);
     
+    // 生成订单号：如果有 order_num 就用，否则用 _id 的最后4位
+    const orderNum = order.order_num 
+      ? order.order_num.toString() 
+      : order._id.toString().slice(-4);
+    
     return {
       id: order._id.toString(),
       _id: order._id || order._id.toString(),
@@ -214,7 +213,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       pickupMethod: order.pick_method,
       pickupTime: localPickupTime, // Use converted local time
       kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
-      num: order.order_num.toString(),     // 订单号 (用于显示)
+      num: orderNum,     // 订单号 (用于显示)
       status: order.status, 
       products: formattedItems,
       source: order.source,
@@ -225,13 +224,14 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     console.error('[Format] Failed to format network order:', error, order);
     
     // Return basic order object instead of throwing error
+    const fallbackId = (order._id || Date.now()).toString();
     return {
-      id: (order._id || Date.now()).toString(),
+      id: fallbackId,
       _id: order._id || (order.order_num || Date.now()).toString(),
       orderTime: order.time || new Date().toISOString(),
       pickupMethod: order.pick_method || 'unknown',
       pickupTime: order.pick_time || new Date().toISOString(),
-      num: (order._id || Date.now()).toString(),    // 订单号
+      num: (order.order_num ? order.order_num.toString() : fallbackId.slice(-4)),    // 订单号
       status: order.status || 'unknown',
       products: [],
       kdsReceiveTime: new Date().toISOString(), 

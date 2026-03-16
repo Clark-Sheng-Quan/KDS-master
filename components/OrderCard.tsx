@@ -161,7 +161,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     });
 
     // Notify Calling Screen
-    const orderNumber = String(order.num || order.id.substring(0, 8));
+    const orderNumber = String(order.num);
     const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
     const device = callingScreenDiscovery.getCachedDevice();
     if (device) {
@@ -194,7 +194,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   // Handle Call button press - send "ready" notification
   const handleCallPressed = useCallback(() => {
     setCallButtonPressed(true);  // Mark that Call button has been pressed
-    const orderNumber = String(order.num || order.id.substring(0, 8));
+    const orderNumber = String(order.num);
     const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
     const device = callingScreenDiscovery.getCachedDevice();
     if (device) {
@@ -278,7 +278,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         updatedOrder = updateLocalOrderStatus(updatedOrder);
         
         // Notify Calling Screen
-        const orderNumber = String(order.num || order.id.substring(0, 8));
+        const orderNumber = String(order.num);
         const itemCount = updatedOrder.products.reduce((total, item) => total + (item.quantity || 1), 0);
         const device = callingScreenDiscovery.getCachedDevice();
         if (device) {
@@ -349,13 +349,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   };
 
   const getOrderDisplayNumber = () => {
-    // 如果 num 存在且不等于完整的 id（表示是真正的订单号）
-    if (typeof order.num === 'string' || typeof order.num === 'number') {
-      const numStr = String(order.num);
-      if (numStr.length > 20) return numStr.substring(0, 8);
-      return numStr;
-    }
-    return order.id.substring(0, 8) || 'N/A';
+    // order.num 现在已经由 formatter 生成，肯定有值
+    const numStr = String(order.num);
+    if (numStr.length > 20) return numStr.substring(0, 8);
+    return numStr;
   };
 
   // 格式化Due时间 - 根据showDateInDue决定是否显示日期
@@ -602,7 +599,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             {/* 新 Header 设计 - 左右两列 */}
             <View style={styles.headerLayout}>
               {/* 左列 */}
-              <View style={styles.leftColumn}>
+              <View style={[
+                styles.leftColumn,
+                { justifyContent: (!order.tableNumber || order.tableNumber === 'N/A') ? "center" : "flex-start" }
+              ]}>
                 <Text style={styles.orderId}>#{getOrderDisplayNumber()}</Text>
                 {/* <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
                   {getSourceDisplay(order.source).text}
@@ -615,9 +615,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                     {t("prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
                   </Text>
                 )} */}
-                <Text style={styles.prepareTime}>
-                  {t("table")}: <Text style={styles.prepareTimeValue}>{order.tableNumber || 'N/A'}</Text>
-                </Text>
+                {order.tableNumber && order.tableNumber !== 'N/A' && (
+                  <Text style={styles.tableNumberText}>
+                    {t("table")}: <Text style={{ fontWeight: 'bold', fontSize: 20 }}>{order.tableNumber}</Text>
+                  </Text>
+                )}
 
               </View>
               {/* 右列 */}
@@ -757,7 +759,7 @@ const styles = StyleSheet.create({
     fontSize: 32, 
     fontWeight: "700",
     color: "#1a1a1a",
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   headerLayout: {
     flexDirection: "row",
@@ -805,6 +807,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#333",
     fontWeight: "bold",
+  },
+  tableNumberText: {
+    fontSize: 20,
+    color: "#333",
+    fontWeight: "600",
+    // marginTop: 8,
+    marginLeft: 0,
+    flexWrap: "nowrap",
   },
   completedTimeDisplay: {
     fontSize: 13,
