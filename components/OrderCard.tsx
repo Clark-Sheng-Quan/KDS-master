@@ -633,7 +633,15 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             
             {/* 商品 */}
             <View style={styles.itemsContainer}>
-              {order.products?.map((item, index) => renderProductItem(item, index))}
+              {order.products
+                ?.sort((a, b) => {
+                  // VOIDED 的排在最后，非 VOIDED 的排在前面
+                  const aIsVoided = a.itemState === 'VOIDED';
+                  const bIsVoided = b.itemState === 'VOIDED';
+                  if (aIsVoided === bIsVoided) return 0; // 状态相同，保持原有顺序
+                  return aIsVoided ? 1 : -1; // VOIDED 排后面
+                })
+                .map((item, index) => renderProductItem(item, index))}
             </View>
           </View>
         </ScrollView>

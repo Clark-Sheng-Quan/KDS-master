@@ -479,7 +479,7 @@ export class TCPSocketService {
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
       
-      // console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
+      console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
       console.log(`[TCP] ================================`);
       
       // Also try to capture device name from order if this is first connection

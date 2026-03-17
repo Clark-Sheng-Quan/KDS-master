@@ -32,6 +32,10 @@ export class OrderService {
   private static tcpOrders: FormattedOrder[] = [];
   private static networkPollingInterval: ReturnType<typeof setInterval> | null = null;
   
+  // TCP 订单初始化窗口（用于区分初次下单的多条消息和真实的后续更新）
+  private static tcpOrderInitializationTimes: Map<string, number> = new Map();
+  private static readonly TCP_ORDER_INIT_WINDOW = 5000; // 5秒初始化窗口
+  
   // KDS 配置信息
   private static kdsCategory: string = 'all';
   
@@ -198,8 +202,6 @@ export class OrderService {
         return product.category === this.kdsCategory;
       });
     }
-    
-    // console.log(`[getFilteredProducts] 过滤后 ${filteredProducts.length}/${order.products.length} 个产品`);
     return filteredProducts;
   }
 
@@ -410,64 +412,90 @@ export class OrderService {
         // 获取旧订单
         const oldOrder = this.tcpOrders[existingOrderIndex];
         
-        // 对于 recalled 订单进行产品合并更新
-        if (order.isRecalled) {
-          // 合并产品：保留现有产品，添加新产品（避免重复）
-          const existingProductIds = new Set(oldOrder.products?.map(p => p.id) || []);
-          const newProducts = order.products?.filter(p => !existingProductIds.has(p.id)) || [];
-          
-          const mergedOrder = {
-            ...oldOrder,
-            products: [...(oldOrder.products || []), ...newProducts],
-          };
-          
-          this.tcpOrders[existingOrderIndex] = mergedOrder;
-          await StorageService.saveTCPOrders(this.tcpOrders);
-          
-          console.log(`[addTCPOrder] 已更新recall订单 ${order.id}，新增 ${newProducts.length} 个产品`);
-          
-          // 触发回调通知UI更新
-          if (this.tcpOrderUpdateCallback) {
-            this.tcpOrderUpdateCallback(this.tcpOrders);
-          }
-          
-          this.emitOrderUpdate();
-          return;
-        }
-        
-        // 非 recalled 订单的正常更新逻辑
-        // 重复的 TCP order 总是增加 updateCount
-        const currentUpdateCount = order.updateCount || 0;
-        order.updateCount = currentUpdateCount + 1;
-        
-        // 函数1：获取新订单的过滤后产品
+        // 新逻辑：POS 现在分别发送每个商品，所以应该合并而不是替换
+        // 获取新订单的过滤后产品
         const newFilteredProducts = this.filterOrderProducts(order);
         
-        // 如果过滤后没有产品，则删除此订单
+        // 如果没有新产品，返回（不需要更新）
         if (newFilteredProducts.length === 0) {
-          this.tcpOrders.splice(existingOrderIndex, 1);
-          await StorageService.saveTCPOrders(this.tcpOrders);
-          console.log(`[addTCPOrder] 订单 ${order.id} 更新后无产品，已删除`);
-          
-          // 触发回调通知订单已删除
-          this.emitOrderUpdate();
+          console.log(`[addTCPOrder] 订单 ${order.id} 没有新产品，跳过更新`);
           return;
         }
         
-        order.updatedAt = Date.now();
+        // 合并产品：对于每个新产品，如果 ID 已存在则更新，否则添加
+        let hasNewProducts = false;  // 有新产品被添加
+        let hasUpdatedProducts = false;  // 有现有产品被更新
+        let mergedProducts = [...(oldOrder.products || [])];
         
-        // 替换旧订单为新订单（已经是过滤后的）
-        this.tcpOrders[existingOrderIndex] = order;
+        for (const newProduct of newFilteredProducts) {
+          const existingIndex = mergedProducts.findIndex(p => p.id === newProduct.id);
+          if (existingIndex !== -1) {
+            // ID 已存在，检查是否有属性变化（如数量、选项等）
+            const oldProduct = mergedProducts[existingIndex];
+            if (JSON.stringify(oldProduct) !== JSON.stringify(newProduct)) {
+              // 产品有变化，替换为新的
+              mergedProducts[existingIndex] = newProduct;
+              hasUpdatedProducts = true;
+              console.log(`[addTCPOrder] 订单 ${order.id} 的产品 ${newProduct.id} 已更新`);
+            }
+          } else {
+            // ID 不存在，添加新产品
+            mergedProducts.push(newProduct);
+            hasNewProducts = true;
+            console.log(`[addTCPOrder] 订单 ${order.id} 添加新产品 ${newProduct.id}`);
+          }
+        }
+        
+        // 合并标志
+        const hasChanges = hasNewProducts || hasUpdatedProducts;
+        
+        // 如果没有任何变化，返回
+        if (!hasChanges) {
+          console.log(`[addTCPOrder] 订单 ${order.id} 产品无变化，跳过`);
+          return;
+        }
+        
+        // 合并订单
+        const mergedOrder = {
+          ...oldOrder,
+          products: mergedProducts,
+        };
+        
+        // 重复的 TCP order 总是增加 updateCount
+        const currentUpdateCount = mergedOrder.updateCount || 0;
+        mergedOrder.updateCount = currentUpdateCount + 1;
+        mergedOrder.updatedAt = Date.now();
+        
+        this.tcpOrders[existingOrderIndex] = mergedOrder;
         await StorageService.saveTCPOrders(this.tcpOrders);
         
-        // 重复的 TCP order 总是播放更新提示音
-        AudioService.playUpdateOrderAlert();
+        console.log(`[addTCPOrder] 订单 ${order.id} 已更新，updateCount=${mergedOrder.updateCount}`);
+        
+        // 检查是否在初始化窗口内
+        const orderInitTime = this.tcpOrderInitializationTimes.get(order.id) || 0;
+        const timeSinceInit = Date.now() - orderInitTime;
+        const isInInitializationWindow = timeSinceInit < this.TCP_ORDER_INIT_WINDOW;
+        
+        // 音效逻辑：根据是否有新产品或仅更新产品来播放不同声音
+        if (!isInInitializationWindow) {
+          if (hasNewProducts) {
+            // 有新产品被添加
+            AudioService.playNewOrderAlert();
+            console.log(`[addTCPOrder] 订单 ${order.id} 有新产品，播放新订单声音`);
+          } else if (hasUpdatedProducts) {
+            // 只有现有产品被更新
+            AudioService.playUpdateOrderAlert();
+            console.log(`[addTCPOrder] 订单 ${order.id} 只更新产品，播放更新声音`);
+          }
+        } else {
+          console.log(`[addTCPOrder] 订单 ${order.id} 在初始化窗口内 (${timeSinceInit}ms < ${this.TCP_ORDER_INIT_WINDOW}ms)，跳过音效`);
+        }
         
         // 通知 Calling Screen 订单产品数量变化
         const device = callingScreenDiscovery.getCachedDevice();
         if (device) {
-          const itemCount = order.products.reduce((total, item) => total + (item.quantity || 1), 0);
-          callingScreenService.notifyOrderAdded(device, order._id, String(order.num), itemCount, order.tableNumber).catch((error: any) => {
+          const itemCount = mergedOrder.products.reduce((total, item) => total + (item.quantity || 1), 0);
+          callingScreenService.notifyOrderAdded(device, mergedOrder._id, String(mergedOrder.num), itemCount, mergedOrder.tableNumber).catch((error: any) => {
             console.warn('[OrderService] Failed to notify Calling Screen (TCP order updated):', error);
           });
         }
@@ -494,6 +522,9 @@ export class OrderService {
       // 添加到列表末尾（已经是过滤后的）
       this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
+      
+      // 记录订单的初始化时间，用于判断后续消息是否仍在初始化窗口内
+      this.tcpOrderInitializationTimes.set(order.id, Date.now());
       
       // 保存初始的过滤产品到 previousFilteredProducts，用于后续比较
       this.previousFilteredProducts.set(order.id, [...filteredProducts]);
