@@ -355,6 +355,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return numStr;
   };
 
+  // 获取 order card title - 根据是否有 table 号显示不同格式
+  const getOrderTitle = () => {
+    if (order.tableNumber && order.tableNumber !== 'N/A') {
+      return `TABLE ${order.tableNumber}`;
+    }
+    
+    const pickupMethod = order.pickupMethod?.toLowerCase() || '';
+    const methodLabel = (pickupMethod === 'take-away') ? 'TAKE-AWAY' : 'DINE-IN';
+    return `${methodLabel} - #${getOrderDisplayNumber()}`;
+  };
+
   // 格式化Due时间 - 根据showDateInDue决定是否显示日期
   const formattedDueTime = useMemo(() => {
     try {
@@ -549,27 +560,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           style,
         ]}
       >
-        {/* 订单更新指示器 - 左上角 */}
-        {!hideBadges && order.updateCount && order.updateCount >= 1 && (
-          <View style={styles.updateBadge}>
-            <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
-            <Text style={styles.updateBadgeText}>
-              {t("updated")}{order.updateCount > 1 ? ` ${order.updateCount}` : ''}
-            </Text>
-          </View>
-        )}
-
-        {/* 召回订单指示器 - 在updateBadge右边
-        {!hideBadges && order.isRecalled && (
-          <View style={[
-            styles.recallBadge,
-            order.updateCount && order.updateCount >= 1 ? styles.recallBadgeWithUpdate : null
-          ]}>
-            <Ionicons name="arrow-redo" size={14} color="#fff" style={{ marginRight: 4 }} />
-            <Text style={styles.recallBadgeText}>RECALLED</Text>
-          </View>
-        )} */}
-
+        {/* 产品详情弹窗 */}
         {selectedProduct && (
           <ProductDetailPopup
             visible={showProductDetail}
@@ -601,9 +592,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               {/* 左列 */}
               <View style={[
                 styles.leftColumn,
-                { justifyContent: (!order.tableNumber || order.tableNumber === 'N/A') ? "center" : "flex-start" }
+                { justifyContent: "center" }
               ]}>
-                <Text style={styles.orderId}>#{getOrderDisplayNumber()}</Text>
+                {/* 订单更新指示器 */}
+                {!hideBadges && order.updateCount && order.updateCount >= 1 && (
+                  <View style={styles.updateBadge}>
+                    <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.updateBadgeText}>
+                      {t("updated")}{order.updateCount > 1 ? ` ${order.updateCount}` : ''}
+                    </Text>
+                  </View>
+                )}
+                
+                <Text style={styles.orderTitle}>{getOrderTitle()}</Text>
                 {/* <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
                   {getSourceDisplay(order.source).text}
                 </Text> */}
@@ -615,11 +616,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                     {t("prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
                   </Text>
                 )} */}
-                {order.tableNumber && order.tableNumber !== 'N/A' && (
-                  <Text style={styles.tableNumberText}>
-                    {t("table")}: <Text style={{ fontWeight: 'bold', fontSize: 20 }}>{order.tableNumber}</Text>
-                  </Text>
-                )}
 
               </View>
               {/* 右列 */}
@@ -694,21 +690,19 @@ const styles = StyleSheet.create({
     position: "relative"
   },
   updateBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
     backgroundColor: "#FF9B2F",
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
     flexDirection: "row",
     alignItems: "center",
-    zIndex: 10,
+    // marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    alignSelf: "flex-start",
   },
   updateBadgeText: {
     color: "#fff",
@@ -755,11 +749,10 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "column",
   },
-  orderId: {
-    fontSize: 32, 
+  orderTitle: {
+    fontSize: 28, 
     fontWeight: "700",
     color: "#1a1a1a",
-    // marginBottom: 4,
   },
   headerLayout: {
     flexDirection: "row",
@@ -771,7 +764,7 @@ const styles = StyleSheet.create({
     padding: 10
   },
   leftColumn: {
-    flex: 1,
+    flex: 2,  // 增加左列宽度占比
     justifyContent: "flex-start",
   },
   rightColumn: {
