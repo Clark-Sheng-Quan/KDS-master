@@ -26,7 +26,7 @@ class AudioService {
     try {
       if (!this.updateOrderLoaded) {
         const { sound } = await Audio.Sound.createAsync(
-          require('../assets/music/updatedorderalert.mp3')
+          require('../assets/music/updatedOrderAlert.mp3')
         );
         this.updateOrderSound = sound;
         this.updateOrderLoaded = true;
