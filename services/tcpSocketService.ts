@@ -474,12 +474,12 @@ export class TCPSocketService {
     } else if ((jsonData.orderType === 'POS' || jsonData.orderType === 'TABLE_SESSION') && jsonData.orderitems && jsonData.id) {
       // Handle POS and TABLE_SESSION order formats (contains orderitems array, needs formatting)
       console.log(`[TCP] ========== Received TCP order (${jsonData.type || jsonData.orderType}) ==========`);
-      // console.log(`[TCP] Raw order data:`, JSON.stringify(jsonData, null, 2));
+      console.log(`[TCP] Raw order data:`, JSON.stringify(jsonData, null, 2));
       
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
       
-      console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
+      // console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
       console.log(`[TCP] ================================`);
       
       // Also try to capture device name from order if this is first connection
