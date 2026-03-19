@@ -1,0 +1,158 @@
+#!/bin/bash
+
+# 自动构建并发布 GitHub release 脚本
+# 使用方式: 
+#   ./publish.sh              # 使用当前版本号发布
+#   ./publish.sh 1.1.2        # 更新版本为 1.1.2 并发布
+
+set -e
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}     KDS Release Publisher v2.0${NC}"
+echo -e "${BLUE}========================================${NC}"
+
+# 0. 处理命令行参数
+NEW_VERSION="${1:-}"
+
+# 1. 获取并处理版本号
+echo -e "\n${YELLOW}[1/8]${NC} 处理版本号..."
+
+# 从 app.json 读取当前版本
+CURRENT_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' app.json | head -1 | cut -d'"' -f4)
+if [ -z "$CURRENT_VERSION" ]; then
+    echo -e "${RED}❌ 无法从 app.json 中读取版本号${NC}"
+    exit 1
+fi
+
+# 如果提供了新版本号，进行验证和更新
+if [ -n "$NEW_VERSION" ]; then
+    # 验证版本号格式（应该是 X.X.X 的格式）
+    if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo -e "${RED}❌ 版本号格式错误: $NEW_VERSION${NC}"
+        echo -e "${YELLOW}请使用格式: X.X.X (例如: 1.1.2)${NC}"
+        exit 1
+    fi
+    
+    if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+        echo -e "${YELLOW}⚠${NC} 新版本号与当前版本号相同: ${YELLOW}$NEW_VERSION${NC}"
+    else
+        echo -e "${YELLOW}📝 准备更新版本:${NC}"
+        echo -e "   当前版本: ${YELLOW}$CURRENT_VERSION${NC}"
+        echo -e "   新版本: ${YELLOW}$NEW_VERSION${NC}"
+        
+        # 更新 app.json
+        sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" app.json
+        echo -e "${GREEN}✓${NC} app.json 已更新"
+        
+        # 更新 package.json
+        sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" package.json
+        echo -e "${GREEN}✓${NC} package.json 已更新"
+        
+        CURRENT_VERSION=$NEW_VERSION
+    fi
+fi
+
+VERSION=$CURRENT_VERSION
+echo -e "${GREEN}✓${NC} 发布版本: ${YELLOW}$VERSION${NC}"
+
+# 2. 提交版本号同步更改（如果有）
+echo -e "\n${YELLOW}[2/8]${NC} 提交版本号更改..."
+if [ -n "$(git status --porcelain | grep -E 'package.json|app.json')" ]; then
+    echo -e "${YELLOW}  检测到版本号文件变更，正在提交...${NC}"
+    git add app.json package.json
+    git commit -m "chore: sync version to $VERSION"
+    echo -e "${GREEN}✓${NC} 版本号更改已提交"
+else
+    echo -e "${GREEN}✓${NC} 版本号无需更新"
+fi
+
+# 3. 验证 git 状态
+echo -e "\n${YELLOW}[3/8]${NC} 验证 git 状态..."
+if [ -n "$(git status --porcelain)" ]; then
+    echo -e "${RED}❌ 工作目录有未提交的更改${NC}"
+    echo -e "${YELLOW}请先提交所有更改: git add . && git commit -m 'Release v$VERSION'${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} 工作目录干净"
+
+# 4. 检查标签是否存在
+echo -e "\n${YELLOW}[4/8]${NC} 检查 git 标签..."
+if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+    echo -e "${RED}❌ 标签 v$VERSION 已存在${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} 标签 v$VERSION 不存在（可以创建）"
+
+# 5. 构建 APK
+echo -e "\n${YELLOW}[5/8]${NC} 构建 Release APK..."
+cd android
+if ! ./gradlew assembleRelease > /dev/null 2>&1; then
+    echo -e "${RED}❌ APK 构建失败${NC}"
+    exit 1
+fi
+cd ..
+
+APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+if [ ! -f "$APK_PATH" ]; then
+    echo -e "${RED}❌ 找不到 APK 文件: $APK_PATH${NC}"
+    exit 1
+fi
+
+APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+echo -e "${GREEN}✓${NC} APK 构建成功 (${YELLOW}$APK_SIZE${NC})"
+
+# 6. 创建 git 标签和 GitHub release
+echo -e "\n${YELLOW}[6/8]${NC} 创建 GitHub release..."
+
+# 创建 git 标签
+git tag "v$VERSION"
+git push origin "v$VERSION"
+
+# 创建 release（初始为 draft）
+RELEASE_NOTES="## Version $VERSION
+
+### Major Improvements
+- Added new feature X for better user experience
+
+### Bug Fixes
+- Fixed issue Y that caused crashes on older devices
+
+### Download
+Get the latest APK from the Assets section below."
+
+gh release create "v$VERSION" \
+    --title "Version $VERSION" \
+    --notes "$RELEASE_NOTES" \
+    --draft
+
+echo -e "${GREEN}✓${NC} Release v$VERSION 已创建（draft 状态）"
+
+# 7. 上传 APK 并发布
+echo -e "\n${YELLOW}[7/8]${NC} 上传 APK 并发布..."
+
+# 上传 APK
+gh release upload "v$VERSION" "$APK_PATH" --clobber
+
+# 发布 release（从 draft 改为 published）
+gh release edit "v$VERSION" --draft=false
+
+echo -e "${GREEN}✓${NC} APK 已上传并发布"
+
+# 最终输出
+echo -e "\n${YELLOW}[8/8]${NC} 完成...\n"
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}     ✓ 发布完成！${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo -e "\n📦 Release 详情:"
+echo -e "   版本: ${YELLOW}v$VERSION${NC}"
+echo -e "   APK: ${YELLOW}$APK_SIZE${NC}"
+echo -e "   链接: ${BLUE}https://github.com/Clark-Sheng-Quan/KDS-master/releases/tag/v$VERSION${NC}"
+echo -e "\n✓ 用户可以从 GitHub release 页面下载 APK"
+echo -e ""
