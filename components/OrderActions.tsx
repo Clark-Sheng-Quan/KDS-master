@@ -32,7 +32,7 @@ export const OrderActions: React.FC<OrderActionsProps> = React.memo(({
 }) => {
   const { t } = useLanguage();
   const isDoneDisabled = showCallButton && !callButtonPressed;
-  const doneButtonText = itemLevelMode ? t("allDone") : t("done");
+  const doneButtonText = itemLevelMode ? t("done") : t("allDone");
   
   return (
     <View style={[styles.buttonContainer, style]}>

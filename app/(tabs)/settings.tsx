@@ -23,6 +23,7 @@ import { SupportedLanguage } from "../../constants/translations";
 import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
+import { CategoryColorPanel } from "../../components/CategoryColorPanel";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { CallingScreenDevice, callingScreenService } from "@/services/CallingScreenService";
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
@@ -87,6 +88,9 @@ export default function SettingsScreen() {
 
   // 添加 Calling Button 开关状态
   const [enableCallingButton, setEnableCallingButton] = useState<boolean>(false);
+
+  // 分类颜色管理状态
+  const [showCategoryColorPanel, setShowCategoryColorPanel] = useState(false);
 
   // 字体大小设置
   const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
@@ -463,14 +467,16 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.settingsContainer}>
-      {/* 返回按钮 - 右上角 */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="close" size={32} color="white" />
-      </TouchableOpacity>
+      {/* 返回按钮 - 右上角 (仅当没有显示模态面板时) */}
+      {!showCallingScreenDiscovery && !showCategoryColorPanel && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={32} color="white" />
+        </TouchableOpacity>
+      )}
 
       <ScrollView style={styles.container}>
         <Text style={styles.title}>{t("settings")}</Text>
@@ -686,6 +692,19 @@ export default function SettingsScreen() {
               <View style={[styles.switchThumb, enableCallingButton && styles.switchThumbActive]} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* 分类颜色管理卡片 */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t("productCategoryColors")}</Text>
+
+          {/* 分类颜色管理按钮 */}
+          <TouchableOpacity
+            style={styles.deviceDiscoveryButton}
+            onPress={() => setShowCategoryColorPanel(true)}
+          >
+            <Text style={styles.deviceDiscoveryButtonText}>🎨 {t("manageCategoryColors")}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 显示设置卡片 */}
@@ -927,6 +946,11 @@ export default function SettingsScreen() {
           console.log('[Settings] Selected Calling Screen:', device);
           setConnectedCallingScreen(device);
         }}
+      />
+
+      <CategoryColorPanel
+        visible={showCategoryColorPanel}
+        onClose={() => setShowCategoryColorPanel(false)}
       />
     </View>
   );

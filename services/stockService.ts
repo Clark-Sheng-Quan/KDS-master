@@ -17,6 +17,17 @@ export interface StockResponse {
   status_code: number;
 }
 
+export interface RawStockItem {
+  product_id: string;
+  qty: number;
+  optionItem?: any[];
+}
+
+export interface RawStockResponse {
+  status_code: number;
+  stocks: RawStockItem[];
+}
+
 export class StockService {
   static async getAllWarehouseId(): Promise<{[key: string]: string}|null> {
     const token = await this.getToken();
@@ -84,7 +95,7 @@ export class StockService {
 
     
     try {
-      const response = await fetch(`${API_BASE_URL}/warehouse/get_sotck`, {
+      const response = await fetch(`${API_BASE_URL}/warehouse/get_stock`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,8 +109,39 @@ export class StockService {
       if (!response.ok) {
         throw new Error(`HTTP错误! 状态: ${response.status}`);
       }
-
-      return await response.json();
+      // return await response.json();
+      // 新的API返回格式处理
+      const rawData: RawStockResponse = await response.json();
+      console.log('[StockService] 原始 API 返回数据，stocks 数量:', rawData.stocks?.length);
+      
+      // 验证数据结构
+      if (!rawData.stocks || !Array.isArray(rawData.stocks)) {
+        console.warn('[StockService] API 返回数据无效，没有 stocks 数组');
+        return {
+          products: {},
+          status_code: rawData.status_code || 200
+        };
+      }
+      
+      // 转换数据结构：从 stocks 数组转换为 products 对象
+      // 将所有商品放在 "All" 分类下（因为 API 不返回分类信息）
+      const transformedProducts: Record<string, StockItem[]> = {
+        'All': rawData.stocks.map(stock => ({
+          name: stock.product_id,  // 暂时使用 product_id 作为 name
+          product_id: stock.product_id,
+          qty: stock.qty,
+          prepare_time: 0
+        }))
+      };
+      
+      console.log('[StockService] 转换后的商品分类数:', Object.keys(transformedProducts).length);
+      console.log('[StockService] All 分类下的商品数:', transformedProducts['All']?.length);
+      
+      return {
+        products: transformedProducts,
+        status_code: rawData.status_code
+      };
+      // 旧的转换逻辑，保留以备参考
     } catch (error) {
       console.error('获取库存信息错误:', error);
       throw error;

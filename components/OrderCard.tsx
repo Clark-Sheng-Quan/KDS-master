@@ -14,7 +14,7 @@ import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
 import { PrintButton } from "./PrintButton";
 import { ConfirmModal, showConfirmAlert } from "./ReuseComponents/ConfirmModal";
-import { colors, sourceColors } from "../styles/color";
+import { colors, sourceColors, categoryColors } from "../styles/color";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCompletedOrders } from "../contexts/CompletedOrderContext";
 import { theme } from "../styles/theme";
@@ -96,6 +96,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
   const [itemOptionFontSize, setItemOptionFontSize] = useState<"small" | "medium" | "large">("medium");
 
+  // 分类颜色映射
+  const [colorMapping, setColorMapping] = useState<{ [categoryId: string]: string }>({});
+
   // 加载项目级完成设置
   useEffect(() => {
     const loadSettings = async () => {
@@ -117,6 +120,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         const savedItemOptionFontSize = await AsyncStorage.getItem("item_option_font_size");
         if (savedItemOptionFontSize) {
           setItemOptionFontSize(savedItemOptionFontSize as "small" | "medium" | "large");
+        }
+
+        // 加载分类颜色映射
+        const colorMappingData = await AsyncStorage.getItem("category_colors_mapping");
+        if (colorMappingData) {
+          const mapping = JSON.parse(colorMappingData);
+          setColorMapping(mapping);
         }
       } catch (error) {
         console.error("[OrderCard] 加载设置失败:", error);
@@ -451,6 +461,22 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return { text: 'POS', color: '#10B981' }; // Green
   };
 
+  // 根据产品 category 获取对应的左边框颜色
+  const getCategoryBorderColor = (category?: string) => {
+    if (!category) {
+      return "#FFFFFF"; // 默认白色
+    }
+    
+    // 如果 category 在 colorMapping 中有对应的颜色 key
+    const colorKey = colorMapping[category];
+    
+    if (colorKey && categoryColors[colorKey as keyof typeof categoryColors]) {
+      const color = categoryColors[colorKey as keyof typeof categoryColors];
+      return color;
+    }
+    
+    return "#FFFFFF"; // 默认白色
+  };
 
   const renderProductItem = useCallback((item: any, index: number) => {
     const isVoided = item.itemState === 'VOIDED';
@@ -496,6 +522,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             (!item.options || item.options.length === 0) && {
               borderBottomLeftRadius: 4,
               borderBottomRightRadius: 4,
+            },
+            {
+              borderLeftWidth: 8,
+              borderLeftColor: getCategoryBorderColor(item.category),
             }
           ]}
           delayLongPress={500}
@@ -546,6 +576,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                       optIndex === item.options.length - 1 && {
                         borderBottomLeftRadius: 4,
                         borderBottomRightRadius: 4,
+                      },
+                      {
+                        borderLeftWidth: 8,
+                        borderLeftColor: getCategoryBorderColor(item.category),
                       }
                     ]}
                   >
@@ -575,6 +609,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                       optIndex === item.options.length - 1 && {
                         borderBottomLeftRadius: 4,
                         borderBottomRightRadius: 4,
+                      },
+                      {
+                        borderLeftWidth: 8,
+                        borderLeftColor: getCategoryBorderColor(item.category),
                       }
                     ]}
                   >
@@ -907,7 +945,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
     opacity: 1,
-    paddingLeft: 10,
+    paddingLeft: 16,
     paddingRight: 10,
   },
   itemNameContainer: {
@@ -935,7 +973,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 4,
-    paddingHorizontal: 2,
+    paddingLeft: 12,
+    paddingRight: 8,
     marginBottom: 0,
   },
   optionContent: {

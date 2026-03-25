@@ -42,5 +42,5 @@ export const categoryColors = {
   category18: "#E84393",  // 玫红
   category19: "#00CEC9",  // 薄荷青
   category20: "#6C5CE7",  // 靛蓝
-  default: "#000000ff",     // 黑色
+  default: "#FFFFFF",     // 默认白色
 };
