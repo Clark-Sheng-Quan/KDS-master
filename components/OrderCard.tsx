@@ -126,6 +126,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         const colorMappingData = await AsyncStorage.getItem("category_colors_mapping");
         if (colorMappingData) {
           const mapping = JSON.parse(colorMappingData);
+          console.log(mapping);
+          
           setColorMapping(mapping);
         }
       } catch (error) {
@@ -157,16 +159,23 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       console.log('[OrderCard] Item/Option font size changed to:', value);
     };
 
+    const handleColorMappingChange = (mapping: { [categoryName: string]: string }) => {
+      setColorMapping(mapping);
+      console.log('[OrderCard] 分类颜色映射已更改:', mapping);
+    };
+
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
     settingsListener.onSettingChange('calling_button', handleCallingButtonChange);
     settingsListener.onSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
     settingsListener.onSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
+    settingsListener.onSettingChange('category_colors_mapping', handleColorMappingChange);
 
     return () => {
       settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
       settingsListener.offSettingChange('calling_button', handleCallingButtonChange);
       settingsListener.offSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
       settingsListener.offSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
+      settingsListener.offSettingChange('category_colors_mapping', handleColorMappingChange);
     };
   }, []);
 
@@ -384,10 +393,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   }, [lastCompletedItemId, lastRemovedItem, order, removeCompletedOrder, onItemRemoved]);
   
   // 判断是否应该显示数量（只有 >= 2 时才显示）
-  const shouldShowQuantity = (quantity: any): boolean => {
+  const shouldShowQuantity = useCallback((quantity: any): boolean => {
     const num = parseInt(String(quantity), 10);
     return !isNaN(num) && num >= 2;
-  };
+  }, []);
 
   const getOrderDisplayNumber = () => {
     // order.num 现在已经由 formatter 生成，肯定有值
@@ -461,26 +470,26 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return { text: 'POS', color: '#10B981' }; // Green
   };
 
-  // 根据产品 category 获取对应的左边框颜色
-  const getCategoryBorderColor = (category?: string) => {
+  // 根据产品 category 名字获取对应的左边框颜色 - 使用 useCallback 记忆化，避免频繁重新创建
+  const getCategoryBorderColor = useCallback((category?: string) => {
     if (!category) {
       return "#FFFFFF"; // 默认白色
     }
     
-    // 如果 category 在 colorMapping 中有对应的颜色 key
+    // 使用 category 名字查找颜色映射
     const colorKey = colorMapping[category];
-    
+    console.log(`[OrderCard] 获取分类颜色 - category: ${category}, colorKey: ${colorKey}`);
     if (colorKey && categoryColors[colorKey as keyof typeof categoryColors]) {
-      const color = categoryColors[colorKey as keyof typeof categoryColors];
-      return color;
+      return categoryColors[colorKey as keyof typeof categoryColors];
     }
     
     return "#FFFFFF"; // 默认白色
-  };
+  }, [colorMapping]);
 
   const renderProductItem = useCallback((item: any, index: number) => {
     const isVoided = item.itemState === 'VOIDED';
-
+    // 计算一次 borderColor，避免在多个地方重复调用 getCategoryBorderColor
+    const itemBorderColor = getCategoryBorderColor(item.category);
     const handleItemPress = () => {
       if (disableItems || disabled || isVoided) return;
       
@@ -525,7 +534,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             },
             {
               borderLeftWidth: 8,
-              borderLeftColor: getCategoryBorderColor(item.category),
+              borderLeftColor: itemBorderColor,
             }
           ]}
           delayLongPress={500}
@@ -579,7 +588,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                       },
                       {
                         borderLeftWidth: 8,
-                        borderLeftColor: getCategoryBorderColor(item.category),
+                        borderLeftColor: itemBorderColor,
                       }
                     ]}
                   >
@@ -612,7 +621,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                       },
                       {
                         borderLeftWidth: 8,
-                        borderLeftColor: getCategoryBorderColor(item.category),
+                        borderLeftColor: itemBorderColor,
                       }
                     ]}
                   >
@@ -643,7 +652,21 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
       </View>
     );
-  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger]);
+  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger, getCategoryBorderColor]);
+
+  // 用 useMemo 缓存渲染出的商品列表。这样只要订单的 products 不变，就不会因为组件的无关重绘而反复调用 renderProductItem 和 log
+  const renderedProductsList = useMemo(() => {
+    if (!order.products || !Array.isArray(order.products)) return null;
+    return [...order.products] // 浅拷贝一份用来 sort，避免直接修改原数组
+      .sort((a, b) => {
+        // VOIDED 的排在最后，非 VOIDED 的排在前面
+        const aIsVoided = a.itemState === 'VOIDED';
+        const bIsVoided = b.itemState === 'VOIDED';
+        if (aIsVoided === bIsVoided) return 0; // 状态相同，保持原有顺序
+        return aIsVoided ? 1 : -1; // VOIDED 排后面
+      })
+      .map((item, index) => renderProductItem(item, index));
+  }, [order.products, renderProductItem]);
 
   if (!order.products || !Array.isArray(order.products)) {
     console.error('[OrderCard] Order has no products array:', order);
@@ -740,15 +763,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             
             {/* 商品 */}
             <View style={styles.itemsContainer}>
-              {order.products
-                ?.sort((a, b) => {
-                  // VOIDED 的排在最后，非 VOIDED 的排在前面
-                  const aIsVoided = a.itemState === 'VOIDED';
-                  const bIsVoided = b.itemState === 'VOIDED';
-                  if (aIsVoided === bIsVoided) return 0; // 状态相同，保持原有顺序
-                  return aIsVoided ? 1 : -1; // VOIDED 排后面
-                })
-                .map((item, index) => renderProductItem(item, index))}
+              {renderedProductsList}
             </View>
           </View>
         </ScrollView>
@@ -780,11 +795,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   );
 }, (prevProps, nextProps) => {
   // 自定义比较函数 - 只有这些 props 改变时才重新渲染
+  // 注意：移除了 prevProps.style === nextProps.style 比较
+  // 因为每次父组件渲染都会生成新的 style 对象，导致 React.memo 失效，引发无限重渲染
   return (
     prevProps.order.id === nextProps.order.id &&
     prevProps.selected === nextProps.selected &&
     prevProps.disabled === nextProps.disabled &&
-    prevProps.style === nextProps.style &&
     prevProps.completedTime === nextProps.completedTime
   );
 })
@@ -945,8 +961,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
     opacity: 1,
-    paddingLeft: 16,
-    paddingRight: 10,
+    paddingLeft: 6,
+    paddingRight: 6,
   },
   itemNameContainer: {
     flexDirection: "column",
@@ -973,8 +989,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 4,
-    paddingLeft: 12,
-    paddingRight: 8,
+    paddingLeft: 6,
+    paddingRight: 6,
     marginBottom: 0,
   },
   optionContent: {

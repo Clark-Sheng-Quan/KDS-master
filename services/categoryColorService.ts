@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_API } from '../config/api';
 import { categoryColors } from '../styles/color';
+import { settingsListener } from './settingsListener';
 
 export interface Category {
   _id: string;
@@ -73,6 +74,8 @@ export class CategoryColorService {
     try {
       await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(mapping));
       console.log('[CategoryColorService] 保存分类颜色映射成功');
+      // 触发事件，让 OrderCard 等组件重新加载颜色映射
+      settingsListener.emitSettingChange('category_colors_mapping', mapping);
     } catch (error) {
       console.error('[CategoryColorService] 保存分类颜色映射失败:', error);
       throw error;

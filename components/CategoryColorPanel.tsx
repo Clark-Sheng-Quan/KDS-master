@@ -86,7 +86,7 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
       // 为每个分类添加颜色信息
       const categoriesWithColor: CategoryWithColor[] = categoryList.map(cat => ({
         ...cat,
-        color: mapping[cat._id] ? categoryColors[mapping[cat._id]] : categoryColors.default,
+        color: mapping[cat.name] ? categoryColors[mapping[cat.name]] : categoryColors.default,
       }));
 
       setCategories(categoriesWithColor);
@@ -102,16 +102,16 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
     if (!selectedCategory) return;
 
     try {
-      // 保存颜色映射
-      await CategoryColorService.setCategoryColor(selectedCategory._id, colorKey);
+      // 保存颜色映射（使用分类名字作为 key）
+      await CategoryColorService.setCategoryColor(selectedCategory.name, colorKey);
 
       // 更新状态
-      const newMapping = { ...colorMapping, [selectedCategory._id]: colorKey };
+      const newMapping = { ...colorMapping, [selectedCategory.name]: colorKey };
       setColorMapping(newMapping);
 
       // 更新分类列表
       const updatedCategories = categories.map(cat =>
-        cat._id === selectedCategory._id
+        cat.name === selectedCategory.name
           ? { ...cat, color: categoryColors[colorKey] }
           : cat
       );
