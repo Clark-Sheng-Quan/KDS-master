@@ -67,17 +67,13 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
     }, 0);
     
     // Convert times to local timezone
-    // 注意：POS 发送的 timestamp 已经是本地时间格式，直接提取 HH:mm
     let localOrderTime = orderData.timestamp || orderData.createdAt || new Date().toISOString();
     
-    // 只保留 HH:mm 格式（和 network order 一致）
     try {
-      // 尝试解析 POS 格式: "Oct 30, 2025 10:44:43 PM"
       const dt = DateTime.fromFormat(localOrderTime, 'MMM d, yyyy h:mm:ss a', { locale: 'en-US' });
       if (dt.isValid) {
         localOrderTime = dt.toFormat('HH:mm');
       } else {
-        // 用正则简单提取 HH:mm
         const match = localOrderTime.match(/(\d{1,2}):(\d{2})/);
         if (match) {
           localOrderTime = `${String(parseInt(match[1])).padStart(2, '0')}:${match[2]}`;
@@ -99,7 +95,6 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       pickupMethod = orderData.PickMethod;
     }
     
-    // 生成订单号：优先用 orderNumber，否则用 ID 最后4位
     const finalOrderNum = (
       typeof orderData.orderNumber === 'string' && orderData.orderNumber
         ? orderData.orderNumber
@@ -131,8 +126,8 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       orderTime: localOrderTime,
       pickupMethod: pickupMethod,
       pickupTime: localOrderTime, // POS doesn't have separate pickup time, use order time
-      kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
-      num: finalOrderNum,              // 订单号 (用于显示)
+      kdsReceiveTime: new Date().toISOString(), 
+      num: finalOrderNum,              
       status: orderData.status,
       products: formattedItems,
       source: 'tcp', // Mark source as TCP
@@ -200,8 +195,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     // Convert pickupTime to local timezone
     const localPickupTime = convertToLocalTimeFormatted(order.pick_time);
     const localOrderTime = convertToLocalTimeFormatted(order.time);
-    
-    // 生成订单号：如果有 order_num 就用，否则用 _id 的最后4位
+
     const orderNum = order.order_num 
       ? order.order_num.toString() 
       : order._id.toString().slice(-4);

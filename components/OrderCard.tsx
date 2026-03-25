@@ -25,6 +25,7 @@ import { callingScreenDiscovery } from "../services/CallingScreenDiscovery";
 import { settingsListener } from "../services/settingsListener";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_API } from "../config/api";
+import { CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "../constants/fontSizes";
 
 interface OrderCardProps {
   order: FormattedOrder;
@@ -71,6 +72,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
+  const lastTapTimeRef = useRef<{ [key: string]: number }>({});  // 用于双击检测
   const [forceUpdateTrigger, setForceUpdateTrigger] = useState(0);  // 仅用于必要时触发重新渲染
   const [showProductDetail, setShowProductDetail] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string } | null>(null);
@@ -90,6 +92,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [enableCallingButton, setEnableCallingButton] = useState(false);
   const [callButtonPressed, setCallButtonPressed] = useState(false);  // 追踪是否点击过 Call 按钮
 
+  // Font size states
+  const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
+  const [itemOptionFontSize, setItemOptionFontSize] = useState<"small" | "medium" | "large">("medium");
+
   // 加载项目级完成设置
   useEffect(() => {
     const loadSettings = async () => {
@@ -101,6 +107,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         // 加载 Calling Button 设置
         const callingEnabled = await AsyncStorage.getItem("calling_button");
         setEnableCallingButton(callingEnabled === "true");
+
+        // Load font size settings
+        const savedCardTitleFontSize = await AsyncStorage.getItem("card_title_font_size");
+        if (savedCardTitleFontSize) {
+          setCardTitleFontSize(savedCardTitleFontSize as "small" | "medium" | "large");
+        }
+
+        const savedItemOptionFontSize = await AsyncStorage.getItem("item_option_font_size");
+        if (savedItemOptionFontSize) {
+          setItemOptionFontSize(savedItemOptionFontSize as "small" | "medium" | "large");
+        }
       } catch (error) {
         console.error("[OrderCard] 加载设置失败:", error);
       }
@@ -120,12 +137,26 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       console.log('[OrderCard] Calling Button 已更改:', value);
     };
 
+    const handleCardTitleFontSizeChange = (value: "small" | "medium" | "large") => {
+      setCardTitleFontSize(value);
+      console.log('[OrderCard] Card title font size changed to:', value);
+    };
+
+    const handleItemOptionFontSizeChange = (value: "small" | "medium" | "large") => {
+      setItemOptionFontSize(value);
+      console.log('[OrderCard] Item/Option font size changed to:', value);
+    };
+
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
     settingsListener.onSettingChange('calling_button', handleCallingButtonChange);
+    settingsListener.onSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
+    settingsListener.onSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
 
     return () => {
       settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
       settingsListener.offSettingChange('calling_button', handleCallingButtonChange);
+      settingsListener.offSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
+      settingsListener.offSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
     };
   }, []);
 
@@ -430,8 +461,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const itemKey = `${order.id}-item-${index}`;
       
       if (enableItemLevelCompletion) {
-        // 项目级完成模式：完成单项
-        completeItemOnly(item);
+        // 项目级完成模式：需要双击才能完成单项
+        const now = Date.now();
+        const lastTapTime = lastTapTimeRef.current[itemKey] || 0;
+        const timeDiff = now - lastTapTime;
+
+        if (timeDiff < 1000) {
+          // 双击触发：完成 item
+          completeItemOnly(item);
+          lastTapTimeRef.current[itemKey] = 0; // 重置计时器
+        } else {
+          // 第一次点击：记录时间
+          lastTapTimeRef.current[itemKey] = now;
+        }
       } else {
         // 普通模式：标记 item 完成（仅用于显示，不实际移除）
         completedItemsRef.current[itemKey] = !completedItemsRef.current[itemKey];
@@ -459,7 +501,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           delayLongPress={500}
         >
           <View style={styles.itemNameContainer}>
-            <Text style={[styles.itemName, isVoided && styles.voidedText]}>
+            <Text style={[
+              styles.itemName,
+              { fontSize: ITEM_OPTION_FONT_SIZES[itemOptionFontSize].itemName },
+              isVoided && styles.voidedText
+            ]}>
               {item.name}
             </Text>
           </View>
@@ -488,10 +534,14 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 }
                 
                 return (
-                  <View
+                  <TouchableOpacity
                     key={`${order.id}-item-${index}-option-${optIndex}`}
+                    onPress={handleItemPress}
+                    disabled={disableItems || disabled || isVoided}
+                    activeOpacity={disableItems || isVoided ? 1 : 0.7}
                     style={[
                       styles.optionRow,
+                      completedItemsRef.current[`${order.id}-item-${index}`] && styles.completedItem,
                       isVoided && styles.voidedOption,
                       optIndex === item.options.length - 1 && {
                         borderBottomLeftRadius: 4,
@@ -500,19 +550,27 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                     ]}
                   >
                     <View style={styles.optionContent}>
-                      <Text style={[styles.optionName, isVoided && styles.voidedText]}>
+                      <Text style={[
+                        styles.optionName,
+                        { fontSize: ITEM_OPTION_FONT_SIZES[itemOptionFontSize].optionName },
+                        isVoided && styles.voidedText
+                      ]}>
                         - {selectedItems.map((item: any) => item.name).join(', ')}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               } else {
                 // Network order 格式：直接显示 option.name 和 option.value
                 return (
-                  <View
+                  <TouchableOpacity
                     key={`${order.id}-item-${index}-option-${optIndex}`}
+                    onPress={handleItemPress}
+                    disabled={disableItems || disabled || isVoided}
+                    activeOpacity={disableItems || isVoided ? 1 : 0.7}
                     style={[
                       styles.optionRow,
+                      completedItemsRef.current[`${order.id}-item-${index}`] && styles.completedItem,
                       isVoided && styles.voidedOption,
                       optIndex === item.options.length - 1 && {
                         borderBottomLeftRadius: 4,
@@ -521,16 +579,24 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                     ]}
                   >
                     <View style={styles.optionContent}>
-                      <Text style={[styles.optionName, isVoided && styles.voidedText]}>
+                      <Text style={[
+                        styles.optionName,
+                        { fontSize: ITEM_OPTION_FONT_SIZES[itemOptionFontSize].optionName },
+                        isVoided && styles.voidedText
+                      ]}>
                         - {option.name}{''}
                       </Text>
                       {shouldShowQuantity(option.value) && (
-                        <Text style={[styles.optionValue, isVoided && styles.voidedText]}>
+                        <Text style={[
+                          styles.optionValue,
+                          { fontSize: ITEM_OPTION_FONT_SIZES[itemOptionFontSize].optionName },
+                          isVoided && styles.voidedText
+                        ]}>
                           {'  '}x{option.value}
                         </Text>
                       )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               }
             })}
@@ -604,7 +670,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                   </View>
                 )}
                 
-                <Text style={styles.orderTitle}>{getOrderTitle()}</Text>
+                <Text style={[
+                  styles.orderTitle,
+                  { fontSize: CARD_TITLE_FONT_SIZES[cardTitleFontSize] }
+                ]}>{getOrderTitle()}</Text>
                 {/* <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
                   {getSourceDisplay(order.source).text}
                 </Text> */}
@@ -772,7 +841,7 @@ const styles = StyleSheet.create({
     padding: 10
   },
   leftColumn: {
-    flex: 2,  // 增加左列宽度占比
+    flex: 3,  // 增加左列宽度占比
     justifyContent: "flex-start",
   },
   rightColumn: {

@@ -150,8 +150,8 @@ const styles = StyleSheet.create({
   },
   timerBackground: {
     backgroundColor: "#ffffff",
-    paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   elapsedTimeText: {

@@ -23,10 +23,11 @@ import { SupportedLanguage } from "../../constants/translations";
 import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { CallingScreenDevice, callingScreenService } from "@/services/CallingScreenService";
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
 import { OrderService } from "@/services/orderService/OrderService";
+import { CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "@/constants/fontSizes";
 
 // 本地定义 CategoryType - 厨房分类设置
 enum CategoryType {
@@ -44,8 +45,15 @@ const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 
+// Font size constants
+const STORAGE_KEY_CARD_TITLE_FONT_SIZE = "card_title_font_size";
+const DEFAULT_CARD_TITLE_FONT_SIZE = "medium"; // small, medium, large
+const STORAGE_KEY_ITEM_OPTION_FONT_SIZE = "item_option_font_size";
+const DEFAULT_ITEM_OPTION_FONT_SIZE = "small"; // small, medium, large
+
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
+  const navigation = useNavigation();
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
@@ -79,6 +87,10 @@ export default function SettingsScreen() {
 
   // 添加 Calling Button 开关状态
   const [enableCallingButton, setEnableCallingButton] = useState<boolean>(false);
+
+  // 字体大小设置
+  const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
+  const [itemOptionFontSize, setItemOptionFontSize] = useState<"small" | "medium" | "large">("medium");
 
   // 加载保存的设置
   useEffect(() => {
@@ -144,6 +156,22 @@ export default function SettingsScreen() {
         );
         if (savedCallingButton !== null) {
           setEnableCallingButton(savedCallingButton === "true");
+        }
+
+        // 加载卡片标题字体大小设置
+        const savedCardTitleFontSize = await AsyncStorage.getItem(
+          STORAGE_KEY_CARD_TITLE_FONT_SIZE
+        );
+        if (savedCardTitleFontSize) {
+          setCardTitleFontSize(savedCardTitleFontSize as "small" | "medium" | "large");
+        }
+
+        // 加载项目选项字体大小设置
+        const savedItemOptionFontSize = await AsyncStorage.getItem(
+          STORAGE_KEY_ITEM_OPTION_FONT_SIZE
+        );
+        if (savedItemOptionFontSize) {
+          setItemOptionFontSize(savedItemOptionFontSize as "small" | "medium" | "large");
         }
 
         // 加载子KDS分类设置
@@ -359,6 +387,26 @@ export default function SettingsScreen() {
     console.log('[Settings] 发出 show_print_button 设置变化事件，值:', value);
   }, []);
 
+  // Handle card title font size change
+  const handleCardTitleFontSizeChange = useCallback(async (value: "small" | "medium" | "large") => {
+    setCardTitleFontSize(value);
+    await AsyncStorage.setItem(STORAGE_KEY_CARD_TITLE_FONT_SIZE, value);
+    
+    // Emit settings change event for OrderCard to update
+    settingsListener.emitSettingChange('card_title_font_size', value);
+    console.log('[Settings] Card title font size changed to:', value);
+  }, []);
+
+  // Handle item/option font size change
+  const handleItemOptionFontSizeChange = useCallback(async (value: "small" | "medium" | "large") => {
+    setItemOptionFontSize(value);
+    await AsyncStorage.setItem(STORAGE_KEY_ITEM_OPTION_FONT_SIZE, value);
+    
+    // Emit settings change event for OrderCard to update
+    settingsListener.emitSettingChange('item_option_font_size', value);
+    console.log('[Settings] Item/Option font size changed to:', value);
+  }, []);
+
   // 处理项目级完成模式开关
   const handleItemLevelCompletionChange = useCallback(async (value: boolean) => {
     setEnableItemLevelCompletion(value);
@@ -414,7 +462,16 @@ export default function SettingsScreen() {
   }
 
   return (
-    <>
+    <View style={styles.settingsContainer}>
+      {/* 返回按钮 - 右上角 */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="close" size={32} color="white" />
+      </TouchableOpacity>
+
       <ScrollView style={styles.container}>
         <Text style={styles.title}>{t("settings")}</Text>
 
@@ -751,9 +808,9 @@ export default function SettingsScreen() {
                   onValueChange={handleCardsPerRowChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label={t("large")} value={4} />
-                  <Picker.Item label={t("medium")} value={5} />
                   <Picker.Item label={t("small")} value={6} />
+                  <Picker.Item label={t("medium")} value={5} />
+                  <Picker.Item label={t("large")} value={4} />
                 </Picker>
               )}
               {screenOrientation === "portrait" && (
@@ -763,9 +820,9 @@ export default function SettingsScreen() {
                   onValueChange={handleCardsPerRowChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label={t("large")} value={3} />
-                  <Picker.Item label={t("medium")} value={4} />
                   <Picker.Item label={t("small")} value={5} />
+                  <Picker.Item label={t("medium")} value={4} />
+                  <Picker.Item label={t("large")} value={3} />
                 </Picker>
               )}
             </View>
@@ -781,9 +838,9 @@ export default function SettingsScreen() {
                   onValueChange={handleCardsPerColumnChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label={t("large")} value={1.75} />
-                  <Picker.Item label={t("medium")} value={2} />
                   <Picker.Item label={t("small")} value={2.25} />
+                  <Picker.Item label={t("medium")} value={2} />
+                  <Picker.Item label={t("large")} value={1.75} />
                 </Picker>
               )}
               {screenOrientation === "portrait" && (
@@ -793,9 +850,9 @@ export default function SettingsScreen() {
                   onValueChange={handleCardsPerColumnChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label={t("large")} value={3.25} />
-                  <Picker.Item label={t("medium")} value={3.5} />
                   <Picker.Item label={t("small")} value={3.75} />
+                  <Picker.Item label={t("medium")} value={3.5} />
+                  <Picker.Item label={t("large")} value={3.25} />
                 </Picker>
               )}
             </View>
@@ -815,6 +872,40 @@ export default function SettingsScreen() {
                 showPrintButton && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
+          </View>
+
+          {/* Card Title Font Size */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("cardTitleSize")}</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={cardTitleFontSize || "medium"}
+                style={styles.textPicker}
+                onValueChange={handleCardTitleFontSizeChange}
+                dropdownIconColor="#666"
+              >
+                <Picker.Item label={t("small")} value="small" />
+                <Picker.Item label={t("medium")} value="medium" />
+                <Picker.Item label={t("large")} value="large" />
+              </Picker>
+            </View>
+          </View>
+
+          {/* Item/Option Font Size */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("itemOptionSize")}</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={itemOptionFontSize || "medium"}
+                style={styles.textPicker}
+                onValueChange={handleItemOptionFontSizeChange}
+                dropdownIconColor="#666"
+              >
+                <Picker.Item label={t("small")} value="small" />
+                <Picker.Item label={t("medium")} value="medium" />
+                <Picker.Item label={t("large")} value="large" />
+              </Picker>
+            </View>
           </View>
         </View>
 
@@ -837,11 +928,33 @@ export default function SettingsScreen() {
           setConnectedCallingScreen(device);
         }}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  settingsContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    position: "relative",
+  },
+  backButton: {
+    position: "absolute",
+    top: 12,
+    right: 16,
+    zIndex: 10,
+    backgroundColor: "#d32f2f",
+    borderRadius: 30,
+    width: 56,
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
   container: {
     flex: 1,
     padding: 16,
