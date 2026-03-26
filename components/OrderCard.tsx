@@ -891,19 +891,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#FFF7E6",
+    backgroundColor: "#FAFAFA",
     borderLeftWidth: 4,
-    borderLeftColor: "#FFB347",
+    borderLeftColor: "#CCCCCC",
   },
   notesTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#8A5A00",
+    color: "#666666",
   },
   notesText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#5A3A00",
+    color: "#555555",
     lineHeight: 20,
   },
   itemRow: {

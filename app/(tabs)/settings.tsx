@@ -30,19 +30,13 @@ import { CallingScreenDevice, callingScreenService } from "@/services/CallingScr
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
 import { OrderService } from "@/services/orderService/OrderService";
 
-// 本地定义 CategoryType - 厨房分类设置
-enum CategoryType {
-  ALL = "all",
-  MILK_TEA = "Milk Tea",
-  FOOD = "Food"
-}
-
 // 设置相关的常量
 const STORAGE_KEY_CARDS_PER_ROW = "cards_per_row";
 const DEFAULT_CARDS_PER_ROW = 5;
 const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
 const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
+const STORAGE_KEY_SHOW_ORDER_TIMER = "show_order_timer";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 
@@ -74,11 +68,11 @@ export default function SettingsScreen() {
   // 添加显示打印按钮开关状态
   const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
 
+  // 添加显示计时器开关状态
+  const [showOrderTimer, setShowOrderTimer] = useState<boolean>(true);
+
   // 添加项目级完成模式状态
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(true);
-
-  // KDS分类设置（仅用于UI显示，Master-Slave功能已移除）
-  const [kdsCategory, setKdsCategory] = useState<CategoryType>(CategoryType.ALL);
 
   // TCP 连接状态管理
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
@@ -147,6 +141,14 @@ export default function SettingsScreen() {
           setShowPrintButton(savedShowPrintButton === "true");
         }
 
+        // 加载计时器显示设置
+        const savedShowOrderTimer = await AsyncStorage.getItem(
+          STORAGE_KEY_SHOW_ORDER_TIMER
+        );
+        if (savedShowOrderTimer !== null) {
+          setShowOrderTimer(savedShowOrderTimer === "true");
+        }
+
         // 加载项目级完成模式设置
         const savedItemLevelCompletion = await AsyncStorage.getItem(
           STORAGE_KEY_ITEM_LEVEL_COMPLETION
@@ -179,11 +181,7 @@ export default function SettingsScreen() {
           setItemOptionFontSize(savedItemOptionFontSize as "small" | "medium" | "large");
         }
 
-        // 加载子KDS分类设置
-        const savedCategory = await AsyncStorage.getItem("kds_category");
-        if (savedCategory) {
-          setKdsCategory(savedCategory as CategoryType);
-        }        // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
+        // 获取当前连接状态和Master IP（不设置回调，避免与_layout.tsx冲突）
         const currentMasterIP = TCPSocketService.getMasterIP();
         setMasterIP(currentMasterIP);
         
@@ -232,7 +230,7 @@ export default function SettingsScreen() {
       setConnectionStatus(currentStatus);
       setMasterIP(currentMasterIP);
       setConnectedDevices(devices);
-    }, 2000); // 每2秒检查一次
+    }, 10000); // 每10秒检查一次
 
     return () => clearInterval(intervalId);
   }, []);
@@ -310,23 +308,6 @@ export default function SettingsScreen() {
       syncOrdersToCallingScreen();
     }
   }, [connectedCallingScreen]);
-
- 
-
-  // 获取品类显示名称
-  const getCategoryDisplayName = useCallback((category: CategoryType) => {
-    switch (category) {
-      case CategoryType.MILK_TEA:
-        return "Milk Tea";
-      case CategoryType.FOOD:
-        return "Food";
-      case CategoryType.ALL:
-        return "All";
-      default:
-        return "Unknown";
-    }
-  }, []);
-
   // 处理屏幕方向切换
   const handleToggleScreenOrientation = useCallback(async () => {
     try {
@@ -392,6 +373,16 @@ export default function SettingsScreen() {
     // 发出设置变化事件，使 PrintButton 组件即时响应
     settingsListener.emitSettingChange('show_print_button', value);
     console.log('[Settings] 发出 show_print_button 设置变化事件，值:', value);
+  }, []);
+
+  // 处理计时器显示开关
+  const handleShowOrderTimerChange = useCallback(async (value: boolean) => {
+    setShowOrderTimer(value);
+    await AsyncStorage.setItem(STORAGE_KEY_SHOW_ORDER_TIMER, value.toString());
+
+    // 发出设置变化事件，使 OrderTimer 组件即时响应
+    settingsListener.emitSettingChange('show_order_timer', value);
+    console.log('[Settings] 发出 show_order_timer 设置变化事件，值:', value);
   }, []);
 
   // Handle card title font size change
@@ -502,39 +493,6 @@ export default function SettingsScreen() {
             <Text style={styles.infoValue}>{deviceName}</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("kitchenCategory")}</Text>
-            <View style={styles.categoryPickerWrapper}>
-              <Picker
-                selectedValue={kdsCategory}
-                style={styles.categoryPicker}
-                onValueChange={async (itemValue) => {
-                  setKdsCategory(itemValue as CategoryType);
-                  // 自动保存到 AsyncStorage
-                  try {
-                    await AsyncStorage.setItem("kds_category", itemValue);
-                  } catch (error) {
-                    console.error('Failed to save category:', error);
-                  }
-                }}
-                dropdownIconColor="#666"
-              >
-                <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.ALL)}
-                  value={CategoryType.ALL}
-                />
-                <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.MILK_TEA)}
-                  value={CategoryType.MILK_TEA}
-                />
-                <Picker.Item
-                  label={getCategoryDisplayName(CategoryType.FOOD)}
-                  value={CategoryType.FOOD}
-                />
-              </Picker>
-            </View>
-          </View>
-          
         </View>
 
         {/* ========== 设备连接 - POS System ========== */}
@@ -896,6 +854,22 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("showOrderTimer")}</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                showOrderTimer && styles.switchButtonActive
+              ]}
+              onPress={() => handleShowOrderTimerChange(!showOrderTimer)}
+            >
+              <View style={[
+                styles.switchThumb,
+                showOrderTimer && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
+          </View>
+
           {/* Card Title Font Size */}
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("cardTitleSize")}</Text>
@@ -1215,20 +1189,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 12,
-  },
-  categoryPickerWrapper: {
-    marginLeft: 12,
-    borderWidth: 2,
-    borderColor: "#007AFF",
-    borderRadius: 8,
-    overflow: "hidden",
-    width: 180,
-    backgroundColor: "#fff",
-  },
-  categoryPicker: {
-    width: "100%",
-    height: 55,
-    color: "#333",
   },
   saveSettingsButton: {
     backgroundColor: "#2196F3",

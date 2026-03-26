@@ -3,10 +3,14 @@ import {
   View,
   Text,
   StyleSheet,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { FormattedOrder } from "@/services/types";
 import { colors } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { settingsListener } from "../services/settingsListener";
 
 interface OrderTimerProps {
   order: FormattedOrder;
@@ -17,12 +21,79 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   const { t } = useLanguage();
   const [elapsedTime, setElapsedTime] = useState(0); // 初始化为 0
   const [startTime] = useState(() => new Date(order.kdsReceiveTime || order.orderTime || 0)); // 记录订单进入 KDS 的时间
+  const [showOrderTimer, setShowOrderTimer] = useState(true);
   const onTimeUpdateRef = useRef(onTimeUpdate);
+  const appState = useRef(AppState.currentState);
+  const listenerRef = useRef<((value: boolean) => void) | null>(null);
 
   // 保持 onTimeUpdate 引用最新
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
   }, [onTimeUpdate]);
+
+  // 加载计时器显示设置
+  useEffect(() => {
+    const loadTimerSetting = async () => {
+      try {
+        const setting = await AsyncStorage.getItem("show_order_timer");
+        setShowOrderTimer(setting !== "false"); // Default to true
+      } catch (error) {
+        console.error("Failed to load order timer setting:", error);
+        setShowOrderTimer(true);
+      }
+    };
+    loadTimerSetting();
+  }, []);
+
+  // 监听应用状态变化，当应用恢复到前台时重新检查设置
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        // 应用从后台恢复到前台，重新检查设置
+        try {
+          const setting = await AsyncStorage.getItem("show_order_timer");
+          setShowOrderTimer(setting !== "false");
+        } catch (error) {
+          console.error("Failed to reload order timer setting:", error);
+        }
+      }
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // 监听设置变化事件 - 实现即时生效
+  useEffect(() => {
+    // 防止重复注册监听器
+    if (listenerRef.current) {
+      settingsListener.offSettingChange('show_order_timer', listenerRef.current);
+    }
+
+    const handleTimerChange = (value: boolean) => {
+      setShowOrderTimer(value);
+    };
+
+    listenerRef.current = handleTimerChange;
+    settingsListener.onSettingChange('show_order_timer', handleTimerChange);
+
+    // 清理函数：组件卸载时移除监听
+    return () => {
+      if (listenerRef.current) {
+        settingsListener.offSettingChange('show_order_timer', listenerRef.current);
+        listenerRef.current = null;
+      }
+    };
+  }, []);
+
+  // 保持 onTimeUpdate 引用最新
 
   useEffect(() => {
     // 每秒更新一次时间差
@@ -61,9 +132,9 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
     // 如果订单没有准备时间数据，则使用默认逻辑（延长时间阈值）
     if (totalPrepareTimeMinutes === 0) {
       // 修改默认逻辑，避免所有订单都显示 delayed
-      if (elapsedMinutes < 5) {
+      if (elapsedMinutes < 10) {
         return { text: t("active"), color: colors.activeColor };
-      } else if (elapsedMinutes < 15) {
+      } else if (elapsedMinutes < 20) {
         return { text: t("urgent"), color: colors.urgentColor };
       } else {
         return { text: t("delayed"), color: colors.delayedColor };
@@ -107,6 +178,11 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
   };
 
   const remainingPrepTime = getRemainingPrepTime();
+
+  // 如果关闭了计时器显示，返回 null
+  if (!showOrderTimer) {
+    return null;
+  }
 
   return (
     <View style={styles.headerRight}>

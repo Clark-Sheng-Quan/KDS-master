@@ -12,12 +12,10 @@ import * as StorageService from './storageService';
 import * as NetworkService from './networkService';
 import * as TimeUtils from './timeUtils';
 import * as Formatters from './formatters';
-import { POLLING_INTERVAL, API_BASE_URL } from './constants';
-import { DistributionService } from '../distributionService';
+import { API_BASE_URL } from './constants';
 import { callingScreenService } from '../CallingScreenService';
 import { callingScreenDiscovery } from '../CallingScreenDiscovery';
-import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { log } from 'console';
+import { NativeEventEmitter, Platform } from 'react-native';
 
 // 添加订单ID缓存，用于防止重复处理
 const PROCESSED_ORDER_CACHE_SIZE = 100; // 缓存最近处理的100个订单ID
@@ -36,9 +34,6 @@ export class OrderService {
   private static tcpOrderInitializationTimes: Map<string, number> = new Map();
   private static readonly TCP_ORDER_INIT_WINDOW = 5000; // 5秒初始化窗口
   
-  // KDS 配置信息
-  private static kdsCategory: string = 'all';
-  
   // 添加订单ID缓存，用于防止重复处理
   private static processedOrderIds: Set<string> = new Set();
   private static processedOrderIdsArray: string[] = []; // 用于维护缓存顺序
@@ -50,14 +45,6 @@ export class OrderService {
   private static combinedOrderUpdateCallbacks: Array<(orders: FormattedOrder[]) => void> = [];
   private static orderCompletionCallbacks: Array<(order: FormattedOrder) => void> = [];
   
-  /**
-   * 设置 KDS 配置（kdsCategory）
-   */
-  public static setKDSConfig(category: string) {
-    this.kdsCategory = category;
-    console.log(`[OrderService] 设置 KDS 配置 - 分类: ${this.kdsCategory}`);
-  }
-
   /**
    * 设置订单更新回调函数（支持多个订阅者）
    */
@@ -182,32 +169,21 @@ export class OrderService {
   }
 
   /**
-   * 获取订单的过滤后产品列表（基于当前 KDS 配置）
+   * 获取订单的过滤后产品列表
    */
   private static getFilteredProducts(order: FormattedOrder): any[] {
-    // console.log(`[getFilteredProducts] kdsCategory=${this.kdsCategory}, order.id=${order.id}`);
-    
     // 总是要排除 isValidKds === false 的产品
-    let filteredProducts = order.products.filter((product) => {
+    return order.products.filter((product) => {
       // 检查 isValidKds 参数 - 这个条件对所有 KDS 都适用
       if (product.isValidKds === false) {
         return false;
       }
       return true;
     });
-    
-    // 如果 category 不为 all，还要再按分类过滤
-    if (this.kdsCategory !== 'all') {
-      filteredProducts = filteredProducts.filter((product) => {
-        return product.category === this.kdsCategory;
-      });
-    }
-    return filteredProducts;
   }
 
   /**
-   * 函数1：过滤订单产品
-   * 根据 KDS 配置（分类和 isValidKds）直接修改 order.products
+   * 函数1：过滤订单产品（基于 isValidKds）直接修改 order.products
    */
   private static filterOrderProducts(order: FormattedOrder): any[] {
     const filteredProducts = this.getFilteredProducts(order);
@@ -629,16 +605,6 @@ export class OrderService {
       this.tcpOrders = await StorageService.loadTCPOrders();
       
       console.log(`已加载 ${this.networkOrders.length} 个网络订单和 ${this.tcpOrders.length} 个TCP订单`);
-      
-      // 初始化 KDS 配置
-      try {
-        const categoryStr = await AsyncStorage.getItem("kds_category");
-        this.kdsCategory = categoryStr || "all";
-        
-        console.log(`[OrderService] 初始化 KDS 配置 - 分类: ${this.kdsCategory}`);
-      } catch (error) {
-        console.error('读取 KDS 配置失败:', error);
-      }
       
       // 初始化已处理订单缓存
       // 将所有已加载的订单ID添加到处理缓存中，防止重复处理
