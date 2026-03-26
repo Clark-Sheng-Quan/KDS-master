@@ -13,7 +13,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "../../styles/theme";
+import { theme, CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "../../constants/theme";
 import * as Network from "expo-network";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 import { Picker } from "@react-native-picker/picker";
@@ -28,7 +28,6 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { CallingScreenDevice, callingScreenService } from "@/services/CallingScreenService";
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
 import { OrderService } from "@/services/orderService/OrderService";
-import { CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "@/constants/fontSizes";
 
 // 本地定义 CategoryType - 厨房分类设置
 enum CategoryType {
@@ -373,12 +372,14 @@ export default function SettingsScreen() {
   const handleCardsPerRowChange = useCallback(async (value: number) => {
     setCardsPerRow(value);
     await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, value.toString());
+    settingsListener.emitSettingChange('cards_per_row', value);
   }, []);
 
   // 处理垂直卡片数量变更
   const handleCardsPerColumnChange = useCallback(async (value: number) => {
     setCardsPerColumn(value);
     await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, value.toString());
+    settingsListener.emitSettingChange('cards_per_column', value);
   }, []);
 
   // 处理打印按钮显示开关

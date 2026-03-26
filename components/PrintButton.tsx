@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { FormattedOrder } from "../services/types";
-import { colors } from "../styles/color";
+import { colors } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeModules } from "react-native";

@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { OrderProvider, useOrders } from "../contexts/OrderContext";
 import { LanguageProvider } from "../contexts/LanguageContext";
 import { CategoryColorProvider } from "../contexts/CategoryColorContext";
+import { SettingsProvider } from "../contexts/SettingsContext";
 import { PreOrderProvider } from "../contexts/PreOrderContext";
 import { CompletedOrderProvider } from "../contexts/CompletedOrderContext";
 import { View } from "react-native";
@@ -75,23 +76,25 @@ export default function RootLayout() {
 
   return (
     <CategoryColorProvider>
-      <LanguageProvider>
-        <OrderProvider>
-          <PreOrderProvider>
-            <CompletedOrderProvider>
-              <View style={{ flex: 1 }}>
-                <StatusBar hidden={true} />
-                <NetworkConnectionBanner />
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="login" />
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
-              </View>
-            </CompletedOrderProvider>
-          </PreOrderProvider>
-        </OrderProvider>
-      </LanguageProvider>
+      <SettingsProvider>
+        <LanguageProvider>
+          <OrderProvider>
+            <PreOrderProvider>
+              <CompletedOrderProvider>
+                <View style={{ flex: 1 }}>
+                  <StatusBar hidden={true} />
+                  <NetworkConnectionBanner />
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="login" />
+                    <Stack.Screen name="(tabs)" />
+                  </Stack>
+                </View>
+              </CompletedOrderProvider>
+            </PreOrderProvider>
+          </OrderProvider>
+        </LanguageProvider>
+      </SettingsProvider>
     </CategoryColorProvider>
   );
 }

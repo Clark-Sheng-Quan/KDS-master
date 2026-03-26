@@ -13,11 +13,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { OrderTimer } from "./OrderTimer";
 import { OrderActions } from "./OrderActions";
 import { PrintButton } from "./PrintButton";
-import { ConfirmModal, showConfirmAlert } from "./ReuseComponents/ConfirmModal";
-import { colors, sourceColors, categoryColors } from "../styles/color";
+import { ConfirmModal, showConfirmAlert } from "./ConfirmModal";
+import { colors, sourceColors, categoryColors, theme, CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCompletedOrders } from "../contexts/CompletedOrderContext";
-import { theme } from "../styles/theme";
+import { useSettings } from "../contexts/SettingsContext";
 import { ProductDetailPopup, checkProductHasRecipe } from "./ProductDetailPopup";
 import { TCPSocketService } from "../services/tcpSocketService";
 import { callingScreenService } from "../services/CallingScreenService";
@@ -25,7 +25,6 @@ import { callingScreenDiscovery } from "../services/CallingScreenDiscovery";
 import { settingsListener } from "../services/settingsListener";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_API } from "../config/api";
-import { CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "../constants/fontSizes";
 
 interface OrderCardProps {
   order: FormattedOrder;
@@ -70,6 +69,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 }) => {
   const { t } = useLanguage();
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
+  const { 
+    itemLevelCompletion: enableItemLevelCompletion, 
+    callingButton: enableCallingButton, 
+    cardTitleFontSize, 
+    itemOptionFontSize, 
+    categoryColorsMapping: colorMapping 
+  } = useSettings();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
   const lastTapTimeRef = useRef<{ [key: string]: number }>({});  // 用于双击检测
@@ -82,102 +88,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
   
   // 项目级完成相关状态
-  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastItemName, setToastItemName] = useState("");
   const [lastCompletedItemId, setLastCompletedItemId] = useState<string | null>(null);
   const [lastRemovedItem, setLastRemovedItem] = useState<any>(null);
 
   // Calling Button 状态
-  const [enableCallingButton, setEnableCallingButton] = useState(false);
   const [callButtonPressed, setCallButtonPressed] = useState(false);  // 追踪是否点击过 Call 按钮
-
-  // Font size states
-  const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
-  const [itemOptionFontSize, setItemOptionFontSize] = useState<"small" | "medium" | "large">("medium");
-
-  // 分类颜色映射
-  const [colorMapping, setColorMapping] = useState<{ [categoryId: string]: string }>({});
-
-  // 加载项目级完成设置
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const enabled = await AsyncStorage.getItem("item_level_completion");
-        // 默认为 true（item-level 模式），除非显式设置为 "false"
-        setEnableItemLevelCompletion(enabled !== "false");
-        
-        // 加载 Calling Button 设置
-        const callingEnabled = await AsyncStorage.getItem("calling_button");
-        setEnableCallingButton(callingEnabled === "true");
-
-        // Load font size settings
-        const savedCardTitleFontSize = await AsyncStorage.getItem("card_title_font_size");
-        if (savedCardTitleFontSize) {
-          setCardTitleFontSize(savedCardTitleFontSize as "small" | "medium" | "large");
-        }
-
-        const savedItemOptionFontSize = await AsyncStorage.getItem("item_option_font_size");
-        if (savedItemOptionFontSize) {
-          setItemOptionFontSize(savedItemOptionFontSize as "small" | "medium" | "large");
-        }
-
-        // 加载分类颜色映射
-        const colorMappingData = await AsyncStorage.getItem("category_colors_mapping");
-        if (colorMappingData) {
-          const mapping = JSON.parse(colorMappingData);
-          console.log(mapping);
-          
-          setColorMapping(mapping);
-        }
-      } catch (error) {
-        console.error("[OrderCard] 加载设置失败:", error);
-      }
-    };
-    loadSettings();
-  }, []);
-
-  // 监听项目级完成模式设置变化（无需重启应用即可生效）
-  useEffect(() => {
-    const handleItemLevelCompletionChange = (value: boolean) => {
-      setEnableItemLevelCompletion(value);
-      console.log('[OrderCard] 项目级完成模式已更改:', value);
-    };
-
-    const handleCallingButtonChange = (value: boolean) => {
-      setEnableCallingButton(value);
-      console.log('[OrderCard] Calling Button 已更改:', value);
-    };
-
-    const handleCardTitleFontSizeChange = (value: "small" | "medium" | "large") => {
-      setCardTitleFontSize(value);
-      console.log('[OrderCard] Card title font size changed to:', value);
-    };
-
-    const handleItemOptionFontSizeChange = (value: "small" | "medium" | "large") => {
-      setItemOptionFontSize(value);
-      console.log('[OrderCard] Item/Option font size changed to:', value);
-    };
-
-    const handleColorMappingChange = (mapping: { [categoryName: string]: string }) => {
-      setColorMapping(mapping);
-      console.log('[OrderCard] 分类颜色映射已更改:', mapping);
-    };
-
-    settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
-    settingsListener.onSettingChange('calling_button', handleCallingButtonChange);
-    settingsListener.onSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
-    settingsListener.onSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
-    settingsListener.onSettingChange('category_colors_mapping', handleColorMappingChange);
-
-    return () => {
-      settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
-      settingsListener.offSettingChange('calling_button', handleCallingButtonChange);
-      settingsListener.offSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
-      settingsListener.offSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
-      settingsListener.offSettingChange('category_colors_mapping', handleColorMappingChange);
-    };
-  }, []);
 
   useEffect(() => {
     if (contentHeight > 0 && scrollViewHeight > 0) {
@@ -798,10 +715,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   // 注意：移除了 prevProps.style === nextProps.style 比较
   // 因为每次父组件渲染都会生成新的 style 对象，导致 React.memo 失效，引发无限重渲染
   return (
-    prevProps.order.id === nextProps.order.id &&
+    prevProps.order === nextProps.order &&
     prevProps.selected === nextProps.selected &&
     prevProps.disabled === nextProps.disabled &&
-    prevProps.completedTime === nextProps.completedTime
+    prevProps.completedTime === nextProps.completedTime &&
+    JSON.stringify(prevProps.style) === JSON.stringify(nextProps.style)
   );
 })
 

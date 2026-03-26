@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
-import { theme } from '../styles/theme';
-import { categoryColors } from '../styles/color';
+import { theme, categoryColors } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CategoryColorService, Category, CategoryColorMapping } from '../services/categoryColorService';
 
@@ -119,7 +118,6 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
 
       setShowColorPicker(false);
       setSelectedCategory(null);
-      Alert.alert(t('success'), `${selectedCategory.name} ${t('colorUpdated')}`);
     } catch (err) {
       console.error('[CategoryColorPanel] 设置颜色失败:', err);
       Alert.alert(t('error'), t('setColorFailed'));
@@ -214,7 +212,7 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
               style={styles.resetButton}
               onPress={handleResetColors}
             >
-              <Ionicons name="refresh" size={32} color={theme.colors.primaryColor} />
+              <Text style={styles.resetButtonText}>Reset</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('productCategoryColors')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -376,6 +374,11 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     padding: 12,
+  },
+  resetButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primaryColor,
   },
   centerContainer: {
     flex: 1,

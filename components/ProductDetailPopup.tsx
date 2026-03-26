@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../contexts/LanguageContext";
-import { colors } from "../styles/color";
+import { colors } from "../constants/theme";
 import { API_BASE_URL } from "@/services/orderService/constants";
 import { getToken } from "@/utils/auth";
 import { getProductPrepareTime } from "@/services/orderService/networkService";

@@ -6,7 +6,7 @@ import {
   StyleSheet,
   ViewStyle,
 } from "react-native";
-import { colors } from "../styles/color";
+import { colors } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
 
 interface OrderActionsProps {

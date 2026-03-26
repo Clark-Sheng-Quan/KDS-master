@@ -5,7 +5,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { FormattedOrder } from "@/services/types";
-import { colors } from "../styles/color";
+import { colors } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
 
 interface OrderTimerProps {

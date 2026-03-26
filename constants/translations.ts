@@ -196,7 +196,6 @@ export const translations = {
     printOrderFailed: "打印订单失败",
     error: "错误",
     printingError: "打印错误",
-    selectColor: "选择颜色",
     categoryColors: "分类颜色",
     resetColors: "重置颜色",
     
@@ -542,7 +541,6 @@ export const translations = {
     printOrderFailed: "Failed to print order",
     error: "Error",
     printingError: "Printing error",
-    selectColor: "Select Color",
     categoryColors: "Category Colors",
     resetColors: "Reset Colors",
     

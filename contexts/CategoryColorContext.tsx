@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { categoryColors } from "../styles/color";
+import { categoryColors } from "../constants/theme";
 
 interface CategoryColorMapping {
   [category: string]: string;

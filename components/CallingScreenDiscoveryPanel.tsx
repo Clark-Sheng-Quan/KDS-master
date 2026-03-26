@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
-import { theme } from '../styles/theme';
+import { theme } from '../constants/theme';
 import { useDeviceDiscovery, NetworkDevice } from '../hooks/useDeviceDiscovery';
 import { callingScreenService, CallingScreenDevice } from '../services/CallingScreenService';
 import { callingScreenDiscovery } from '../services/CallingScreenDiscovery';

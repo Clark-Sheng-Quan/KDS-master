@@ -13,16 +13,12 @@ import { OrderCard } from "../../components/OrderCard";
 import { OrderService } from "../../services/orderService";
 import { FormattedOrder } from "../../services/types";
 import { useFocusEffect } from "@react-navigation/native";
-import { theme } from "../../styles/theme";
+import { theme } from "../../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../../contexts/LanguageContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSettings } from "../../contexts/SettingsContext";
 import {
   PADDING,
-  DEFAULT_CARDS_PER_ROW,
-  DEFAULT_CARDS_PER_COLUMN,
-  STORAGE_KEY_CARDS_PER_ROW,
-  STORAGE_KEY_CARDS_PER_COLUMN,
   CARD_MARGIN,
   cardStyles,
   preCalculateCardStyles,
@@ -32,14 +28,13 @@ const { width } = Dimensions.get("window");
 
 export default function HistoryScreen() {
   const { t } = useLanguage();
+  const { cardsPerRow, cardsPerColumn } = useSettings();
   const [historyOrders, setHistoryOrders] = useState<FormattedOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(
     null
   );
-  const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
-  const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
   const [queryRange, setQueryRange] = useState<string>("today");
@@ -146,29 +141,6 @@ export default function HistoryScreen() {
     useCallback(() => {
       loadHistoryOrders();
       setSelectedOrder(null);
-
-      // 加载卡片数量设置
-      const loadSettings = async () => {
-        try {
-          const savedCardsPerRow = await AsyncStorage.getItem(
-            STORAGE_KEY_CARDS_PER_ROW
-          );
-          if (savedCardsPerRow) {
-            setCardsPerRow(parseInt(savedCardsPerRow));
-          }
-          const savedCardsPerColumn = await AsyncStorage.getItem(
-            STORAGE_KEY_CARDS_PER_COLUMN
-          );
-          if (savedCardsPerColumn) {
-            setCardsPerColumn(parseFloat(savedCardsPerColumn));
-          }
-        } catch (error) {
-          console.error("加载设置失败:", error);
-        }
-      };
-
-      loadSettings();
-
       return () => {};
     }, [loadHistoryOrders])
   );
@@ -205,6 +177,7 @@ export default function HistoryScreen() {
       </View>
 
       <FlatList
+        key={`history-grid-${cardsPerRow}`}
         data={historyOrders}
         renderItem={renderOrderCard}
         keyExtractor={(item) => item?.id || Math.random().toString()}

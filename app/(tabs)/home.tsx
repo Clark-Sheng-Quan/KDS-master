@@ -13,7 +13,7 @@ import { OrderCard } from "../../components/OrderCard";
 import { ItemCompletionToast } from "../../components/ItemCompletionToast";
 import { useOrders } from "../../contexts/OrderContext";
 import { useCompletedOrders } from "../../contexts/CompletedOrderContext";
-import { theme } from "../../styles/theme";
+import { theme } from "../../constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FormattedOrder, CompletedOrder } from "@/services/types";
@@ -23,6 +23,7 @@ import { OrderService } from "../../services/orderService/OrderService";
 import { settingsListener } from "../../services/settingsListener";
 import { callingScreenService } from "../../services/CallingScreenService";
 import { callingScreenDiscovery } from "../../services/CallingScreenDiscovery";
+import { useSettings } from "../../contexts/SettingsContext";
 import {
   PADDING,
   DEFAULT_CARDS_PER_ROW,
@@ -37,10 +38,9 @@ import {
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
   const { completedOrders, addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
+  const { cardsPerRow, cardsPerColumn, itemLevelCompletion: enableItemLevelCompletion } = useSettings();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
-  const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
-  const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -51,7 +51,6 @@ export default function HomeScreen() {
   const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder} | null>(null);
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
   const recallingItemsRef = useRef<Set<string>>(new Set());  // 用 useRef 来同步控制，避免竞速问题，不显示 UI
-  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(true);
   const recentMenuAnimValue = useMemo(() => new Animated.Value(0), []);
 
   // 动画处理 - 最近订单菜单
@@ -82,54 +81,6 @@ export default function HomeScreen() {
     });
 
     return () => subscription?.remove();
-  }, []);
-
-  // 每次页面获得焦点时重新加载设置
-  useFocusEffect(
-    useCallback(() => {
-      const loadSettings = async () => {
-        try {
-          const savedCardsPerRow = await AsyncStorage.getItem(
-            STORAGE_KEY_CARDS_PER_ROW
-          );
-          if (savedCardsPerRow) {
-            setCardsPerRow(parseInt(savedCardsPerRow));
-          }
-          const savedCardsPerColumn = await AsyncStorage.getItem(
-            STORAGE_KEY_CARDS_PER_COLUMN
-          );
-          if (savedCardsPerColumn) {
-            setCardsPerColumn(parseFloat(savedCardsPerColumn));
-          }
-          const savedItemLevelCompletion = await AsyncStorage.getItem(
-            "item_level_completion"
-          );
-          if (savedItemLevelCompletion !== null) {
-            setEnableItemLevelCompletion(savedItemLevelCompletion === "true");
-          } else {
-            // 如果没有保存的值，默认为 true（item-level 模式）
-            setEnableItemLevelCompletion(true);
-          }
-        } catch (error) {
-          console.error("加载设置失败:", error);
-        }
-      };
-      loadSettings();
-    }, [])
-  );
-
-  // 监听项目级完成模式设置变化（无需重启应用即可生效）
-  useEffect(() => {
-    const handleItemLevelCompletionChange = (value: boolean) => {
-      setEnableItemLevelCompletion(value);
-      console.log('[Home] 项目级完成模式已更改:', value);
-    };
-
-    settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
-
-    return () => {
-      settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
-    };
   }, []);
 
   // 当订单、卡片尺寸、尺寸改变时，重新计算卡片样式

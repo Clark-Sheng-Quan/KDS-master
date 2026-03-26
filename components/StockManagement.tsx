@@ -15,10 +15,9 @@ import {
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { StockService, StockItem } from "../services/stockService";
-import { colors } from "@/styles/color";
+import { colors } from "@/constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
-import { useCategoryColors } from "../contexts/CategoryColorContext";
-import { categoryColors } from "../styles/color";
+
 import { ProductDetailPopup } from "../components/ProductDetailPopup";
 
 // 仓库ID常量
@@ -29,8 +28,6 @@ const SOLD_OUT_CATEGORY = "Sold Out";
 
 const StockManagementScreen = () => {
   const { t } = useLanguage();
-  const { categoryColorMap, setCategoryColor, getCategoryColor } =
-    useCategoryColors();
 
   // 状态管理
   const [categories, setCategories] = useState<string[]>([]);
@@ -52,12 +49,6 @@ const StockManagementScreen = () => {
   const [prepTimeModalVisible, setPrepTimeModalVisible] = useState(false);
   const [prepareTime, setPrepareTime] = useState("");
 
-  // 添加新的状态
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [categoryForColoring, setCategoryForColoring] = useState<string | null>(
-    null
-  );
-
   // 添加商品详情弹窗状态
   const [showProductDetail, setShowProductDetail] = useState(false);
   const [selectedProductDetail, setSelectedProductDetail] = useState<{
@@ -68,7 +59,6 @@ const StockManagementScreen = () => {
   // 动画值
   const refillFadeAnim = new Animated.Value(refillModalVisible ? 1 : 0);
   const prepTimeFadeAnim = new Animated.Value(prepTimeModalVisible ? 1 : 0);
-  const colorPickerFadeAnim = new Animated.Value(showColorPicker ? 1 : 0);
 
   // 动画 useEffect
   useEffect(() => {
@@ -86,14 +76,6 @@ const StockManagementScreen = () => {
       useNativeDriver: true,
     }).start();
   }, [prepTimeModalVisible]);
-
-  useEffect(() => {
-    Animated.timing(colorPickerFadeAnim, {
-      toValue: showColorPicker ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [showColorPicker]);
 
   // 修改仓库相关状态类型
   const [warehouses, setWarehouses] = useState<{ [key: string]: string }>({});
@@ -514,25 +496,6 @@ const StockManagementScreen = () => {
     products.length > 0 &&
     products.every((item) => selectedProducts.has(item.product_id));
 
-  // 快速自定义选中分类的颜色
-  const handleQuickColorCategory = () => {
-    if (selectedCategory && selectedCategory !== SOLD_OUT_CATEGORY && selectedCategory !== LOW_STOCK_CATEGORY) {
-      setCategoryForColoring(selectedCategory);
-      setShowColorPicker(true);
-    } else {
-      Alert.alert("提示", "请先选择一个分类（不包括售罄和库存告急）");
-    }
-  };
-
-  // 选择颜色处理
-  const handleColorSelect = async (colorKey: keyof typeof categoryColors) => {
-    if (categoryForColoring) {
-      await setCategoryColor(categoryForColoring, colorKey);
-      setShowColorPicker(false);
-      setCategoryForColoring(null);
-    }
-  };
-
   // 处理商品长按
   const handleProductLongPress = (item: StockItem) => {
     setSelectedProductDetail({
@@ -621,66 +584,6 @@ const StockManagementScreen = () => {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyText}>{t("noProducts")}</Text>
     </View>
-  );
-
-  // 添加颜色选择器模态框
-  const renderColorPickerModal = () => (
-    <>
-      <Animated.View
-        style={[
-          styles.backdrop,
-          { opacity: colorPickerFadeAnim },
-          showColorPicker && styles.backdropVisible,
-        ]}
-        pointerEvents={showColorPicker ? "auto" : "none"}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setShowColorPicker(false)}
-          style={{ flex: 1 }}
-        />
-      </Animated.View>
-      <Animated.View
-        style={[
-          styles.animatedModalContainer,
-          { opacity: colorPickerFadeAnim },
-          showColorPicker && styles.animatedModalVisible,
-        ]}
-        pointerEvents={showColorPicker ? "auto" : "none"}
-      >
-        <View style={styles.colorPickerModal}>
-          <Text style={styles.modalTitle}>
-            {t("selectColor")} - {categoryForColoring}
-          </Text>
-
-          <View style={styles.colorOptions}>
-            {(
-              Object.keys(categoryColors) as Array<keyof typeof categoryColors>
-            ).map((colorKey) => (
-              <TouchableOpacity
-                key={colorKey}
-                style={[
-                  styles.colorOption,
-                  { backgroundColor: categoryColors[colorKey] },
-                  colorKey === "default" && {
-                    borderWidth: 2,
-                    borderColor: "#999",
-                  },
-                ]}
-                onPress={() => handleColorSelect(colorKey)}
-              />
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => setShowColorPicker(false)}
-          >
-            <Text style={styles.cancelButtonText}>{t("cancel")}</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </>
   );
 
   // 更新准备时间 - 显示输入对话框
@@ -871,9 +774,6 @@ const StockManagementScreen = () => {
         </Animated.View>
       </>
 
-      {/* 添加颜色选择器模态框 */}
-      {renderColorPickerModal()}
-
       {/* 添加商品详情弹窗 */}
       {selectedProductDetail && (
         <ProductDetailPopup
@@ -925,23 +825,6 @@ const StockManagementScreen = () => {
 
       {/* 操作按钮 */}
       <View style={styles.actionButtons}>
-        {/* 自定义颜色按钮 - 靠左 */}
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: selectedCategory && selectedCategory !== SOLD_OUT_CATEGORY && selectedCategory !== LOW_STOCK_CATEGORY 
-                ? "#e0e0e0"
-                : "#E8E8E8",
-            },
-            (!selectedCategory || selectedCategory === SOLD_OUT_CATEGORY || selectedCategory === LOW_STOCK_CATEGORY) && styles.disabledColorButton,
-          ]}
-          onPress={handleQuickColorCategory}
-          disabled={!selectedCategory || selectedCategory === SOLD_OUT_CATEGORY || selectedCategory === LOW_STOCK_CATEGORY}
-        >
-          <Text style={styles.colorCustomizeText}>{t("customizeCategoryColour")}</Text>
-        </TouchableOpacity>
-
         {/* 右侧按钮容器 */}
         <View style={styles.rightActionButtons}>
           <TouchableOpacity
@@ -1183,16 +1066,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 14,
   },
-  colorCustomizeText: {
-    color: COLORS.black,
-    fontWeight: "bold",
-    fontSize: 14,
-  },
   disabledButton: {
     opacity: 0.5,
-  },
-  disabledColorButton: {
-    opacity: 0.6,
   },
   prepTimeButton: {
     backgroundColor: colors.secondary || "#4CAF50",
@@ -1431,29 +1306,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 14,
     color: COLORS.textBlack,
-  },
-
-  // ========== Color Picker Modal ==========
-  colorPickerModal: {
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
-    padding: 16,
-    width: "80%",
-    alignItems: "center",
-  },
-  colorOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginVertical: 16,
-  },
-  colorOption: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    margin: 8,
-    borderWidth: 1,
-    borderColor: "#ccc",
   },
 
   // ========== Empty & Error States ==========

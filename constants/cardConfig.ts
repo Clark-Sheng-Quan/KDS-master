@@ -4,7 +4,6 @@
  */
 
 import { StyleSheet } from "react-native";
-import { theme } from "../styles/theme";
 
 // ============ 常量定义 ============
 export const PADDING = 16;

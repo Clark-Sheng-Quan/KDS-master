@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_API } from '../config/api';
-import { categoryColors } from '../styles/color';
+import { categoryColors } from '../constants/theme';
 import { settingsListener } from './settingsListener';
 
 export interface Category {

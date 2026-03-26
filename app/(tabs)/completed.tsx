@@ -11,17 +11,13 @@ import {
 import { OrderCard } from "../../components/OrderCard";
 import { useCompletedOrders } from "../../contexts/CompletedOrderContext";
 import { FormattedOrder } from "../../services/types";
-import { theme } from "../../styles/theme";
+import { theme } from "../../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../../contexts/LanguageContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { OrderService } from "../../services/orderService/OrderService";
+import { useSettings } from "../../contexts/SettingsContext";
 import {
   PADDING,
-  DEFAULT_CARDS_PER_ROW,
-  DEFAULT_CARDS_PER_COLUMN,
-  STORAGE_KEY_CARDS_PER_ROW,
-  STORAGE_KEY_CARDS_PER_COLUMN,
   CARD_MARGIN,
   cardStyles,
   preCalculateCardStyles,
@@ -32,9 +28,8 @@ const { width } = Dimensions.get("window");
 export default function CompletedScreen() {
   const { t } = useLanguage();
   const { completedOrders, removeCompletedOrder, loading: contextLoading, cleanExpiredOrdersNow } = useCompletedOrders();
+  const { cardsPerRow, cardsPerColumn } = useSettings();
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(null);
-  const [cardsPerRow, setCardsPerRow] = useState<number>(DEFAULT_CARDS_PER_ROW);
-  const [cardsPerColumn, setCardsPerColumn] = useState<number>(DEFAULT_CARDS_PER_COLUMN);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
   const [loading, setLoading] = useState(contextLoading);
@@ -97,30 +92,6 @@ export default function CompletedScreen() {
     });
 
     return () => subscription?.remove();
-  }, []);
-
-  // 加载卡片数量设置
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const savedCardsPerRow = await AsyncStorage.getItem(
-          STORAGE_KEY_CARDS_PER_ROW
-        );
-        if (savedCardsPerRow) {
-          setCardsPerRow(parseInt(savedCardsPerRow));
-        }
-        const savedCardsPerColumn = await AsyncStorage.getItem(
-          STORAGE_KEY_CARDS_PER_COLUMN
-        );
-        if (savedCardsPerColumn) {
-          setCardsPerColumn(parseFloat(savedCardsPerColumn));
-        }
-      } catch (error) {
-        console.error("加载设置失败:", error);
-      }
-    };
-
-    loadSettings();
   }, []);
 
   // 召回订单功能 - 发起 recall
@@ -237,6 +208,7 @@ export default function CompletedScreen() {
       </View>
 
       <FlatList
+        key={`completed-grid-${cardsPerRow}`}
         data={cardStylesMap.length > 0 ? completedOrders : []}
         renderItem={({ item, index }) => {
           // 为完成的 items 构建一个虚拟的订单对象用于显示
