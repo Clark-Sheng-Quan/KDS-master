@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "../../constants/theme";
+import Constants from "expo-constants";
 import * as Network from "expo-network";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 import { Picker } from "@react-native-picker/picker";
@@ -54,6 +55,7 @@ const DEFAULT_ITEM_OPTION_FONT_SIZE = "small"; // small, medium, large
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
   const navigation = useNavigation();
+  const appVersion = Constants.expoConfig?.version || "unknown";
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
@@ -935,7 +937,7 @@ export default function SettingsScreen() {
         
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
-          <Text style={styles.infoText}>{t("systemVersion")}: 1.0.0</Text>
+          <Text style={styles.infoText}>{t("systemVersion")}: {appVersion}</Text>
           <Text style={styles.infoText}>{t("copyright")}</Text>
         </View>
       </ScrollView>

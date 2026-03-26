@@ -7,6 +7,25 @@
 
 set -e
 
+# ========================================
+# 手动发布配置（每次发布前请更新）
+# ========================================
+VERSION="1.2.0"
+
+RELEASE_NOTES=$(cat <<'EOF'
+## Version 1.2.0
+
+### Major Improvements
+- Fill in major improvements display customization.
+
+### Bug Fixes
+- Fill in bug fixes use effect.
+
+### Download
+Get the latest APK from the Assets section below.
+EOF
+)
+
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,11 +37,14 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}     KDS Release Publisher v2.0${NC}"
 echo -e "${BLUE}========================================${NC}"
 
-# 0. 处理命令行参数
-NEW_VERSION="${1:-}"
-
 # 1. 获取并处理版本号
 echo -e "\n${YELLOW}[1/8]${NC} 处理版本号..."
+
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo -e "${RED}❌ VERSION 格式错误: $VERSION${NC}"
+    echo -e "${YELLOW}请在脚本顶部使用格式: X.X.X (例如: 1.1.2)${NC}"
+    exit 1
+fi
 
 # 从 app.json 读取当前版本
 CURRENT_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' app.json | head -1 | cut -d'"' -f4)
@@ -31,35 +53,22 @@ if [ -z "$CURRENT_VERSION" ]; then
     exit 1
 fi
 
-# 如果提供了新版本号，进行验证和更新
-if [ -n "$NEW_VERSION" ]; then
-    # 验证版本号格式（应该是 X.X.X 的格式）
-    if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo -e "${RED}❌ 版本号格式错误: $NEW_VERSION${NC}"
-        echo -e "${YELLOW}请使用格式: X.X.X (例如: 1.1.2)${NC}"
-        exit 1
-    fi
-    
-    if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
-        echo -e "${YELLOW}⚠${NC} 新版本号与当前版本号相同: ${YELLOW}$NEW_VERSION${NC}"
-    else
-        echo -e "${YELLOW}📝 准备更新版本:${NC}"
-        echo -e "   当前版本: ${YELLOW}$CURRENT_VERSION${NC}"
-        echo -e "   新版本: ${YELLOW}$NEW_VERSION${NC}"
-        
-        # 更新 app.json
-        sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" app.json
-        echo -e "${GREEN}✓${NC} app.json 已更新"
-        
-        # 更新 package.json
-        sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" package.json
-        echo -e "${GREEN}✓${NC} package.json 已更新"
-        
-        CURRENT_VERSION=$NEW_VERSION
-    fi
+if [ "$CURRENT_VERSION" = "$VERSION" ]; then
+    echo -e "${GREEN}✓${NC} app.json/package.json 版本已是 ${YELLOW}$VERSION${NC}"
+else
+    echo -e "${YELLOW}📝 准备更新版本:${NC}"
+    echo -e "   当前版本: ${YELLOW}$CURRENT_VERSION${NC}"
+    echo -e "   新版本: ${YELLOW}$VERSION${NC}"
+
+    # 更新 app.json
+    sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$VERSION\"/" app.json
+    echo -e "${GREEN}✓${NC} app.json 已更新"
+
+    # 更新 package.json
+    sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$VERSION\"/" package.json
+    echo -e "${GREEN}✓${NC} package.json 已更新"
 fi
 
-VERSION=$CURRENT_VERSION
 echo -e "${GREEN}✓${NC} 发布版本: ${YELLOW}$VERSION${NC}"
 
 # 2. 提交版本号同步更改（如果有）
@@ -111,22 +120,15 @@ echo -e "${GREEN}✓${NC} APK 构建成功 (${YELLOW}$APK_SIZE${NC})"
 # 6. 创建 git 标签和 GitHub release
 echo -e "\n${YELLOW}[6/8]${NC} 创建 GitHub release..."
 
+# 先推送当前分支，确保远端分支与本地最新 commit 同步
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+git push origin "$CURRENT_BRANCH"
+
 # 创建 git 标签
 git tag "v$VERSION"
 git push origin "v$VERSION"
 
 # 创建 release（初始为 draft）
-RELEASE_NOTES="## Version $VERSION
-
-### Major Improvements
-- Added new feature X for better user experience
-
-### Bug Fixes
-- Fixed issue Y that caused crashes on older devices
-
-### Download
-Get the latest APK from the Assets section below."
-
 gh release create "v$VERSION" \
     --title "Version $VERSION" \
     --notes "$RELEASE_NOTES" \
