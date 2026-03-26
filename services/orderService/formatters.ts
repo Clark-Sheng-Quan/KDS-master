@@ -20,6 +20,27 @@ export const convertToLocalTimeFormatted = (utcTimeString: string): string => {
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
 
+    const buildTCPItemName = (item: any, product: any): string => {
+      const baseName = product.name || 'Unknown Item';
+      const normalizedBaseName = String(baseName).trimEnd();
+      const suffixCandidates = [item?.suffix, product?.suffix];
+
+      for (const suffixArray of suffixCandidates) {
+        if (Array.isArray(suffixArray)) {
+          const visibleSuffix = suffixArray
+            .filter((s: any) => s?.is_visible === true && typeof s?.name === 'string')
+            .map((s: any) => s.name)
+            .join('');
+
+          if (visibleSuffix) {
+            return `${normalizedBaseName} ${visibleSuffix}`;
+          }
+        }
+      }
+
+      return normalizedBaseName;
+    };
+
     // Extract order ID from POS format
     const orderId = orderData.id || String(Date.now());
     
@@ -51,7 +72,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
         
         return {
           id: item.id || `item-${index}-${Date.now()}`,
-          name: product.name || 'Unknown Item',
+          name: buildTCPItemName(item, product),
           quantity: item.qty || 1,
           price: product.price || 0,
           options: options || [], // Ensure options is always an array
@@ -102,6 +123,11 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
         ? String(orderData.orderNumber)
         : orderId.slice(-4)
     );
+
+    const orderNotes =
+      typeof orderData.notes === 'string'
+        ? orderData.notes.trim()
+        : '';
     
     // Extract total prepare time - ensure it's a number, not an object
     let totalPrepareTime = totalPrepareTimeFromItems;
@@ -131,6 +157,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       status: orderData.status,
       products: formattedItems,
       source: 'tcp', // Mark source as TCP
+      notes: orderNotes,
       total_prepare_time: totalPrepareTime,
       tableNumber: tableNumber, // Add table number
     };

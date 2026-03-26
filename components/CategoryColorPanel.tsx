@@ -8,6 +8,7 @@ import {
   Alert,
   Animated,
   FlatList,
+  ScrollView,
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -178,6 +179,17 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
   );
 
   const colors = Object.keys(categoryColors) as Array<keyof typeof categoryColors>;
+  const COLOR_PICKER_ROWS = 3;
+  const colorCount = colors.length;
+  const colorColumns = Math.ceil(colorCount / COLOR_PICKER_ROWS);
+
+  // Reorder list so wrapped row rendering appears as column-first visual order.
+  const displayColors = Array.from({ length: colorCount }, (_, index) => {
+    const row = Math.floor(index / colorColumns);
+    const column = index % colorColumns;
+    const sourceIndex = column * COLOR_PICKER_ROWS + row;
+    return colors[sourceIndex];
+  }).filter((colorKey): colorKey is keyof typeof categoryColors => Boolean(colorKey));
 
   return (
     <>
@@ -297,8 +309,12 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
               </TouchableOpacity>
             </View>
 
-            <View style={styles.colorGridContainer}>
-              {colors.map(colorKey => (
+            <ScrollView
+              style={styles.colorScrollView}
+              contentContainerStyle={styles.colorGridContainer}
+              showsVerticalScrollIndicator={true}
+            >
+              {displayColors.map(colorKey => (
                 <TouchableOpacity
                   key={colorKey}
                   style={styles.colorSelect}
@@ -317,7 +333,7 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
                   </View>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
         </Animated.View>
       )}
@@ -485,11 +501,15 @@ const styles = StyleSheet.create({
     color: '#222',
     flex: 1,
   },
+  colorScrollView: {
+    flex: 1,
+  },
   colorGridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 32,
+    paddingBottom: 8,
   },
   colorSelect: {
     alignItems: 'center',

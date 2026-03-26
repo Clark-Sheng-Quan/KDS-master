@@ -67,28 +67,38 @@ export const sourceColors = {
 };
 
 export const categoryColors = {
-  category1: "#FF6B35",   // 橙红
-  category2: "#3498DB",   // 深蓝
-  category3: "#E74C3C",   // 鲜红
-  category4: "#27AE60",   // 草绿
-  category5: "#F39C12",   // 橙黄
-  category6: "#9B59B6",   // 紫罗兰
-  category7: "#1ABC9C",   // 青绿
-  category8: "#E67E22",   // 焦橙
-  category9: "#34495E",   // 深灰蓝
-  category10: "#C0392B",  // 暗红
-  category11: "#16A085",  // 墨绿
-  category12: "#D35400",  // 赭橙
-  category13: "#8E44AD",  // 深紫
-  category14: "#2980B9",  // 天蓝
-  category15: "#C23B22",  // 砖红
-  category16: "#2ECC71",  // 明绿（与#27AE60区分）
-  category17: "#F1C40F",  // 金黄
-  category18: "#E84393",  // 玫红
-  category19: "#00CEC9",  // 薄荷青
-  category20: "#6C5CE7",  // 靛蓝
-  default: "#FFFFFF",     // 默认白色
+  category1: "#8A0022",   // 红 - 深
+  category2: "#D7263D",   // 红 - 中
+  category3: "#E89AA9",   // 红 - 淡（加深）
+
+  category4: "#C04A00",   // 橙 - 深
+  category5: "#FF8A3D",   // 橙 - 中
+  category6: "#FFC48A",   // 橙 - 淡（加深）
+
+  category7: "#B88600",   // 黄 - 深
+  category8: "#F2C200",   // 黄 - 中
+  category9: "#FFE680",   // 黄 - 淡（加深）
+
+  category10: "#0F5E2C",  // 绿 - 深
+  category11: "#2FA84F",  // 绿 - 中
+  category12: "#A9DEB8",  // 绿 - 淡（加深）
+
+  category13: "#003F8C",  // 蓝 - 深
+  category14: "#1E73D8",  // 蓝 - 中
+  category15: "#9FC4EB",  // 蓝 - 淡（加深）
+
+  category16: "#5A1A8C",  // 紫 - 深
+  category17: "#9B4DCC",  // 紫 - 中
+  category18: "#C9A4E8",  // 紫 - 淡（加深）
+
+  category19: "#B8326A",  // 粉 - 深
+  category20: "#E44C8C",  // 粉 - 中
+
+  default: "#FFFFFF",
 };
+
+
+
 
 // ============ Theme Configuration ============
 export const theme = {

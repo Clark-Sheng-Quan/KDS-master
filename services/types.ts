@@ -79,6 +79,7 @@ export interface FormattedOrder {
   tableNumber?: string;
   status?: string;
   source?: string;
+  notes?: string;
   isRecalled?: boolean;                  // 标记是否为撤回的订单
   products: OrderItem[];
   total_prepare_time?: number;

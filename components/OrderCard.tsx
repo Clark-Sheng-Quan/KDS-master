@@ -585,6 +585,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       .map((item, index) => renderProductItem(item, index));
   }, [order.products, renderProductItem]);
 
+  const orderNotes = useMemo(() => {
+    if (typeof order.notes !== "string") return "";
+    return order.notes.trim();
+  }, [order.notes]);
+
   if (!order.products || !Array.isArray(order.products)) {
     console.error('[OrderCard] Order has no products array:', order);
     return null;
@@ -682,6 +687,15 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             <View style={styles.itemsContainer}>
               {renderedProductsList}
             </View>
+
+            {orderNotes ? (
+              <View style={styles.notesSection}>
+                <Text style={styles.notesText}>
+                  <Text style={styles.notesTitle}>Notes: </Text>
+                  {orderNotes}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </ScrollView>
 
@@ -869,6 +883,28 @@ const styles = StyleSheet.create({
   itemsContainer: {
     marginTop: 0, 
     marginBottom: 8,
+  },
+  notesSection: {
+    marginTop: 4,
+    marginBottom: 10,
+    marginHorizontal: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#FFF7E6",
+    borderLeftWidth: 4,
+    borderLeftColor: "#FFB347",
+  },
+  notesTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8A5A00",
+  },
+  notesText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#5A3A00",
+    lineHeight: 20,
   },
   itemRow: {
     flexDirection: "row",
