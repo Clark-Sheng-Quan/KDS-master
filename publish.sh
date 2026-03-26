@@ -2,8 +2,8 @@
 
 # 自动构建并发布 GitHub release 脚本
 # 使用方式: 
-#   ./publish.sh              # 使用当前版本号发布
-#   ./publish.sh 1.1.2        # 更新版本为 1.1.2 并发布
+#   1) 在脚本顶部手动填写 VERSION 和 RELEASE_NOTES
+#   2) 运行 ./publish.sh
 
 set -e
 
@@ -26,7 +26,6 @@ Get the latest APK from the Assets section below.
 EOF
 )
 
-# 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -99,23 +98,18 @@ if git rev-parse "v$VERSION" >/dev/null 2>&1; then
 fi
 echo -e "${GREEN}✓${NC} 标签 v$VERSION 不存在（可以创建）"
 
-# 5. 构建 APK
-echo -e "\n${YELLOW}[5/8]${NC} 构建 Release APK..."
-cd android
-if ! ./gradlew assembleRelease > /dev/null 2>&1; then
-    echo -e "${RED}❌ APK 构建失败${NC}"
-    exit 1
-fi
-cd ..
+# 5. 跳过 APK 构建（使用本地已构建文件）
+echo -e "\n${YELLOW}[5/8]${NC} 跳过 APK 构建（使用现有 APK）..."
 
 APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
 if [ ! -f "$APK_PATH" ]; then
     echo -e "${RED}❌ 找不到 APK 文件: $APK_PATH${NC}"
+    echo -e "${YELLOW}请先手动构建 APK，再重新运行脚本${NC}"
     exit 1
 fi
 
 APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-echo -e "${GREEN}✓${NC} APK 构建成功 (${YELLOW}$APK_SIZE${NC})"
+echo -e "${GREEN}✓${NC} 使用已构建 APK (${YELLOW}$APK_SIZE${NC})"
 
 # 6. 创建 git 标签和 GitHub release
 echo -e "\n${YELLOW}[6/8]${NC} 创建 GitHub release..."
@@ -139,15 +133,11 @@ echo -e "${GREEN}✓${NC} Release v$VERSION 已创建（draft 状态）"
 # 7. 上传 APK 并发布
 echo -e "\n${YELLOW}[7/8]${NC} 上传 APK 并发布..."
 
-# 上传 APK
 gh release upload "v$VERSION" "$APK_PATH" --clobber
-
-# 发布 release（从 draft 改为 published）
 gh release edit "v$VERSION" --draft=false
 
 echo -e "${GREEN}✓${NC} APK 已上传并发布"
 
-# 最终输出
 echo -e "\n${YELLOW}[8/8]${NC} 完成...\n"
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}     ✓ 发布完成！${NC}"
