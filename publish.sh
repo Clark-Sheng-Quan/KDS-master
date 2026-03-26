@@ -93,10 +93,12 @@ echo -e "${GREEN}✓${NC} 工作目录干净"
 # 4. 检查标签是否存在
 echo -e "\n${YELLOW}[4/8]${NC} 检查 git 标签..."
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    echo -e "${RED}❌ 标签 v$VERSION 已存在${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠${NC} 标签 v$VERSION 已存在，跳过创建标签"
+    TAG_EXISTS=true
+else
+    echo -e "${GREEN}✓${NC} 标签 v$VERSION 不存在（可以创建）"
+    TAG_EXISTS=false
 fi
-echo -e "${GREEN}✓${NC} 标签 v$VERSION 不存在（可以创建）"
 
 # 5. 跳过 APK 构建（使用本地已构建文件）
 echo -e "\n${YELLOW}[5/8]${NC} 跳过 APK 构建（使用现有 APK）..."
@@ -118,17 +120,31 @@ echo -e "\n${YELLOW}[6/8]${NC} 创建 GitHub release..."
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 git push origin "$CURRENT_BRANCH"
 
-# 创建 git 标签
-git tag "v$VERSION"
-git push origin "v$VERSION"
+if [ "$TAG_EXISTS" = true ]; then
+    echo -e "${YELLOW}  标签已存在，跳过 tag 创建${NC}"
 
-# 创建 release（初始为 draft）
-gh release create "v$VERSION" \
-    --title "Version $VERSION" \
-    --notes "$RELEASE_NOTES" \
-    --draft
+    if gh release view "v$VERSION" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Release v$VERSION 已存在，继续上传 APK"
+    else
+        gh release create "v$VERSION" \
+            --title "Version $VERSION" \
+            --notes "$RELEASE_NOTES" \
+            --draft
+        echo -e "${GREEN}✓${NC} Release v$VERSION 已创建（基于已有 tag）"
+    fi
+else
+    # 创建 git 标签
+    git tag "v$VERSION"
+    git push origin "v$VERSION"
 
-echo -e "${GREEN}✓${NC} Release v$VERSION 已创建（draft 状态）"
+    # 创建 release（初始为 draft）
+    gh release create "v$VERSION" \
+        --title "Version $VERSION" \
+        --notes "$RELEASE_NOTES" \
+        --draft
+
+    echo -e "${GREEN}✓${NC} Release v$VERSION 已创建（draft 状态）"
+fi
 
 # 7. 上传 APK 并发布
 echo -e "\n${YELLOW}[7/8]${NC} 上传 APK 并发布..."
