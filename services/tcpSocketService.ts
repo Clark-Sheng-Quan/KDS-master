@@ -12,11 +12,11 @@ export class TCPSocketService {
   private static clients: Map<string, any> = new Map();
   // Persistent connection pool (for registration message keeping connection alive)
   private static persistentConnections: Map<string, any> = new Map();
-  // Last connected client IP (for POS connection tracking)
-  private static masterIP: string = "";
+  // Primary connected POS IP (legacy master/slave naming removed)
+  private static primaryPosIP: string = "";
   // Last connected POS socket (for sending completion messages)
   private static posSocket: any = null;
-  // Last connected POS IP (for fallback when masterIP might be cleared)
+  // Last connected POS IP (for fallback when primaryPosIP might be cleared)
   private static posIP: string = "";
   
   // Current TCP port (dynamic)
@@ -119,7 +119,7 @@ export class TCPSocketService {
           this.posSocket = socket;
           
           // Save POS IP for reference
-          this.masterIP = remoteIP;
+          this.primaryPosIP = remoteIP;
           this.posIP = remoteIP;
           
           
@@ -450,7 +450,7 @@ export class TCPSocketService {
         || jsonData.name 
         || jsonData.deviceId 
         || `POS`;
-      this.masterIP = clientIP;
+      this.primaryPosIP = clientIP;
       
       // Update connection status
       this.connectionStatus.set(clientIP, true);
@@ -564,9 +564,9 @@ export class TCPSocketService {
         this.connectionStatus.set(ip, false);
         console.log(`[TCP] Disconnected ${disconnectedCount} connection(s) from ${ip}`);
         
-        // Only clear masterIP if it matches
-        if (this.masterIP === ip) {
-          this.masterIP = "";
+        // Only clear primaryPosIP if it matches
+        if (this.primaryPosIP === ip) {
+          this.primaryPosIP = "";
         }
         
         // Close persistent connection for this IP
@@ -592,7 +592,7 @@ export class TCPSocketService {
       }
       
       this.connectionStatus.clear();
-      this.masterIP = "";
+      this.primaryPosIP = "";
       
       // Close all persistent connections
       for (const [key, socket] of this.persistentConnections.entries()) {
@@ -667,8 +667,13 @@ export class TCPSocketService {
       this.server = null;
     }
   }
+  public static getPrimaryPosIP(): string {
+    return this.primaryPosIP;
+  }
+
+  // Backward compatibility for existing callers
   public static getMasterIP(): string {
-    return this.masterIP;
+    return this.getPrimaryPosIP();
   }
 
   /**
@@ -698,9 +703,9 @@ export class TCPSocketService {
     this.connectedDeviceHistory.delete(ip);
     this.connectionStatus.delete(ip);
     
-    // If removing the masterIP, clear it
-    if (this.masterIP === ip) {
-      this.masterIP = "";
+    // If removing the primaryPosIP, clear it
+    if (this.primaryPosIP === ip) {
+      this.primaryPosIP = "";
     }
   }
 
@@ -715,7 +720,7 @@ export class TCPSocketService {
   // public static async sendOrderItemsCompleted(orderId: string, orderitems: any[]): Promise<boolean> {
   //   try {
   //     // Get POS IP address
-  //     const posIP = this.masterIP || this.posIP;
+  //     const posIP = this.primaryPosIP || this.posIP;
   //     if (!posIP) {
   //       console.warn('[TCP] No POS IP available for sending completion message');
   //       return false;

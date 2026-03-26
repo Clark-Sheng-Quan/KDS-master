@@ -57,7 +57,7 @@ export default function ShopSelectScreen() {
         Alert.alert(t("error"), t("shopSelectError"));
       }
     } catch (error) {
-      console.error("获取店铺列表失败:", error);
+      console.error("Failed to fetch shops:", error);
       Alert.alert(t("error"), t("shopSelectError"));
     } finally {
       setLoading(false);
@@ -74,7 +74,7 @@ export default function ShopSelectScreen() {
       // 跳转到首页
       router.replace("/(tabs)/home" as any);
     } catch (error) {
-      console.error("保存店铺信息失败:", error);
+      console.error("Failed to save shop information:", error);
       Alert.alert(t("error"), t("saveShopFailed"));
     }
   };

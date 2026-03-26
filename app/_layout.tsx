@@ -56,7 +56,6 @@ export default function RootLayout() {
         // 恢复保存的屏幕方向
         const savedOrientation = await AsyncStorage.getItem("screenOrientation");
         if (savedOrientation) {
-          console.log("恢复保存的屏幕方向:", savedOrientation);
           if (savedOrientation === "landscape") {
             await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.LANDSCAPE);
           } else if (savedOrientation === "portrait") {
@@ -67,7 +66,7 @@ export default function RootLayout() {
           await ScreenOrientationModule.lockAsync(ScreenOrientationModule.OrientationLock.LANDSCAPE);
         }
       } catch (error) {
-        console.error("初始化全屏模式失败:", error);
+        console.error("Failed to initialize fullscreen mode:", error);
       }
     };
 

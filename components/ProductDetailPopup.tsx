@@ -86,7 +86,7 @@ interface ProductDetailPopupProps {
 const fetchRecipeData = async (productId: string) => {
   const token = await getToken();
   if (!token) {
-    throw new Error("未获取到有效的token");
+    throw new Error("Failed to get token");
   }
 
   const requestBody = {
@@ -109,20 +109,19 @@ const fetchRecipeData = async (productId: string) => {
 
   // 获取响应文本
   const responseText = await response.text();
-  console.log("服务器响应:", responseText);
 
   // 尝试解析JSON
   let data;
   try {
     data = JSON.parse(responseText);
   } catch (parseError) {
-    console.error("JSON解析错误:", responseText);
-    throw new Error("服务器返回的数据格式不正确");
+    console.error("Failed to parse server response:", responseText);
+    throw new Error("Failed to parse server response");
   }
 
   // 检查响应状态码
   if (data.status_code !== 200) {
-    throw new Error(data.message || "获取商品详情失败");
+    throw new Error(data.message || "Failed to fetch product details");
   }
 
   return data;
@@ -137,14 +136,14 @@ const getProductDetail = async (productId: string): Promise<ProductDetail> => {
     // 适配新的API返回数据格式
     const finalData = {
       id: data.product_id || productId,
-      name: "商品详情", // 这个会被传入的productName覆盖
+      name: "Product Details", // This will be overridden by the passed productName
       ingredients: Array.isArray(data.recipe) ? data.recipe : [],
       instructions: data.instruction ? [data.instruction] : [],
       prepare_time: prepTime,
     };
     return finalData;
   } catch (error) {
-    console.error("获取商品详情失败:", error);
+    console.error("Failed to fetch product details:", error);
     // 返回一个基本的默认数据
     return {
       id: productId,
@@ -171,7 +170,7 @@ export const checkProductHasRecipe = async (productId: string): Promise<boolean>
 
     return hasIngredients || hasInstructions;
   } catch (error) {
-    console.error("检查商品配方信息失败:", error);
+    console.error("Failed to check product recipe:", error);
     return false;
   }
 };
@@ -223,7 +222,7 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
 
       setProductDetail(detail);
     } catch (error) {
-      console.error("获取商品详情失败:", error);
+      console.error("Failed to fetch product details:", error);
     } finally {
       setLoading(false);
     }

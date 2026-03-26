@@ -17,19 +17,13 @@ import { theme } from "../../constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FormattedOrder, CompletedOrder } from "@/services/types";
-import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { OrderService } from "../../services/orderService/OrderService";
-import { settingsListener } from "../../services/settingsListener";
 import { callingScreenService } from "../../services/CallingScreenService";
 import { callingScreenDiscovery } from "../../services/CallingScreenDiscovery";
 import { useSettings } from "../../contexts/SettingsContext";
 import {
   PADDING,
-  DEFAULT_CARDS_PER_ROW,
-  DEFAULT_CARDS_PER_COLUMN,
-  STORAGE_KEY_CARDS_PER_ROW,
-  STORAGE_KEY_CARDS_PER_COLUMN,
   cardStyles as cardStylesSheet,
   preCalculateCardStyles,
   formatTime,
