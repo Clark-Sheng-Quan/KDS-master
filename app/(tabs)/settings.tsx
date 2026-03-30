@@ -40,6 +40,7 @@ const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 const STORAGE_KEY_SHOW_ORDER_TIMER = "show_order_timer";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
+const STORAGE_KEY_AUTO_START = "auto_start_enabled";
 
 // Font size constants
 const STORAGE_KEY_CARD_TITLE_FONT_SIZE = "card_title_font_size";
@@ -90,6 +91,11 @@ export default function SettingsScreen() {
   // 字体大小设置
   const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
   const [itemOptionFontSize, setItemOptionFontSize] = useState<"small" | "medium" | "large">("medium");
+  const [enableAutoStart, setEnableAutoStart] = useState<boolean>(true);
+  const [autoStartPermissionOk, setAutoStartPermissionOk] = useState<boolean | null>(null);
+  const [batteryPermissionOk, setBatteryPermissionOk] = useState<boolean | null>(null);
+
+  const bootPermissionModule = NativeModules.BootPermissionModule;
 
   // 关闭设置页：有返回栈则 goBack，没有则回到首页，避免 GO_BACK 未处理报错
   const handleCloseSettings = useCallback(() => {
@@ -172,6 +178,15 @@ export default function SettingsScreen() {
         );
         if (savedCallingButton !== null) {
           setEnableCallingButton(savedCallingButton === "true");
+        }
+
+        // Load auto-start switch (default ON)
+        const savedAutoStart = await AsyncStorage.getItem(STORAGE_KEY_AUTO_START);
+        if (savedAutoStart === null) {
+          setEnableAutoStart(true);
+          await AsyncStorage.setItem(STORAGE_KEY_AUTO_START, "true");
+        } else {
+          setEnableAutoStart(savedAutoStart === "true");
         }
 
         // 加载卡片标题字体大小设置
@@ -432,6 +447,75 @@ export default function SettingsScreen() {
     settingsListener.emitSettingChange('calling_button', value);
     console.log('[Settings] 发出 calling_button 设置变化事件，值:', value);
   }, []);
+
+  // Check boot auto-start status and show popup
+  const handleCheckAutoStart = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      Alert.alert(t("autoStartCheckTitle"), t("autoStartAndroidOnly"));
+      return;
+    }
+
+    if (!bootPermissionModule?.checkBootAutoStartStatus) {
+      Alert.alert(t("autoStartCheckTitle"), t("autoStartModuleUnavailable"));
+      return;
+    }
+
+    try {
+      const status = await bootPermissionModule.checkBootAutoStartStatus();
+      const hasBootPermission = !!status?.hasBootPermissionDeclared;
+      const batteryOk = !!status?.isIgnoringBatteryOptimizations;
+      setAutoStartPermissionOk(hasBootPermission);
+      setBatteryPermissionOk(batteryOk);
+
+      const autoStartStatusText = hasBootPermission
+        ? t("autoStartStatusEnabled")
+        : t("autoStartStatusDisabled");
+      const batteryStatusText = batteryOk
+        ? t("autoStartStatusEnabled")
+        : t("autoStartStatusDisabled");
+
+      Alert.alert(
+        t("autoStartCheckTitle"),
+        `${t("autoStartCheckResult")}\n• ${t("autoStartPermission")}: ${autoStartStatusText}\n• ${t("batteryPermission")}: ${batteryStatusText}\n\n${t("autoStartManualHint")}`,
+        [
+          { text: t("cancel"), style: "cancel" },
+          {
+            text: t("goAutoStartSettings"),
+            onPress: async () => {
+              try {
+                await bootPermissionModule.openAutoStartSettings();
+              } catch (error) {
+                console.error("Failed to open auto-start settings:", error);
+              }
+            }
+          },
+          {
+            text: t("goBatterySettings"),
+            onPress: async () => {
+              try {
+                await bootPermissionModule.openBatteryOptimizationSettings();
+              } catch (error) {
+                console.error("Failed to open battery optimization settings:", error);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("Failed to check boot auto-start status:", error);
+      Alert.alert(t("error"), t("autoStartCheckFailed"));
+    }
+  }, [bootPermissionModule, t]);
+
+  const handleAutoStartSwitchChange = useCallback(async (value: boolean) => {
+    setEnableAutoStart(value);
+    await AsyncStorage.setItem(STORAGE_KEY_AUTO_START, value ? "true" : "false");
+
+    // Trigger popup only when toggling from OFF to ON
+    if (value) {
+      handleCheckAutoStart();
+    }
+  }, [handleCheckAutoStart]);
 
   // 重置设置
   // const resetSettings = useCallback(() => {
@@ -910,6 +994,23 @@ export default function SettingsScreen() {
                 <Picker.Item label={t("large")} value="large" />
               </Picker>
             </View>
+          </View>
+
+          {/* Auto-start switch */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("autoStartOnBoot")}</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                enableAutoStart && styles.switchButtonActive
+              ]}
+              onPress={() => handleAutoStartSwitchChange(!enableAutoStart)}
+            >
+              <View style={[
+                styles.switchThumb,
+                enableAutoStart && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
           </View>
         </View>
 
