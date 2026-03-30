@@ -471,7 +471,7 @@ export class TCPSocketService {
         this.connectionStatusCallback('connected');
       }
       
-    } else if ((jsonData.orderType === 'POS' || jsonData.orderType === 'TABLE_SESSION') && jsonData.orderitems && jsonData.id) {
+    } else if ((jsonData.orderType === 'POS' || jsonData.orderType === 'LOCAL_TABLE_SESSION') && jsonData.orderitems && jsonData.id) {
       // Handle POS and TABLE_SESSION order formats (contains orderitems array, needs formatting)
       console.log(`[TCP] ========== Received TCP order (${jsonData.type || jsonData.orderType}) ==========`);
       console.log(`[TCP] Raw order data:`, JSON.stringify(jsonData, null, 2));

@@ -569,7 +569,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
       </View>
     );
-  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger, getCategoryBorderColor]);
+  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger, getCategoryBorderColor, itemOptionFontSize]);
 
   // 用 useMemo 缓存渲染出的商品列表。这样只要订单的 products 不变，就不会因为组件的无关重绘而反复调用 renderProductItem 和 log
   const renderedProductsList = useMemo(() => {
@@ -936,14 +936,14 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     marginTop: 0,
-    marginLeft: 8,
+    marginLeft: 0,
   },
   optionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 4,
-    paddingLeft: 6,
+    paddingLeft: 14,
     paddingRight: 6,
     marginBottom: 0,
   },

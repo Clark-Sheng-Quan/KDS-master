@@ -19,6 +19,7 @@ import * as Network from "expo-network";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { settingsListener } from "@/services/settingsListener";
@@ -49,6 +50,7 @@ const DEFAULT_ITEM_OPTION_FONT_SIZE = "small"; // small, medium, large
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
   const navigation = useNavigation();
+  const router = useRouter();
   const appVersion = Constants.expoConfig?.version || "unknown";
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
@@ -88,6 +90,15 @@ export default function SettingsScreen() {
   // 字体大小设置
   const [cardTitleFontSize, setCardTitleFontSize] = useState<"small" | "medium" | "large">("medium");
   const [itemOptionFontSize, setItemOptionFontSize] = useState<"small" | "medium" | "large">("medium");
+
+  // 关闭设置页：有返回栈则 goBack，没有则回到首页，避免 GO_BACK 未处理报错
+  const handleCloseSettings = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    router.replace("/(tabs)/home");
+  }, [navigation, router]);
 
   // 加载保存的设置
   useEffect(() => {
@@ -300,10 +311,13 @@ export default function SettingsScreen() {
       syncOrdersToCallingScreen();
     }
   }, [connectedCallingScreen]);
-  // 处理屏幕方向切换
-  const handleToggleScreenOrientation = useCallback(async () => {
+  // 处理屏幕方向切换（显式切到指定方向）
+  const handleSetScreenOrientation = useCallback(async (targetOrientation: "landscape" | "portrait") => {
     try {
-      const newOrientation = screenOrientation === "portrait" ? "landscape" : "portrait";
+      if (targetOrientation === screenOrientation) {
+        return;
+      }
+      const newOrientation = targetOrientation;
       
       // 使用 ScreenOrientationModule 改变屏幕方向
       if (newOrientation === "landscape") {
@@ -320,17 +334,19 @@ export default function SettingsScreen() {
       
       // 根据新方向立即设置卡片默认值并保存
       if (newOrientation === "landscape") {
-        console.log("Landscape 模式：保存卡片设置 cardsPerRow=5, cardsPerColumn=1.5");
         setCardsPerRow(5);
-        setCardsPerColumn(1.5);
+        setCardsPerColumn(2);
         await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, "5");
-        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "1.5");
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "2");
+        settingsListener.emitSettingChange('cards_per_row', 5);
+        settingsListener.emitSettingChange('cards_per_column', 2);
       } else {
-        console.log("Portrait 模式：保存卡片设置 cardsPerRow=4, cardsPerColumn=3.5");
         setCardsPerRow(4);
         setCardsPerColumn(3.5);
         await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, "4");
         await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "3.5");
+        settingsListener.emitSettingChange('cards_per_row', 4);
+        settingsListener.emitSettingChange('cards_per_column', 3.5);
       }
     } catch (error) {
       console.error("无法切换屏幕方向:", error);
@@ -457,7 +473,7 @@ export default function SettingsScreen() {
       {!showCallingScreenDiscovery && !showCategoryColorPanel && (
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={handleCloseSettings}
           activeOpacity={0.7}
         >
           <Ionicons name="close" size={32} color="white" />
@@ -673,7 +689,7 @@ export default function SettingsScreen() {
                   styles.orientationModeButton,
                   screenOrientation === "landscape" && styles.orientationModeButtonActive
                 ]}
-                onPress={() => handleToggleScreenOrientation()}
+                onPress={() => handleSetScreenOrientation("landscape")}
               >
                 <Ionicons
                   name="phone-landscape"
@@ -692,7 +708,7 @@ export default function SettingsScreen() {
                   styles.orientationModeButton,
                   screenOrientation === "portrait" && styles.orientationModeButtonActive
                 ]}
-                onPress={() => handleToggleScreenOrientation()}
+                onPress={() => handleSetScreenOrientation("portrait")}
               >
                 <Ionicons
                   name="phone-portrait"

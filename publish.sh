@@ -10,16 +10,16 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.2.0
+## Version 1.2.1
 
 ### Major Improvements
-- Fill in major improvements display customization.
+- Able to select to display timer.
 
 ### Bug Fixes
-- Fill in bug fixes use effect.
+- Clear waster Functions.
 
 ### Download
 Get the latest APK from the Assets section below.
@@ -84,11 +84,11 @@ fi
 # 3. 验证 git 状态
 echo -e "\n${YELLOW}[3/8]${NC} 验证 git 状态..."
 if [ -n "$(git status --porcelain)" ]; then
-    echo -e "${RED}❌ 工作目录有未提交的更改${NC}"
-    echo -e "${YELLOW}请先提交所有更改: git add . && git commit -m 'Release v$VERSION'${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠ 工作目录有未提交的更改，按配置继续发布${NC}"
+    echo -e "${YELLOW}  注意: 本次 tag/release 基于当前 HEAD 提交，不会自动包含未提交改动${NC}"
+else
+    echo -e "${GREEN}✓${NC} 工作目录干净"
 fi
-echo -e "${GREEN}✓${NC} 工作目录干净"
 
 # 4. 检查标签是否存在
 echo -e "\n${YELLOW}[4/8]${NC} 检查 git 标签..."
