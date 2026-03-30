@@ -63,6 +63,7 @@ export default function CompletedScreen() {
         rightCompact={true}
         scrollIndicatorAtBottom={true}
         disableItems={true}
+        showDateInDue={true}
         completedTime={completedTime}
         hideBadges={true}
       />

@@ -72,6 +72,7 @@ export default function HistoryScreen() {
           rightCompact={true}
           scrollIndicatorAtBottom={true}
           disableItems={true}
+          showDateInDue={true}
         />
       );
     },

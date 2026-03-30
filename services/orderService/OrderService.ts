@@ -392,6 +392,10 @@ export class OrderService {
       if (existingOrderIndex !== -1) {
         // 获取旧订单
         const oldOrder = this.tcpOrders[existingOrderIndex];
+
+        const normalizedOldNote = typeof oldOrder.notes === 'string' ? oldOrder.notes.trim() : '';
+        const normalizedNewNote = typeof order.notes === 'string' ? order.notes.trim() : '';
+        const hasNoteChanged = normalizedNewNote !== '' && normalizedNewNote !== normalizedOldNote;
         
         // 新逻辑：POS 现在分别发送每个商品，所以应该合并而不是替换
         // 获取新订单的过滤后产品
@@ -426,8 +430,8 @@ export class OrderService {
           }
         }
         
-        // 合并标志
-        const hasChanges = hasNewProducts || hasUpdatedProducts;
+        // 合并标志（产品变化或 note 变化都需要更新）
+        const hasChanges = hasNewProducts || hasUpdatedProducts || hasNoteChanged;
         
         // 如果没有任何变化，返回
         if (!hasChanges) {
@@ -444,6 +448,7 @@ export class OrderService {
         const mergedOrder = {
           ...oldOrder,
           products: mergedProducts,
+          notes: hasNoteChanged ? normalizedNewNote : oldOrder.notes,
         };
         
         // 只在超过初始化窗口时增加 updateCount（初始化窗口内的更新是同一次下单的多条消息，不算重复）

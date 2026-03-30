@@ -19,7 +19,6 @@ export const convertToLocalTimeFormatted = (utcTimeString: string): string => {
  */
 export const formatTCPOrder = (orderData: any): FormattedOrder => {
   try {
-
     const buildTCPItemName = (item: any, product: any): string => {
       const baseName = product.name || 'Unknown Item';
       const normalizedBaseName = String(baseName).trimEnd();
@@ -41,81 +40,92 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       return normalizedBaseName;
     };
 
+    const parseTCPOrderTime = (rawTime: string): string => {
+      // POS common format: "Oct 30, 2025 10:44:43 PM"
+      const posDate = DateTime.fromFormat(rawTime, 'MMM d, yyyy h:mm:ss a', { locale: 'en-US' });
+      if (posDate.isValid) {
+        return posDate.toFormat('yyyy-MM-dd HH:mm:ss');
+      }
+
+      // If it already looks like a standard datetime/ISO, keep it parseable by Date
+      const isoDate = DateTime.fromISO(rawTime);
+      if (isoDate.isValid) {
+        return isoDate.toFormat('yyyy-MM-dd HH:mm:ss');
+      }
+
+      // Fallback: extract HH:mm and attach today's date so UI can always derive day/month
+      const match = rawTime.match(/(\d{1,2}):(\d{2})/);
+      if (match) {
+        const hh = String(parseInt(match[1], 10)).padStart(2, '0');
+        const mm = match[2];
+        return `${DateTime.local().toFormat('yyyy-MM-dd')} ${hh}:${mm}:00`;
+      }
+
+      return rawTime;
+    };
+
     // Extract order ID from POS format
     const orderId = orderData.id || String(Date.now());
-    
+
     // Extract and format order items from POS format (orderitems array)
     const items = Array.isArray(orderData.orderitems) ? orderData.orderitems : [];
-    
+
     const formattedItems = items.map((item: any, index: number) => {
-        // POS format: { product: { name, category, options, ... }, qty, itemState, orderItems }
-        const product = item.product || {};
-        const itemState = item.itemState || 'PROCESSED'; // Track item state
-        
-        // Process category - POS sends as array
-        let productCategory = "default";
-        if (Array.isArray(product.category) && product.category.length > 0) {
-          productCategory = product.category[0];
-        } else if (typeof product.category === 'string') {
-          productCategory = product.category;
-        }
-  
-        // orderItems contains the actual selected options/preferences
-        let options: any[] = [];
-        const orderItemsArray = item.orderItems;
-        if (Array.isArray(orderItemsArray)) {
-          options = orderItemsArray.map((orderItem: any) => ({
-            name: orderItem.optionItem?.name,
-            value: String(orderItem.qty),
-          }));
-        }
-        
-        return {
-          id: item.id || `item-${index}-${Date.now()}`,
-          name: buildTCPItemName(item, product),
-          quantity: item.qty || 1,
-          price: product.price || 0,
-          options: options || [], // Ensure options is always an array
-          category: productCategory,
-          prepare_time: product.prepare_time || 0,
-          itemState: itemState, // Include item state (PROCESSED or VOIDED)
-        };
-      });
-    
-    // Calculate total prepare time from all items
-    const totalPrepareTimeFromItems = formattedItems.reduce((sum: number, item: any) => {
-      return sum + (item.prepare_time || 0);
-    }, 0);
-    
-    // Convert times to local timezone
-    let localOrderTime = orderData.timestamp || orderData.createdAt || new Date().toISOString();
-    
+      // POS format: { product: { name, category, options, ... }, qty, itemState, orderItems }
+      const product = item.product || {};
+      const itemState = item.itemState || 'PROCESSED';
+
+      // POS category can be array or string
+      let productCategory = 'default';
+      if (Array.isArray(product.category) && product.category.length > 0) {
+        productCategory = product.category[0];
+      } else if (typeof product.category === 'string') {
+        productCategory = product.category;
+      }
+
+      // orderItems contains the selected options/preferences
+      let options: any[] = [];
+      const orderItemsArray = item.orderItems;
+      if (Array.isArray(orderItemsArray)) {
+        options = orderItemsArray.map((orderItem: any) => ({
+          name: orderItem.optionItem?.name,
+          value: String(orderItem.qty),
+        }));
+      }
+
+      return {
+        id: item.id || `item-${index}-${Date.now()}`,
+        name: buildTCPItemName(item, product),
+        quantity: item.qty || 1,
+        price: product.price || 0,
+        options,
+        category: productCategory,
+        prepare_time: product.prepare_time || 0,
+        itemState,
+      };
+    });
+
+    // const totalPrepareTimeFromItems = formattedItems.reduce((sum: number, item: any) => {
+    //   return sum + (item.prepare_time || 0);
+    // }, 0);
+
+    const rawOrderTime = String(orderData.timestamp || orderData.createdAt || new Date().toISOString());
+    let localOrderTime = rawOrderTime;
+
     try {
-      const dt = DateTime.fromFormat(localOrderTime, 'MMM d, yyyy h:mm:ss a', { locale: 'en-US' });
-      if (dt.isValid) {
-        localOrderTime = dt.toFormat('HH:mm');
-      } else {
-        const match = localOrderTime.match(/(\d{1,2}):(\d{2})/);
-        if (match) {
-          localOrderTime = `${String(parseInt(match[1])).padStart(2, '0')}:${match[2]}`;
-        }
-      }
+      localOrderTime = parseTCPOrderTime(rawOrderTime);
     } catch (e) {
-      // 如果出错，用正则提取
-      const match = localOrderTime.match(/(\d{1,2}):(\d{2})/);
-      if (match) {
-        localOrderTime = `${String(parseInt(match[1])).padStart(2, '0')}:${match[2]}`;
-      }
+      localOrderTime = rawOrderTime;
     }
 
-    // Extract pickup method from POS format - ensure it's a string, not an object
-    let pickupMethod = "DINEIN";
+    // Extract pickup method from POS format
+    let pickupMethod = 'DINEIN';
     if (typeof orderData.ordermode === 'string' && orderData.ordermode) {
       pickupMethod = orderData.ordermode;
     } else if (typeof orderData.PickMethod === 'string' && orderData.PickMethod) {
       pickupMethod = orderData.PickMethod;
     }
-    
+
     const finalOrderNum = (
       typeof orderData.orderNumber === 'string' && orderData.orderNumber
         ? orderData.orderNumber
@@ -128,57 +138,55 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       typeof orderData.notes === 'string'
         ? orderData.notes.trim()
         : '';
-    
-    // Extract total prepare time - ensure it's a number, not an object
-    let totalPrepareTime = totalPrepareTimeFromItems;
-    if (typeof orderData.total_prepare_time === 'number') {
-      totalPrepareTime = orderData.total_prepare_time;
-    } else if (typeof orderData.total_prepare_time === 'string') {
-      const parsed = parseInt(orderData.total_prepare_time, 10);
-      totalPrepareTime = isNaN(parsed) ? totalPrepareTimeFromItems : parsed;
-    }
-    
-    // Extract table number - ensure it's a string, not an object
+
+    // Extract total prepare time
+    // let totalPrepareTime = totalPrepareTimeFromItems;
+    // if (typeof orderData.total_prepare_time === 'number') {
+    //   totalPrepareTime = orderData.total_prepare_time;
+    // } else if (typeof orderData.total_prepare_time === 'string') {
+    //   const parsed = parseInt(orderData.total_prepare_time, 10);
+    //   totalPrepareTime = isNaN(parsed) ? totalPrepareTimeFromItems : parsed;
+    // }
+
     let tableNumber = '';
     if (typeof orderData.tableNumber === 'string' && orderData.tableNumber) {
       tableNumber = orderData.tableNumber;
     } else if (typeof orderData.tableNumber === 'number') {
       tableNumber = String(orderData.tableNumber);
     }
-    
+
     const formattedOrder: FormattedOrder = {
       id: orderId,
       _id: orderData.id || orderId,
       orderTime: localOrderTime,
-      pickupMethod: pickupMethod,
-      pickupTime: localOrderTime, // POS doesn't have separate pickup time, use order time
-      kdsReceiveTime: new Date().toISOString(), 
-      num: finalOrderNum,              
+      pickupMethod,
+      pickupTime: localOrderTime,
+      kdsReceiveTime: new Date().toISOString(),
+      num: finalOrderNum,
       status: orderData.status,
       products: formattedItems,
-      source: 'tcp', // Mark source as TCP
+      source: 'tcp',
       notes: orderNotes,
-      total_prepare_time: totalPrepareTime,
-      tableNumber: tableNumber, // Add table number
+      // total_prepare_time: totalPrepareTime,
+      tableNumber,
     };
-    
-    
+
     return formattedOrder;
   } catch (error) {
     console.error('[Format] Failed to format POS TCP order:', error, orderData);
-    // Return basic order object
     const fallbackId = String(Date.now());
+
     return {
       id: fallbackId,
       _id: fallbackId,
       orderTime: new Date().toISOString(),
-      pickupMethod: "n/a",
+      pickupMethod: 'n/a',
       pickupTime: new Date().toISOString(),
-      kdsReceiveTime: new Date().toISOString(), 
-      num: (orderData.orderNumber || fallbackId).toString().slice(-4),  // 订单号
+      kdsReceiveTime: new Date().toISOString(),
+      num: (orderData.orderNumber || fallbackId).toString().slice(-4),
       products: [],
       source: 'tcp',
-      total_prepare_time: 0,
+      // total_prepare_time: 0,
     };
   }
 };
@@ -226,6 +234,11 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     const orderNum = order.order_num 
       ? order.order_num.toString() 
       : order._id.toString().slice(-4);
+
+    const orderNotes =
+      typeof order.notes === 'string'
+        ? order.notes.trim()
+        : '';
     
     return {
       id: order._id.toString(),
@@ -238,6 +251,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       status: order.status, 
       products: formattedItems,
       source: order.source,
+      notes: orderNotes,
       total_prepare_time: order.total_prepare_time || 0, // Add total prepare time
       tableNumber: order.tableNumber || '', // Add table number
     };
@@ -257,6 +271,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       products: [],
       kdsReceiveTime: new Date().toISOString(), 
       source: 'network',
+      notes: typeof order.notes === 'string' ? order.notes.trim() : '',
       total_prepare_time: 0,
       tableNumber: 'n/a',
     };

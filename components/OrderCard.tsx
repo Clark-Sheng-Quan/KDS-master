@@ -333,8 +333,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return `${methodLabel} - #${getOrderDisplayNumber()}`;
   };
 
-  // 格式化Due时间 - 根据showDateInDue决定是否显示日期
-  const formattedDueTime = useMemo(() => {
+  // 格式化OrderTime - 根据showDateInDue决定是否显示日期
+  const formattedOrderTime = useMemo(() => {
     try {
       const date = new Date(order.orderTime);
       if (isNaN(date.getTime())) return order.orderTime;
@@ -343,14 +343,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const minutes = String(date.getMinutes()).padStart(2, '0');
       
       if (showDateInDue) {
-        // pre-orders: 显示完整日期
         const day = String(date.getDate()).padStart(2, '0');
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const month = monthNames[date.getMonth()];
-        const year = date.getFullYear();
-        return `${day}-${month}-${year} • ${hours}:${minutes}`;
+        return `${hours}:${minutes}/${day}/${month}`;
       } else {
-        // home/history/completed: 只显示24小时制时间
         return `${hours}:${minutes}`;
       }
     } catch (error) {
@@ -672,7 +669,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                {/* <Text style={styles.dueTimeText}>{t("createdAt")}: {formattedDueTime}</Text> */}
+                <Text style={styles.orderTimeText}>{formattedOrderTime}</Text>
                 {completedTime && (
                   <Text style={styles.completedTimeDisplay}>
                     {t("completedAt")}: {formattedCompletedTime}
@@ -683,11 +680,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
             </View>
             
-            {/* 商品 */}
-            <View style={styles.itemsContainer}>
-              {renderedProductsList}
-            </View>
-
             {orderNotes ? (
               <View style={styles.notesSection}>
                 <Text style={styles.notesText}>
@@ -696,6 +688,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 </Text>
               </View>
             ) : null}
+
+            {/* 商品 */}
+            <View style={styles.itemsContainer}>
+              {renderedProductsList}
+            </View>
           </View>
         </ScrollView>
 
@@ -710,8 +707,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             itemLevelMode={enableItemLevelCompletion}
           />
         )}
-
-        {/* 如果是可选择的，显示选择状态指示器 */}
         {selectable && (
           <View style={styles.selectIndicator}>
             <Ionicons
@@ -723,17 +718,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         )}
       </View>
     </CardWrapper>
-  );
-}, (prevProps, nextProps) => {
-  // 自定义比较函数 - 只有这些 props 改变时才重新渲染
-  // 注意：移除了 prevProps.style === nextProps.style 比较
-  // 因为每次父组件渲染都会生成新的 style 对象，导致 React.memo 失效，引发无限重渲染
-  return (
-    prevProps.order === nextProps.order &&
-    prevProps.selected === nextProps.selected &&
-    prevProps.disabled === nextProps.disabled &&
-    prevProps.completedTime === nextProps.completedTime &&
-    JSON.stringify(prevProps.style) === JSON.stringify(nextProps.style)
   );
 })
 
@@ -827,7 +811,7 @@ const styles = StyleSheet.create({
     padding: 10
   },
   leftColumn: {
-    flex: 3,  // 增加左列宽度占比
+    flex: 2,  // 增加左列宽度占比
     justifyContent: "flex-start",
   },
   rightColumn: {
@@ -847,8 +831,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
   },
-  dueTimeText: {
-    fontSize: 14,
+  orderTimeText: {
+    fontSize: 15,
     color: "#555",
     marginBottom: 6,
     textAlign: "right" as const,

@@ -363,6 +363,7 @@ export default function HomeScreen() {
                 onOrderCancel={handleOrderRemove}
                 onItemRemoved={handleItemRemoved}
                 onItemCompleted={handleItemCompleted}
+                showDateInDue={true}
                 selectable={false}
               />
             ))}
