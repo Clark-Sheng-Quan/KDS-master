@@ -9,6 +9,8 @@ interface ItemCompletionToastProps {
   onDismiss: () => void;
   duration?: number;  // milliseconds, default 3000
   positionTop?: number;  // Position from top, default 80
+  labelText?: string;
+  actionText?: string;
 }
 
 export const ItemCompletionToast: React.FC<ItemCompletionToastProps> = ({
@@ -18,6 +20,8 @@ export const ItemCompletionToast: React.FC<ItemCompletionToastProps> = ({
   onDismiss,
   duration = 3000,
   positionTop = 80,
+  labelText = 'Item Completed',
+  actionText = 'Undo',
 }) => {
   const [show, setShow] = useState(visible);
   const slideAnim = React.useRef(new Animated.Value(0)).current;
@@ -78,7 +82,7 @@ export const ItemCompletionToast: React.FC<ItemCompletionToastProps> = ({
       <View style={styles.content}>
         <Ionicons name="checkmark-circle" size={32} color="#4CAF50" style={styles.checkIcon} />
         <View style={styles.textContainer}>
-          <Text style={styles.label}>Item Completed</Text>
+          <Text style={styles.label}>{labelText}</Text>
           <Text style={styles.itemName} numberOfLines={2}>
             {itemName}
           </Text>
@@ -90,7 +94,7 @@ export const ItemCompletionToast: React.FC<ItemCompletionToastProps> = ({
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-undo" size={18} color="white" />
-          <Text style={styles.undoText}>Undo</Text>
+          <Text style={styles.undoText}>{actionText}</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>

@@ -29,6 +29,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { CallingScreenDevice, callingScreenService } from "@/services/CallingScreenService";
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
 import { OrderService } from "@/services/orderService/OrderService";
+import { useModalState } from "../../contexts/ModalContext";
 
 // 设置相关的常量
 const STORAGE_KEY_CARDS_PER_ROW = "cards_per_row";
@@ -49,6 +50,7 @@ const DEFAULT_ITEM_OPTION_FONT_SIZE = "small"; // small, medium, large
 
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
+  const { setHasOpenModal } = useModalState();
   const appVersion = Constants.expoConfig?.version || "unknown";
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
@@ -707,7 +709,10 @@ export default function SettingsScreen() {
           {/* Calling Screen Discovery 按钮 */}
           <TouchableOpacity
             style={styles.deviceDiscoveryButton}
-            onPress={() => setShowCallingScreenDiscovery(true)}
+            onPress={() => {
+              setShowCallingScreenDiscovery(true);
+              setHasOpenModal(true);
+            }}
           >
             <Text style={styles.deviceDiscoveryButtonText}>📡 {t("discoverCallingScreen")}</Text>
           </TouchableOpacity>
@@ -731,7 +736,10 @@ export default function SettingsScreen() {
           {/* 分类颜色管理按钮 */}
           <TouchableOpacity
             style={styles.deviceDiscoveryButton}
-            onPress={() => setShowCategoryColorPanel(true)}
+            onPress={() => {
+              setShowCategoryColorPanel(true);
+              setHasOpenModal(true);
+            }}
           >
             <Text style={styles.deviceDiscoveryButtonText}>🎨 {t("manageCategoryColors")}</Text>
           </TouchableOpacity>
@@ -1004,7 +1012,10 @@ export default function SettingsScreen() {
 
       <CallingScreenDiscoveryPanel
         visible={showCallingScreenDiscovery}
-        onClose={() => setShowCallingScreenDiscovery(false)}
+        onClose={() => {
+          setShowCallingScreenDiscovery(false);
+          setHasOpenModal(false);
+        }}
         onSelectDevice={(device) => {
           console.log('[Settings] Selected Calling Screen:', device);
           setConnectedCallingScreen(device);
@@ -1013,7 +1024,10 @@ export default function SettingsScreen() {
 
       <CategoryColorPanel
         visible={showCategoryColorPanel}
-        onClose={() => setShowCategoryColorPanel(false)}
+        onClose={() => {
+          setShowCategoryColorPanel(false);
+          setHasOpenModal(false);
+        }}
       />
     </View>
   );

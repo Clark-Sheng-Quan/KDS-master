@@ -78,6 +78,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   } = useSettings();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
+  const completionInitSignatureRef = useRef<{ [orderId: string]: string }>({});
   const lastTapTimeRef = useRef<{ [key: string]: number }>({});  // 用于双击检测
   const [forceUpdateTrigger, setForceUpdateTrigger] = useState(0);  // 仅用于必要时触发重新渲染
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -105,6 +106,39 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [contentHeight, scrollViewHeight, order.id]);
 
+  // 撤回整单后，按 completedItemIds 恢复 whole 模式的已完成标记
+  useEffect(() => {
+    if (enableItemLevelCompletion) {
+      return;
+    }
+
+    const completedIds = Array.isArray(order.completedItemIds) ? order.completedItemIds : [];
+    const signature = [...completedIds].sort().join("|");
+
+    if (completionInitSignatureRef.current[order.id] === signature) {
+      return;
+    }
+
+    // 先清掉当前订单旧状态，再按 item id 重新映射到当前 index
+    Object.keys(completedItemsRef.current).forEach((key) => {
+      if (key.startsWith(`${order.id}-item-`)) {
+        delete completedItemsRef.current[key];
+      }
+    });
+
+    if (completedIds.length > 0) {
+      const completedSet = new Set(completedIds);
+      (order.products || []).forEach((item, index) => {
+        if (completedSet.has(item.id)) {
+          completedItemsRef.current[`${order.id}-item-${index}`] = true;
+        }
+      });
+    }
+
+    completionInitSignatureRef.current[order.id] = signature;
+    setForceUpdateTrigger((prev) => prev + 1);
+  }, [order.id, order.products, order.completedItemIds, enableItemLevelCompletion]);
+
   // 项目级完成处理 - 单击 item 完成
 
   const handleItemLongPress = useCallback(async (item: any) => {
@@ -119,8 +153,18 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     // Update order status locally
     updateOrderStatusToReady(order._id, order.source || "");
 
+    // whole 模式下记录当前已完成的 item，用于撤回整单后恢复完成状态
+    const completedItemIds = !enableItemLevelCompletion
+      ? (order.products || [])
+          .filter((_, index) => completedItemsRef.current[`${order.id}-item-${index}`])
+          .map((item) => item.id)
+      : [];
+
     // Update order status to ready
-    const updatedOrderWithStatus = updateLocalOrderStatus(order);
+    const updatedOrderWithStatus = updateLocalOrderStatus({
+      ...order,
+      completedItemIds,
+    });
 
     // Add to completed orders
     addCompletedOrder(updatedOrderWithStatus, updatedOrderWithStatus.products || []).catch((error: any) => {
@@ -325,11 +369,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   // 获取 order card title - 根据是否有 table 号显示不同格式
   const getOrderTitle = () => {
     if (order.tableNumber && order.tableNumber !== 'N/A') {
-      return `TABLE ${order.tableNumber}`;
+      return `${t("table")} ${order.tableNumber}`;
     }
     
     const pickupMethod = order.pickupMethod?.toLowerCase() || '';
-    const methodLabel = (pickupMethod === 'take-away') ? 'TAKE-AWAY' : 'DINE-IN';
+    const methodLabel = (pickupMethod === 'take-away') ? t("takeAway") : t("dineIn");
     return `${methodLabel} - #${getOrderDisplayNumber()}`;
   };
 
@@ -687,7 +731,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             {orderNotes ? (
               <View style={styles.notesSection}>
                 <Text style={styles.notesText}>
-                  <Text style={styles.notesTitle}>Order Notes: </Text>
+                  <Text style={styles.notesTitle}>{t("orderNotes")}: </Text>
                   {orderNotes}
                 </Text>
               </View>

@@ -86,6 +86,7 @@ export interface FormattedOrder {
   targetCategory?: string;
   updatedAt?: number;                    // 更新时间戳
   updateCount?: number;                  // 全局更新次数 (所有分类)
+  completedItemIds?: string[];           // 整单模式下，记录已点完成的 item（用于撤回后恢复勾选状态）
 }
 
 export interface CompletedOrder {

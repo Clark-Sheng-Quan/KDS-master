@@ -4,13 +4,15 @@ import { Tabs, usePathname, useRouter } from "expo-router";
 import SideMenu from "../../components/SideMenu";
 import FloatingActionButton from "../../components/FloatingActionButton";
 import { Ionicons } from "@expo/vector-icons";
+import { useModalState } from "../../contexts/ModalContext";
 
 export default function TabLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { hasOpenModal } = useModalState();
   const isHomeRoute = pathname === "/(tabs)/home" || pathname === "/home";
-  const showBackHomeButton = !isHomeRoute;
+  const showBackHomeButton = !isHomeRoute && !hasOpenModal;
 
   return (
     <View style={{ flex: 1 }}>
