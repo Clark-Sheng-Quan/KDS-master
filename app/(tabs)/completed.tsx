@@ -249,6 +249,7 @@ const completedStyles = {
     justifyContent: "space-between" as const,
     alignItems: "center" as const,
     paddingHorizontal: PADDING,
+    paddingRight: PADDING + 84,
     paddingVertical: 16,
     backgroundColor: "#333333",
     borderBottomWidth: 0,

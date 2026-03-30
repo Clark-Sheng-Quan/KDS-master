@@ -171,6 +171,7 @@ const styles = {
   headerContainer: {
     ...cardStyles.headerContainer,
     backgroundColor: "#ddd9d9",
+    paddingRight: 84,
   },
   title: {
     ...cardStyles.title,

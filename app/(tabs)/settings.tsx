@@ -19,14 +19,13 @@ import * as Network from "expo-network";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SupportedLanguage } from "../../constants/translations";
 import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
 import { CategoryColorPanel } from "../../components/CategoryColorPanel";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { CallingScreenDevice, callingScreenService } from "@/services/CallingScreenService";
 import { callingScreenDiscovery } from "@/services/CallingScreenDiscovery";
 import { OrderService } from "@/services/orderService/OrderService";
@@ -50,8 +49,6 @@ const DEFAULT_ITEM_OPTION_FONT_SIZE = "small"; // small, medium, large
 
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
-  const navigation = useNavigation();
-  const router = useRouter();
   const appVersion = Constants.expoConfig?.version || "unknown";
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
@@ -96,15 +93,6 @@ export default function SettingsScreen() {
   const [batteryPermissionOk, setBatteryPermissionOk] = useState<boolean | null>(null);
 
   const bootPermissionModule = NativeModules.BootPermissionModule;
-
-  // 关闭设置页：有返回栈则 goBack，没有则回到首页，避免 GO_BACK 未处理报错
-  const handleCloseSettings = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    router.replace("/(tabs)/home");
-  }, [navigation, router]);
 
   // 加载保存的设置
   useEffect(() => {
@@ -553,17 +541,6 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.settingsContainer}>
-      {/* 返回按钮 - 右上角 (仅当没有显示模态面板时) */}
-      {!showCallingScreenDiscovery && !showCategoryColorPanel && (
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleCloseSettings}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="close" size={32} color="white" />
-        </TouchableOpacity>
-      )}
-
       <ScrollView style={styles.container}>
         <Text style={styles.title}>{t("settings")}</Text>
 
@@ -1047,23 +1024,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
     position: "relative",
-  },
-  backButton: {
-    position: "absolute",
-    top: 12,
-    right: 16,
-    zIndex: 10,
-    backgroundColor: "#d32f2f",
-    borderRadius: 30,
-    width: 56,
-    height: 56,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   container: {
     flex: 1,

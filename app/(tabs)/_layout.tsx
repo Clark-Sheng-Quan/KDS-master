@@ -1,12 +1,16 @@
 import React, { useState } from "react";
-import { View } from "react-native";
-import { Tabs } from "expo-router";
+import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import SideMenu from "../../components/SideMenu";
 import FloatingActionButton from "../../components/FloatingActionButton";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function TabLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const isHomeRoute = pathname === "/(tabs)/home" || pathname === "/home";
+  const showBackHomeButton = !isHomeRoute;
 
   return (
     <View style={{ flex: 1 }}>
@@ -57,8 +61,39 @@ export default function TabLayout() {
       {/* 浮动菜单按钮 */}
       <FloatingActionButton onPress={() => setMenuOpen(true)} />
 
+      {/* 全局返回 Home 按钮（除 home 外显示） */}
+      {showBackHomeButton && (
+        <TouchableOpacity
+          style={styles.backHomeButton}
+          onPress={() => router.replace("/(tabs)/home")}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="home" size={30} color="white" />
+        </TouchableOpacity>
+      )}
+
       {/* 侧边菜单 */}
       <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  backHomeButton: {
+    position: "absolute",
+    top: 24,
+    right: 24,
+    zIndex: 1001,
+    backgroundColor: "#d32f2f",
+    borderRadius: 30,
+    width: 56,
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+});

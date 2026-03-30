@@ -355,7 +355,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [order.orderTime, showDateInDue]);
 
-  // 格式化完成时间 - 仅显示时间部分
+  // 格式化完成时间 - 显示完整格式 time/day/month
   const formattedCompletedTime = useMemo(() => {
     if (!completedTime) return '';
     try {
@@ -364,8 +364,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
-      
-      return `${hours}:${minutes}`;
+
+      const day = String(date.getDate()).padStart(2, '0');
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = monthNames[date.getMonth()];
+      return `${hours}:${minutes}/${day}/${month}`;
     } catch (error) {
       return completedTime;
     }
@@ -392,7 +395,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     
     // 使用 category 名字查找颜色映射
     const colorKey = colorMapping[category];
-    console.log(`[OrderCard] 获取分类颜色 - category: ${category}, colorKey: ${colorKey}`);
     if (colorKey && categoryColors[colorKey as keyof typeof categoryColors]) {
       return categoryColors[colorKey as keyof typeof categoryColors];
     }
@@ -669,11 +671,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
-                <Text style={styles.orderTimeText}>{formattedOrderTime}</Text>
-                {completedTime && (
-                  <Text style={styles.completedTimeDisplay}>
-                    {t("completedAt")}: {formattedCompletedTime}
-                  </Text>
+                {completedTime ? (
+                  <>
+                    <Text style={styles.orderTimeText}>Start: {formattedOrderTime}</Text>
+                    <Text style={styles.orderTimeText}>End: {formattedCompletedTime}</Text>
+                  </>
+                ) : (
+                  <Text style={styles.orderTimeText}>{formattedOrderTime}</Text>
                 )}
                 {!disabled && !hideTimer && <OrderTimer order={order} />}
                 <PrintButton order={order} disabled={disabled} />
@@ -683,7 +687,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             {orderNotes ? (
               <View style={styles.notesSection}>
                 <Text style={styles.notesText}>
-                  <Text style={styles.notesTitle}>Notes: </Text>
+                  <Text style={styles.notesTitle}>Order Notes: </Text>
                   {orderNotes}
                 </Text>
               </View>
@@ -708,7 +712,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           />
         )}
         {selectable && (
-          <View style={styles.selectIndicator}>
+          <View style={[styles.selectIndicator, completedTime ? styles.selectIndicatorLeftTop : styles.selectIndicatorRightTop]}>
             <Ionicons
               name={selected ? "checkmark-circle" : "ellipse-outline"}
               size={22}
@@ -983,8 +987,13 @@ const styles = StyleSheet.create({
   selectIndicator: {
     position: "absolute",
     top: 8,
-    right: 8,
     borderRadius: 12,
     padding: 2,
+  },
+  selectIndicatorRightTop: {
+    right: 8,
+  },
+  selectIndicatorLeftTop: {
+    left: 8,
   },
 });

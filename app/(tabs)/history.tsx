@@ -211,6 +211,7 @@ const historyStyles = {
     justifyContent: "space-between" as const,
     alignItems: "center" as const,
     paddingHorizontal: PADDING,
+    paddingRight: PADDING + 84,
     paddingVertical: 14,
     backgroundColor: "#333333",
     borderBottomWidth: 0,

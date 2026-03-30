@@ -478,7 +478,8 @@ export class TCPSocketService {
       
       // Convert format and process
       const formattedOrder = formatTCPOrder(jsonData);
-      
+      console.log(`[TCP] Formatted order notes - ${formattedOrder.notes}`);
+
       // console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
       console.log(`[TCP] ================================`);
       
