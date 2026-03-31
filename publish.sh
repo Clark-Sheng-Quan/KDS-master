@@ -10,13 +10,14 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.2.1"
+VERSION="1.2.3"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.2.1
+## Version 1.2.3
 
 ### Major Improvements
-- Able to select to display timer.
+- Able to recieve table order
+- add the start end time on the order details page
 
 ### Bug Fixes
 - Clear waster Functions.

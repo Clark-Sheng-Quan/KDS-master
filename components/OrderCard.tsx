@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleProp,
   ViewStyle,
+  useWindowDimensions,
 } from "react-native";
 import { FormattedOrder } from "../services/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -96,6 +97,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   // Calling Button 状态
   const [callButtonPressed, setCallButtonPressed] = useState(false);  // 追踪是否点击过 Call 按钮
+
+  // 屏幕方向检测
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height > width;
 
   useEffect(() => {
     if (contentHeight > 0 && scrollViewHeight > 0) {
@@ -684,7 +689,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               {/* 左列 */}
               <View style={[
                 styles.leftColumn,
-                { justifyContent: "center" }
+                { 
+                  flex: isPortrait ? 1.5 : 2.5,
+                  justifyContent: "center" 
+                }
               ]}>
                 {/* 订单更新指示器 */}
                 {!hideBadges && order.updateCount && order.updateCount >= 1 && (
@@ -859,7 +867,6 @@ const styles = StyleSheet.create({
     padding: 10
   },
   leftColumn: {
-    flex: 2,  // 增加左列宽度占比
     justifyContent: "flex-start",
   },
   rightColumn: {

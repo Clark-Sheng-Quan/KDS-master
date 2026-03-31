@@ -226,8 +226,8 @@ const styles = StyleSheet.create({
   },
   timerBackground: {
     backgroundColor: "#ffffff",
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingHorizontal: 0,
+    paddingVertical: 1,
     borderRadius: 8,
   },
   elapsedTimeText: {
