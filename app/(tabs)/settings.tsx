@@ -38,6 +38,7 @@ const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
 const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 const STORAGE_KEY_SHOW_ORDER_TIMER = "show_order_timer";
+const STORAGE_KEY_SHOW_TIMER_HIGHLIGHT = "show_timer_highlight";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 const STORAGE_KEY_AUTO_START = "auto_start_enabled";
@@ -70,6 +71,7 @@ export default function SettingsScreen() {
 
   // 添加显示计时器开关状态
   const [showOrderTimer, setShowOrderTimer] = useState<boolean>(true);
+  const [showTimerHighlight, setShowTimerHighlight] = useState<boolean>(true);
 
   // 添加项目级完成模式状态
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(true);
@@ -152,6 +154,13 @@ export default function SettingsScreen() {
         );
         if (savedShowOrderTimer !== null) {
           setShowOrderTimer(savedShowOrderTimer === "true");
+        }
+
+        const savedShowTimerHighlight = await AsyncStorage.getItem(
+          STORAGE_KEY_SHOW_TIMER_HIGHLIGHT
+        );
+        if (savedShowTimerHighlight !== null) {
+          setShowTimerHighlight(savedShowTimerHighlight === "true");
         }
 
         // 加载项目级完成模式设置
@@ -396,6 +405,14 @@ export default function SettingsScreen() {
     // 发出设置变化事件，使 OrderTimer 组件即时响应
     settingsListener.emitSettingChange('show_order_timer', value);
     console.log('[Settings] 发出 show_order_timer 设置变化事件，值:', value);
+  }, []);
+
+  const handleShowTimerHighlightChange = useCallback(async (value: boolean) => {
+    setShowTimerHighlight(value);
+    await AsyncStorage.setItem(STORAGE_KEY_SHOW_TIMER_HIGHLIGHT, value.toString());
+
+    settingsListener.emitSettingChange('show_timer_highlight', value);
+    console.log('[Settings] 发出 show_timer_highlight 设置变化事件，值:', value);
   }, []);
 
   // Handle card title font size change
@@ -943,6 +960,22 @@ export default function SettingsScreen() {
               <View style={[
                 styles.switchThumb,
                 showOrderTimer && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("showTimerHighlight")}</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                showTimerHighlight && styles.switchButtonActive
+              ]}
+              onPress={() => handleShowTimerHighlightChange(!showTimerHighlight)}
+            >
+              <View style={[
+                styles.switchThumb,
+                showTimerHighlight && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
           </View>

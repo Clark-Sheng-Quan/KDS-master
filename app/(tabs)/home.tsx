@@ -32,7 +32,12 @@ import {
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
   const { completedOrders, addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
-  const { cardsPerRow, cardsPerColumn, itemLevelCompletion: enableItemLevelCompletion } = useSettings();
+  const {
+    cardsPerRow,
+    cardsPerColumn,
+    itemLevelCompletion: enableItemLevelCompletion,
+    showTimerHighlight,
+  } = useSettings();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [selectedShopName, setSelectedShopName] = useState<string>("");
@@ -529,7 +534,7 @@ export default function HomeScreen() {
                 onItemCompleted={handleItemCompleted}
                 showDateInDue={true}
                 selectable={false}
-                enableDelayEffects={true}
+                enableDelayEffects={showTimerHighlight}
               />
             ))}
           </View>

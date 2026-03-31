@@ -10,14 +10,14 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.2.3"
+VERSION="1.2.4"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.2.3
+## Version 1.2.4
 
 ### Major Improvements
-- Able to recieve table order
-- add the start end time on the order details page
+- True Auto Start: KDS will now automatically start when the device boots up, ensuring seamless operation without manual intervention.
+- Add border shadow to improve the visibility of the text on the KDS screen.
 
 ### Bug Fixes
 - Clear waster Functions.

@@ -16,6 +16,7 @@ interface SettingsState {
   categoryColorsMapping: { [categoryName: string]: string };
   showPrintButton: boolean;
   showOrderTimer: boolean;
+  showTimerHighlight: boolean;
   loading: boolean;
 }
 
@@ -29,6 +30,7 @@ const defaultSettings: SettingsState = {
   categoryColorsMapping: {},
   showPrintButton: true,
   showOrderTimer: true,
+  showTimerHighlight: true,
   loading: true,
 };
 
@@ -51,6 +53,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         savedItemOptionFontSize,
         savedShowPrintButton,
         savedShowOrderTimer,
+        savedShowTimerHighlight,
         savedCategoryColors
       ] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_ROW),
@@ -61,6 +64,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         AsyncStorage.getItem('item_option_font_size'),
         AsyncStorage.getItem('show_print_button'),
         AsyncStorage.getItem('show_order_timer'),
+        AsyncStorage.getItem('show_timer_highlight'),
         CategoryColorService.loadCategoryColorMapping()
       ]);
 
@@ -73,6 +77,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         itemOptionFontSize: (savedItemOptionFontSize as FontSize) || 'small',
         showPrintButton: savedShowPrintButton !== 'false',
         showOrderTimer: savedShowOrderTimer !== 'false',
+        showTimerHighlight: savedShowTimerHighlight !== 'false',
         categoryColorsMapping: savedCategoryColors || {},
         loading: false,
       });
@@ -93,6 +98,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleItemOptionFontSizeChange = (val: FontSize) => setSettings(s => ({ ...s, itemOptionFontSize: val }));
     const handleShowPrintButtonChange = (val: boolean) => setSettings(s => ({ ...s, showPrintButton: val }));
     const handleShowOrderTimerChange = (val: boolean) => setSettings(s => ({ ...s, showOrderTimer: val }));
+    const handleShowTimerHighlightChange = (val: boolean) => setSettings(s => ({ ...s, showTimerHighlight: val }));
     const handleCategoryColorsMappingChange = (val: any) => setSettings(s => ({ ...s, categoryColorsMapping: val }));
 
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
@@ -103,6 +109,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     settingsListener.onSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
     settingsListener.onSettingChange('show_print_button', handleShowPrintButtonChange);
     settingsListener.onSettingChange('show_order_timer', handleShowOrderTimerChange);
+    settingsListener.onSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
     settingsListener.onSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
 
     return () => {
@@ -114,6 +121,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       settingsListener.offSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
       settingsListener.offSettingChange('show_print_button', handleShowPrintButtonChange);
       settingsListener.offSettingChange('show_order_timer', handleShowOrderTimerChange);
+      settingsListener.offSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
       settingsListener.offSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
     };
   }, [loadSettings]);
