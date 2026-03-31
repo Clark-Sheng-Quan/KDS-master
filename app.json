@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kitchen Hub",
     "slug": "Kitchen Hub",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "orientation": "landscape",
     "icon": "./assets/images/appLogo.png",
     "scheme": "myapp",
