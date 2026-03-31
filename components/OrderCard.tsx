@@ -46,6 +46,7 @@ interface OrderCardProps {
   showDateInDue?: boolean;
   completedTime?: string;
   hideBadges?: boolean;
+  enableDelayEffects?: boolean;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = React.memo(({
@@ -67,6 +68,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   showDateInDue = false,
   completedTime,
   hideBadges = false,
+  enableDelayEffects = false,
 }) => {
   const { t } = useLanguage();
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
@@ -97,6 +99,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   // Calling Button 状态
   const [callButtonPressed, setCallButtonPressed] = useState(false);  // 追踪是否点击过 Call 按钮
+  const [timerSeverity, setTimerSeverity] = useState<"normal" | "urgent" | "delayed">("normal");
 
   // 屏幕方向检测
   const { width, height } = useWindowDimensions();
@@ -638,6 +641,16 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return order.notes.trim();
   }, [order.notes]);
 
+  const handleTimerUpdate = useCallback((_: number, statusColor: string) => {
+    const nextSeverity = statusColor === colors.delayedColor
+      ? "delayed"
+      : statusColor === colors.urgentColor
+        ? "urgent"
+        : "normal";
+
+    setTimerSeverity((prev) => (prev === nextSeverity ? prev : nextSeverity));
+  }, []);
+
   if (!order.products || !Array.isArray(order.products)) {
     console.error('[OrderCard] Order has no products array:', order);
     return null;
@@ -653,6 +666,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       <View
         style={[
           styles.orderCard,
+          enableDelayEffects && !disabled && !hideTimer && timerSeverity === "urgent" && styles.urgentCardGlow,
+          enableDelayEffects && !disabled && !hideTimer && timerSeverity === "delayed" && styles.delayedCardGlow,
           selected && styles.selectedCard,
           style,
         ]}
@@ -731,7 +746,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 ) : (
                   <Text style={styles.orderTimeText}>{formattedOrderTime}</Text>
                 )}
-                {!disabled && !hideTimer && <OrderTimer order={order} />}
+                {!disabled && !hideTimer && <OrderTimer order={order} onTimeUpdate={handleTimerUpdate} />}
                 <PrintButton order={order} disabled={disabled} />
               </View>
             </View>
@@ -791,6 +806,24 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "column",
     position: "relative"
+  },
+  urgentCardGlow: {
+    borderWidth: 2,
+    borderColor: "#D5C425",
+    shadowColor: "#D5C425",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  delayedCardGlow: {
+    borderWidth: 3,
+    borderColor: "#CD5E5E",
+    shadowColor: "#CD5E5E",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 14,
   },
   updateBadge: {
     backgroundColor: "#FF9B2F",

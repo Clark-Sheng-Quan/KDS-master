@@ -529,6 +529,7 @@ export default function HomeScreen() {
                 onItemCompleted={handleItemCompleted}
                 showDateInDue={true}
                 selectable={false}
+                enableDelayEffects={true}
               />
             ))}
           </View>
