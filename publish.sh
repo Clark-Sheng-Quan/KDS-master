@@ -10,17 +10,16 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.2.4"
+VERSION="1.2.7"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.2.4
+## Version 1.2.7
 
 ### Major Improvements
-- True Auto Start: KDS will now automatically start when the device boots up, ensuring seamless operation without manual intervention.
-- Add border shadow to improve the visibility of the text on the KDS screen.
+- optimize the start and end display
+- optimize the category color display
+- optimize the default completion display
 
-### Bug Fixes
-- Clear waster Functions.
 
 ### Download
 Get the latest APK from the Assets section below.

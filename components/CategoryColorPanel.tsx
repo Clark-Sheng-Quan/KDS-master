@@ -259,7 +259,7 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
               renderItem={renderCategoryItem}
               keyExtractor={item => item._id}
               numColumns={3}
-              columnWrapperStyle={styles.listRow}
+              columnWrapperStyle={styles.listRowFlexStart}
               contentContainerStyle={styles.listContent}
               scrollEnabled={true}
             />
@@ -431,6 +431,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  listRowFlexStart: {
+    justifyContent: 'flex-start',
+    gap: 12,
+  },
   categoryCard: {
     flex: 1,
     backgroundColor: 'white',
@@ -443,6 +447,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 1,
+    maxWidth: '33.333%',
   },
   categoryColorDot: {
     width: 48,

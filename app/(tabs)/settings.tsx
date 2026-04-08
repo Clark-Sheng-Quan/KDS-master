@@ -74,7 +74,7 @@ export default function SettingsScreen() {
   const [showTimerHighlight, setShowTimerHighlight] = useState<boolean>(true);
 
   // 添加项目级完成模式状态
-  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(true);
+  const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
 
   // TCP 连接状态管理
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');

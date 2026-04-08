@@ -88,12 +88,13 @@ export default function GlobalNav() {
             <Text style={styles.buttonText}>{t("newOrders")}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* pre-orders 已隐藏 */}
+          {/* <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/pre-orders")}
           >
             <Text style={styles.buttonText}>{t("preOrders")}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TouchableOpacity
             style={styles.navButton}
@@ -102,19 +103,21 @@ export default function GlobalNav() {
             <Text style={styles.buttonText}>{t("searchHistory")}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* stock management 已隐藏 */}
+          {/* <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/stock")}
           >
             <Text style={styles.buttonText}>{t("stockManagement")}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
-          <TouchableOpacity
+          {/* dashboard 已隐藏 */}
+          {/* <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/dashboard")}
           >
             <Text style={styles.buttonText}>{t("dashboard")}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* 右侧按钮 */}

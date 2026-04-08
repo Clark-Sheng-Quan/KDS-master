@@ -176,13 +176,14 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Text style={styles.menuItemText}>{t("newOrders")}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {/* pre-orders 已隐藏 */}
+            {/* <TouchableOpacity
               style={styles.menuItem}
               onPress={() => navigateTo("/(tabs)/pre-orders")}
             >
               <Ionicons name="receipt" size={20} color="white" />
               <Text style={styles.menuItemText}>{t("preOrders")}</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <TouchableOpacity
               style={styles.menuItem}
@@ -200,21 +201,23 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Text style={styles.menuItemText}>{t("searchHistory")}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {/* stock management 已隐藏 */}
+            {/* <TouchableOpacity
               style={styles.menuItem}
               onPress={() => navigateTo("/(tabs)/stock")}
             >
               <Ionicons name="cube" size={20} color="white" />
               <Text style={styles.menuItemText}>{t("stockManagement")}</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
-            <TouchableOpacity
+            {/* dashboard 已隐藏 */}
+            {/* <TouchableOpacity
               style={styles.menuItem}
               onPress={() => navigateTo("/(tabs)/dashboard")}
             >
               <Ionicons name="analytics" size={20} color="white" />
               <Text style={styles.menuItemText}>{t("dashboard")}</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
 
           <View style={styles.divider} />

@@ -740,8 +740,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
                 {completedTime ? (
                   <>
-                    <Text style={styles.orderTimeText}>Start: {formattedOrderTime}</Text>
-                    <Text style={styles.orderTimeText}>End: {formattedCompletedTime}</Text>
+                    <Text style={styles.orderTimeText}><Text style={styles.startLabel}>Start: </Text>{formattedOrderTime.replace('/', '\n')}</Text>
+                    <Text style={styles.orderTimeText}><Text style={styles.endLabel}>End: </Text>{formattedCompletedTime.replace('/', '\n')}</Text>
                   </>
                 ) : (
                   <Text style={styles.orderTimeText}>{formattedOrderTime}</Text>
@@ -924,6 +924,14 @@ const styles = StyleSheet.create({
     color: "#555",
     marginBottom: 6,
     textAlign: "right" as const,
+  },
+  startLabel: {
+    color: "#4CAF50",
+    fontWeight: "600",
+  },
+  endLabel: {
+    color: "#FF5252",
+    fontWeight: "600",
   },
   prepareTime: {
     fontSize: 18,
