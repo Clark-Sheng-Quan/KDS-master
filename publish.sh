@@ -10,15 +10,15 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.2.7"
+VERSION="1.2.8"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.2.7
+## Version 1.2.8
 
 ### Major Improvements
-- optimize the start and end display
-- optimize the category color display
-- optimize the default completion display
+- optimize the vertical order card height
+- optimize the vertical side menu
+- optimize the order timer
 
 
 ### Download

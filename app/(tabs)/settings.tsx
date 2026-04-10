@@ -341,6 +341,7 @@ export default function SettingsScreen() {
       }
       
       setScreenOrientation(newOrientation);
+      settingsListener.emitSettingChange('screen_orientation', newOrientation);
       
       // 保存屏幕方向到 AsyncStorage
       console.log("保存屏幕方向到 AsyncStorage:", newOrientation);
@@ -924,9 +925,9 @@ export default function SettingsScreen() {
                   onValueChange={handleCardsPerColumnChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label={t("small")} value={3.75} />
-                  <Picker.Item label={t("medium")} value={3.5} />
-                  <Picker.Item label={t("large")} value={3.25} />
+                  <Picker.Item label={t("small")} value={3.5} />
+                  <Picker.Item label={t("medium")} value={3} />
+                  <Picker.Item label={t("large")} value={2.5} />
                 </Picker>
               )}
             </View>

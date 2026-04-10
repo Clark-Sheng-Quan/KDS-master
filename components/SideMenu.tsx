@@ -9,6 +9,7 @@ import {
   ScrollView,
   Dimensions,
   Animated,
+  LayoutChangeEvent,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { auth } from "../utils/auth";
@@ -16,6 +17,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useOrders } from "../contexts/OrderContext";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { settingsListener } from "../services/settingsListener";
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -27,6 +29,8 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const { t } = useLanguage();
   const { networkStatus } = useOrders();
   const [selectedShopName, setSelectedShopName] = useState<string>("");
+  const [selectedScreenOrientation, setSelectedScreenOrientation] = useState<"landscape" | "portrait">("landscape");
+  const [topFixedHeight, setTopFixedHeight] = useState(0);
   const { width, height } = Dimensions.get("window");
 
   // 加载店铺信息
@@ -37,12 +41,28 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
         if (shopName) {
           setSelectedShopName(shopName);
         }
+
+        const savedOrientation = await AsyncStorage.getItem("screenOrientation");
+        if (savedOrientation === "portrait" || savedOrientation === "landscape") {
+          setSelectedScreenOrientation(savedOrientation);
+        }
       } catch (error) {
         console.error("加载店铺信息失败:", error);
       }
     };
 
     loadShopInfo();
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleOrientationChange = (value: "landscape" | "portrait") => {
+      setSelectedScreenOrientation(value);
+    };
+
+    settingsListener.onSettingChange("screen_orientation", handleOrientationChange);
+    return () => {
+      settingsListener.offSettingChange("screen_orientation", handleOrientationChange);
+    };
   }, []);
 
   // 获取网络状态图标名称（用于 MaterialCommunityIcons）
@@ -81,7 +101,13 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
     onClose();
   }, [router, onClose]);
 
+  const handleTopFixedLayout = useCallback((event: LayoutChangeEvent) => {
+    setTopFixedHeight(event.nativeEvent.layout.height);
+  }, []);
+
   const menuWidth = useMemo(() => Math.min(width * 0.4, 400), [width]); // 菜单宽度为屏幕的40%，最大400px
+  const isPortraitMode = selectedScreenOrientation === "portrait";
+  const navIconSize = isPortraitMode ? 26 : 20;
 
   // 添加动画值
   const slideAnim = useMemo(() => new Animated.Value(isOpen ? 0 : -menuWidth), [isOpen, menuWidth]);
@@ -123,58 +149,70 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
         ]}
         pointerEvents={isOpen ? "auto" : "none"}
       >
-        <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* 关闭按钮 */}
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={onClose}
-          >
-            <Ionicons name="close" size={28} color="white" />
-          </TouchableOpacity>
+        <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollContentContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.topFixedSection} onLayout={handleTopFixedLayout}>
+            {/* 关闭按钮 */}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+            >
+              <Ionicons name="close" size={28} color="white" />
+            </TouchableOpacity>
 
-          {/* 店铺名称 */}
-          {selectedShopName && (
-            <View style={styles.shopSection}>
-              <Text style={styles.shopLabel}>{t("shop") || "店铺"}</Text>
-              <Text style={styles.shopName}>{selectedShopName}</Text>
-            </View>
-          )}
+            <View style={styles.topInfoSection}>
+              {/* 店铺名称 */}
+              {selectedShopName && (
+                <View style={styles.shopSection}>
+                  <Text style={[styles.shopLabel, isPortraitMode && styles.shopLabelPortrait]}>{t("shop") || "店铺"}</Text>
+                  <Text style={[styles.shopName, isPortraitMode && styles.shopNamePortrait]}>{selectedShopName}</Text>
+                </View>
+              )}
 
-          {/* 网络状态 */}
-          <View style={styles.networkSection}>
-            <Text style={styles.networkLabel}>Internet</Text>
-            <View style={styles.networkStatusInfo}>
-              <MaterialCommunityIcons 
-                name={getNetworkStatusIconName()} 
-                size={20} 
-                color="white" 
-              />
-              <Text style={[
-                styles.networkStatusText,
-                networkStatus === "disconnected" && styles.networkStatusDisconnected,
-              ]}>
-                {networkStatus === "connected"
-                  ? t("connected") || "已连接"
-                  : networkStatus === "disconnected"
-                  ? t("disconnected") || "已断开"
-                  : "检查中..."}
-              </Text>
+              {/* 网络状态 */}
+              <View style={styles.networkSection}>
+                <Text style={[styles.networkLabel, isPortraitMode && styles.networkLabelPortrait]}>{t("internet") || "Internet"}</Text>
+                <View style={styles.networkStatusInfo}>
+                  <MaterialCommunityIcons
+                    name={getNetworkStatusIconName()}
+                    size={20}
+                    color="white"
+                  />
+                  <Text style={[
+                    styles.networkStatusText,
+                    isPortraitMode && styles.networkStatusTextPortrait,
+                    networkStatus === "disconnected" && styles.networkStatusDisconnected,
+                  ]}>
+                    {networkStatus === "connected"
+                      ? t("connected") || "已连接"
+                      : networkStatus === "disconnected"
+                      ? t("disconnected") || "已断开"
+                      : "检查中..."}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View
+            style={[
+              styles.centerMenuSection,
+              isPortraitMode && styles.centerMenuSectionPortrait,
+              isPortraitMode && { transform: [{ translateY: -topFixedHeight / 2 }] },
+            ]}
+          >
+            <View style={[styles.divider, isPortraitMode && styles.dividerPortrait]} />
 
-          {/* 导航菜单 */}
-          <View style={styles.navigationSection}>
-            <Text style={styles.sectionTitle}>{t("navigation") || "导航"}</Text>
+            {/* 导航菜单 */}
+            <View style={[styles.navigationSection, isPortraitMode && styles.navigationSectionPortrait]}>
+              <Text style={[styles.sectionTitle, isPortraitMode && styles.sectionTitlePortrait]}>{t("navigation") || "导航"}</Text>
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigateTo("/(tabs)/home")}
-            >
-              <Ionicons name="home" size={20} color="white" />
-              <Text style={styles.menuItemText}>{t("newOrders")}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
+                onPress={() => navigateTo("/(tabs)/home")}
+              >
+                <Ionicons name="home" size={navIconSize} color="white" />
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("newOrders")}</Text>
+              </TouchableOpacity>
 
             {/* pre-orders 已隐藏 */}
             {/* <TouchableOpacity
@@ -185,21 +223,21 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Text style={styles.menuItemText}>{t("preOrders")}</Text>
             </TouchableOpacity> */}
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigateTo("/(tabs)/completed")}
-            >
-              <Ionicons name="checkmark-done" size={20} color="white" />
-              <Text style={styles.menuItemText}>{t("completedOrders")}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
+                onPress={() => navigateTo("/(tabs)/completed")}
+              >
+                <Ionicons name="checkmark-done" size={navIconSize} color="white" />
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("completedOrders")}</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigateTo("/(tabs)/history")}
-            >
-              <Ionicons name="time" size={20} color="white" />
-              <Text style={styles.menuItemText}>{t("searchHistory")}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
+                onPress={() => navigateTo("/(tabs)/history")}
+              >
+                <Ionicons name="time" size={navIconSize} color="white" />
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("searchHistory")}</Text>
+              </TouchableOpacity>
 
             {/* stock management 已隐藏 */}
             {/* <TouchableOpacity
@@ -218,34 +256,35 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Ionicons name="analytics" size={20} color="white" />
               <Text style={styles.menuItemText}>{t("dashboard")}</Text>
             </TouchableOpacity> */}
-          </View>
+            </View>
 
-          <View style={styles.divider} />
+            <View style={[styles.divider, isPortraitMode && styles.dividerPortrait]} />
 
-          {/* 设置部分 */}
-          <View style={styles.settingsSection}>
-            <Text style={styles.sectionTitle}>{t("status")}</Text>
+            {/* 设置部分 */}
+            <View style={[styles.settingsSection, isPortraitMode && styles.settingsSectionPortrait]}>
+              <Text style={[styles.sectionTitle, isPortraitMode && styles.sectionTitlePortrait]}>{t("status")}</Text>
 
-            {/* 设置页面 */}
+              {/* 设置页面 */}
+              <TouchableOpacity
+                style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
+                onPress={() => navigateTo("/(tabs)/settings")}
+              >
+                <Ionicons name="settings" size={navIconSize} color="white" />
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("settings")}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.divider, isPortraitMode && styles.dividerPortrait]} />
+
+            {/* 登出按钮 */}
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigateTo("/(tabs)/settings")}
+              style={[styles.logoutButton, isPortraitMode && styles.logoutButtonPortrait]}
+              onPress={handleLogout}
             >
-              <Ionicons name="settings" size={20} color="white" />
-              <Text style={styles.menuItemText}>{t("settings")}</Text>
+              <Ionicons name="log-out" size={navIconSize} color="white" />
+              <Text style={[styles.logoutButtonText, isPortraitMode && styles.logoutButtonTextPortrait]}>{t("logout")}</Text>
             </TouchableOpacity>
           </View>
-
-          <View style={styles.divider} />
-
-          {/* 登出按钮 */}
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out" size={20} color="white" />
-            <Text style={styles.logoutButtonText}>{t("logout")}</Text>
-          </TouchableOpacity>
         </ScrollView>
       </Animated.View>
     </>
@@ -275,6 +314,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingBottom: 20,
   },
+  scrollContentContainer: {
+    flexGrow: 1,
+  },
+  topFixedSection: {
+    zIndex: 2,
+  },
+  topInfoSection: {
+    marginBottom: 8,
+  },
+  centerMenuSection: {},
+  centerMenuSectionPortrait: {
+    flex: 1,
+    justifyContent: "center",
+  },
   closeButton: {
     alignSelf: "flex-start",
     padding: 10,
@@ -292,10 +345,17 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginBottom: 5,
   },
+  shopLabelPortrait: {
+    fontSize: 14,
+    marginBottom: 7,
+  },
   shopName: {
     color: "white",
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "bold",
+  },
+  shopNamePortrait: {
+    fontSize: 20,
   },
   networkSection: {
     marginBottom: 20,
@@ -309,6 +369,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginBottom: 5,
   },
+  networkLabelPortrait: {
+    fontSize: 14,
+    marginBottom: 7,
+  },
   networkStatusInfo: {
     flexDirection: "row",
     alignItems: "center",
@@ -320,9 +384,12 @@ const styles = StyleSheet.create({
   },
   networkStatusText: {
     color: "white",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
     marginLeft: 10,
+  },
+  networkStatusTextPortrait: {
+    fontSize: 20,
   },
   networkStatusDisconnected: {
     color: "#ff5252",
@@ -332,18 +399,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#444",
     marginVertical: 15,
   },
+  dividerPortrait: {
+    marginVertical: 22,
+  },
   navigationSection: {
     marginBottom: 20,
+  },
+  navigationSectionPortrait: {
+    marginBottom: 28,
   },
   settingsSection: {
     marginBottom: 20,
   },
+  settingsSectionPortrait: {
+    marginBottom: 28,
+  },
   sectionTitle: {
     color: "#888",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "bold",
     textTransform: "uppercase",
     marginBottom: 10,
+  },
+  sectionTitlePortrait: {
+    fontSize: 15,
+    marginBottom: 14,
   },
   menuItem: {
     flexDirection: "row",
@@ -354,12 +434,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: "#333",
   },
+  menuItemPortrait: {
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginBottom: 18,
+  },
   menuItemText: {
     color: "white",
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "500",
     marginLeft: 12,
     flex: 1,
+  },
+  menuItemTextPortrait: {
+    fontSize: 18,
+    marginLeft: 14,
   },
   logoutButton: {
     flexDirection: "row",
@@ -370,10 +460,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#d32f2f",
     marginTop: 10,
   },
+  logoutButtonPortrait: {
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginTop: 20,
+  },
   logoutButtonText: {
     color: "white",
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "bold",
     marginLeft: 12,
+  },
+  logoutButtonTextPortrait: {
+    fontSize: 18,
+    marginLeft: 14,
   },
 });

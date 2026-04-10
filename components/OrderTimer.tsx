@@ -19,19 +19,19 @@ interface OrderTimerProps {
 
 export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) => {
   const { t } = useLanguage();
-  const [elapsedTime, setElapsedTime] = useState(0); // 初始化为 0
-  const [startTime] = useState(() => new Date(order.kdsReceiveTime || order.orderTime || 0)); // 记录订单进入 KDS 的时间
+  const URGENT_THRESHOLD_MINUTES = 10;
+  const DELAYED_THRESHOLD_MINUTES = 20;
+  const [elapsedTime, setElapsedTime] = useState(0); 
+  const [startTime] = useState(() => new Date(order.kdsReceiveTime || order.orderTime || 0)); 
   const [showOrderTimer, setShowOrderTimer] = useState(true);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const appState = useRef(AppState.currentState);
   const listenerRef = useRef<((value: boolean) => void) | null>(null);
 
-  // 保持 onTimeUpdate 引用最新
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
   }, [onTimeUpdate]);
 
-  // 加载计时器显示设置
   useEffect(() => {
     const loadTimerSetting = async () => {
       try {
@@ -45,14 +45,14 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
     loadTimerSetting();
   }, []);
 
-  // 监听应用状态变化，当应用恢复到前台时重新检查设置
+
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === "active"
       ) {
-        // 应用从后台恢复到前台，重新检查设置
+        // 
         try {
           const setting = await AsyncStorage.getItem("show_order_timer");
           setShowOrderTimer(setting !== "false");
@@ -70,9 +70,8 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
     };
   }, []);
 
-  // 监听设置变化事件 - 实现即时生效
   useEffect(() => {
-    // 防止重复注册监听器
+
     if (listenerRef.current) {
       settingsListener.offSettingChange('show_order_timer', listenerRef.current);
     }
@@ -119,81 +118,47 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
     }
   };
 
-  // 根据时间获取状态文本和颜色
-  const getStatusInfo = () => {
-    // 获取订单的总准备时间（min）
-    const totalPrepareTimeMinutes = order.total_prepare_time || 0;
 
-    // 获取已经过去的时间（分钟）
+  const getStatusInfo = () => {
+
     const elapsedMinutes = Math.floor(elapsedTime / 60);
 
-
-
-    // 如果订单没有准备时间数据，则使用默认逻辑（延长时间阈值）
-    if (totalPrepareTimeMinutes === 0) {
-      // 修改默认逻辑，避免所有订单都显示 delayed
-      if (elapsedMinutes < 10) {
-        return { text: t("active"), color: colors.activeColor };
-      } else if (elapsedMinutes < 20) {
-        return { text: t("urgent"), color: colors.urgentColor };
-      } else {
-        return { text: t("delayed"), color: colors.delayedColor };
-      }
-    }
-
-    // 基于总准备时间的状态判断
-    // 如果已过时间小于总准备时间，表示正常
-    if (elapsedMinutes < totalPrepareTimeMinutes) {
+    if (elapsedMinutes < URGENT_THRESHOLD_MINUTES) {
       return { text: t("active"), color: colors.activeColor };
     }
-    // 如果已过时间超过总准备时间但在120%范围内，表示紧急
-    else if (elapsedMinutes < totalPrepareTimeMinutes * 1.2) {
+
+    if (elapsedMinutes < DELAYED_THRESHOLD_MINUTES) {
       return { text: t("urgent"), color: colors.urgentColor };
     }
-    // 如果已过时间超过总准备时间的120%，表示延迟
-    else {
-      return { text: t("delayed"), color: colors.delayedColor };
-    }
+
+    return { text: t("delayed"), color: colors.delayedColor };
   };
 
   const statusInfo = getStatusInfo();
 
-  // 当 elapsedTime 变化时，通知父组件
+
   useEffect(() => {
     if (onTimeUpdateRef.current) {
       const formattedTime = formatTime(elapsedTime);
       const color = getStatusInfo().color;
       onTimeUpdateRef.current(elapsedTime, color, formattedTime);
     }
-  }, [elapsedTime]); // 只依赖 elapsedTime，不依赖 statusInfo.color
+  }, [elapsedTime]); 
 
-  // 计算并格式化剩余准备时间
-  const getRemainingPrepTime = () => {
-    const totalPrepTimeSeconds = order.total_prepare_time || 0;
-    if (totalPrepTimeSeconds <= 0) return null;
-
-    // 剩余准备时间（秒）
-    const remainingSeconds = Math.max(0, totalPrepTimeSeconds - elapsedTime);
-    return formatTime(remainingSeconds);
-  };
-
-  const remainingPrepTime = getRemainingPrepTime();
-
-  // 如果关闭了计时器显示，返回 null
   if (!showOrderTimer) {
     return null;
   }
 
   return (
     <View style={styles.headerRight}>
-      {/* 状态按钮 */}
+
       {/* <View
         style={[styles.statusButton, { backgroundColor: statusInfo.color }]}
       >
         <Text style={styles.statusButtonText}>{statusInfo.text}</Text>
       </View> */}
       
-      {/* 已过时间 */}
+
       <View style={styles.timerBackground}>
         <Text style={[styles.elapsedTimeText, { color: statusInfo.color }]}>
           {formatTime(elapsedTime)}
@@ -226,8 +191,8 @@ const styles = StyleSheet.create({
   },
   timerBackground: {
     backgroundColor: "#ffffff",
-    paddingHorizontal: 0,
-    paddingVertical: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   elapsedTimeText: {
