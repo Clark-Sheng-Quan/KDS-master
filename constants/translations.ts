@@ -363,6 +363,15 @@ export const translations = {
     goAutoStartSettings: "去自启动设置",
     goBatterySettings: "去电池设置",
     autoStartCheckFailed: "检查失败，请重试",
+    checkUpdate: "检查更新",
+    checkingUpdate: "正在检查更新...",
+    updateAvailable: "发现新版本",
+    noUpdateAvailable: "当前已是最新版本",
+    downloadUpdate: "立即下载",
+    checkUpdateFailed: "检查更新失败",
+    newVersion: "新版本",
+    downloadingUpdate: "正在下载更新",
+    downloadingUpdateHint: "下载完成后会自动弹出安装界面，请按系统提示确认安装。",
   },
   
   en: {
@@ -716,6 +725,15 @@ export const translations = {
     goAutoStartSettings: "Open Auto-start Settings",
     goBatterySettings: "Open Battery Settings",
     autoStartCheckFailed: "Check failed, please try again",
+    checkUpdate: "Check for Updates",
+    checkingUpdate: "Checking for updates...",
+    updateAvailable: "New update available",
+    noUpdateAvailable: "Current version is up to date",
+    downloadUpdate: "Download Now",
+    checkUpdateFailed: "Failed to check for updates",
+    newVersion: "New Version",
+    downloadingUpdate: "Downloading update",
+    downloadingUpdateHint: "Installer will open automatically after download. Please confirm installation in system prompt.",
   }
 };
 

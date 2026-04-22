@@ -16,6 +16,7 @@ public class KDSPackage implements ReactPackage {
         modules.add(new Printer_K1215(reactContext));
         modules.add(new DeviceDiscoveryModule(reactContext));
         modules.add(new BootPermissionModule(reactContext));
+        modules.add(new ApkUpdateModule(reactContext));
         return modules;
     }
 

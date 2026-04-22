@@ -11,6 +11,7 @@ import {
   Platform,
   NativeModules,
   Dimensions,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, CARD_TITLE_FONT_SIZES, ITEM_OPTION_FONT_SIZES } from "../../constants/theme";
@@ -20,7 +21,7 @@ import * as ScreenOrientationModule from "expo-screen-orientation";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { SupportedLanguage } from "../../constants/translations";
+import type { SupportedLanguage } from "../../constants/translations";
 import { settingsListener } from "@/services/settingsListener";
 import { TCPSocketService } from "@/services/tcpSocketService";
 import { CallingScreenDiscoveryPanel } from "../../components/CallingScreenDiscoveryPanel";
@@ -52,7 +53,7 @@ const DEFAULT_ITEM_OPTION_FONT_SIZE = "small"; // small, medium, large
 export default function SettingsScreen() {
   const { language, t, changeLanguage } = useLanguage();
   const { setHasOpenModal } = useModalState();
-  const appVersion = Constants.expoConfig?.version || "unknown";
+  const appVersion = Constants.expoConfig?.version || "1.2.8";
   const [ipAddress, setIpAddress] = useState<string>("获取中...");
   const [port, setPort] = useState<string>("8080"); // 默认端口
   const [loading, setLoading] = useState<boolean>(true);
@@ -95,8 +96,10 @@ export default function SettingsScreen() {
   const [enableAutoStart, setEnableAutoStart] = useState<boolean>(true);
   const [autoStartPermissionOk, setAutoStartPermissionOk] = useState<boolean | null>(null);
   const [batteryPermissionOk, setBatteryPermissionOk] = useState<boolean | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false);
 
   const bootPermissionModule = NativeModules.BootPermissionModule;
+  const apkUpdateModule = NativeModules.ApkUpdateModule;
 
   // 加载保存的设置
   useEffect(() => {
@@ -524,6 +527,61 @@ export default function SettingsScreen() {
       handleCheckAutoStart();
     }
   }, [handleCheckAutoStart]);
+
+  const handleCheckUpdate = useCallback(async () => {
+    setCheckingUpdate(true);
+    try {
+      const response = await fetch("https://api.github.com/repos/Clark-Sheng-Quan/KDS-master/releases/latest");
+      const data = await response.json();
+      
+      if (data && data.tag_name) {
+        const latestVersion = data.tag_name.replace(/^v/i, '');
+        const currentVersion = appVersion; 
+        const apkAsset = Array.isArray(data.assets)
+          ? data.assets.find((asset: any) => asset?.name === "app-release.apk")
+          : null;
+        const apkDownloadUrl = apkAsset?.browser_download_url || "https://github.com/Clark-Sheng-Quan/KDS-master/releases/latest/download/app-release.apk";
+        
+        if (latestVersion !== currentVersion) {
+          Alert.alert(
+            t("updateAvailable"),
+            `${t("newVersion")}: ${latestVersion}\n\n${data.body || ""}`,
+            [
+              { text: t("cancel"), style: "cancel" },
+              { 
+                text: t("downloadUpdate"),
+                onPress: async () => {
+                  try {
+                    if (Platform.OS === "android" && apkUpdateModule?.downloadAndInstallApk) {
+                      setCheckingUpdate(true);
+                      await apkUpdateModule.downloadAndInstallApk(apkDownloadUrl);
+                      Alert.alert(t("downloadingUpdate"), t("downloadingUpdateHint"));
+                    } else {
+                      await Linking.openURL(apkDownloadUrl);
+                    }
+                  } catch (downloadError) {
+                    console.error("APK update failed:", downloadError);
+                    Alert.alert(t("error"), t("checkUpdateFailed"));
+                  } finally {
+                    setCheckingUpdate(false);
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          Alert.alert(t("systemInfo"), t("noUpdateAvailable"));
+        }
+      } else {
+        throw new Error("Invalid response from GitHub");
+      }
+    } catch (error) {
+      console.error("Check update failed:", error);
+      Alert.alert(t("error"), t("checkUpdateFailed"));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, [appVersion, t]);
 
   // 重置设置
   // const resetSettings = useCallback(() => {
@@ -1041,6 +1099,18 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>{t("systemInfo")}</Text>
           <Text style={styles.infoText}>{t("systemVersion")}: {appVersion}</Text>
           <Text style={styles.infoText}>{t("copyright")}</Text>
+          
+          <TouchableOpacity 
+            style={[styles.deviceDiscoveryButton, { marginTop: 10, minWidth: 'auto' }]} 
+            onPress={handleCheckUpdate}
+            disabled={checkingUpdate}
+          >
+            {checkingUpdate ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Text style={styles.deviceDiscoveryButtonText}>🔄 {t("checkUpdate")}</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

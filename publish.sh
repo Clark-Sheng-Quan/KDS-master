@@ -10,15 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.2.8"
+VERSION="1.2.9"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.2.8
+## Version 1.2.9
 
 ### Major Improvements
-- optimize the vertical order card height
-- optimize the vertical side menu
-- optimize the order timer
+- Add the in-app update feature, allowing users to update the app directly from within the app without needing to visit the app store. This provides a smoother and more convenient update experience.
 
 
 ### Download
