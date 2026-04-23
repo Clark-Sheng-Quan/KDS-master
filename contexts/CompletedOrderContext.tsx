@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CompletedOrder, FormattedOrder } from '../services/types';
+import { CompletedOrder, CompletedOrderItem, FormattedOrder } from '../services/types';
 
 const STORAGE_KEY = 'completed_orders';
 
@@ -12,8 +12,8 @@ const RETENTION_CONFIG = {
 
 interface CompletedOrderContextType {
   completedOrders: CompletedOrder[];
-  addCompletedOrder: (order: FormattedOrder, itemsToComplete: any[]) => Promise<void>;
-  removeCompletedOrder: (orderId: string, itemId?: string, itemToRestore?: any) => Promise<void>;
+  addCompletedOrder: (order: FormattedOrder, itemsToComplete: any[]) => Promise<CompletedOrderItem[]>;
+  removeCompletedOrder: (orderId: string, itemId?: string, completionKey?: string) => Promise<void>;
   clearCompletedOrders: () => Promise<void>;
   cleanExpiredOrdersNow: () => Promise<void>;
   loading: boolean;
@@ -89,6 +89,33 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   };
 
+  const normalizeCompletedItems = (itemsToComplete: any[]): CompletedOrderItem[] => {
+    const entries: CompletedOrderItem[] = [];
+
+    itemsToComplete.forEach((item, itemIndex) => {
+      const quantity = Math.max(1, Number(item?.quantity) || 1);
+      const completedAt = typeof item?.__completedAt === 'string'
+        ? item.__completedAt
+        : new Date().toISOString();
+      const completedElapsedSeconds = typeof item?.__completedElapsedSeconds === 'number'
+        ? Math.max(0, Math.floor(item.__completedElapsedSeconds))
+        : undefined;
+
+      for (let i = 0; i < quantity; i += 1) {
+        entries.push({
+          ...item,
+          quantity: 1,
+          sourceItemId: item?.id,
+          completedAt,
+          completedElapsedSeconds,
+          completionKey: `${item?.id || 'item'}-${completedAt}-${itemIndex}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+        });
+      }
+    });
+
+    return entries;
+  };
+
   /**
    * 添加已完成的订单
    * @param order 订单信息
@@ -103,6 +130,7 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       }
 
       const now = new Date().toISOString();
+      const normalizedItems = normalizeCompletedItems(itemsToComplete);
       let updated = [...completedOrders];
 
       // 订单元数据（products 为空，实际产品在 completedItems）
@@ -115,11 +143,9 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       const existingIndex = updated.findIndex(co => co.order.id === order.id);
 
       if (existingIndex !== -1) {
-        // 合并已完成的产品（去重）
+        // 合并已完成的产品（允许同名/同ID多条，按 completionKey 区分）
         const existingItems = updated[existingIndex].completedItems || [];
-        const existingIds = new Set(existingItems.map(p => p.id));
-        const newItems = itemsToComplete.filter(p => !existingIds.has(p.id));
-        const completedItems = [...existingItems, ...newItems];
+        const completedItems = [...existingItems, ...normalizedItems];
 
         updated[existingIndex] = {
           ...updated[existingIndex],
@@ -132,14 +158,16 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
         updated.unshift({
           order: orderMetadata,
           completedAt: now,
-          completedItems: itemsToComplete,
+          completedItems: normalizedItems,
         });
       }
 
       setCompletedOrders(updated);
       await saveCompletedOrders(updated);
+      return normalizedItems;
     } catch (error) {
       console.error('[CompletedOrderContext] 添加完成订单失败:', error);
+      return [];
     }
   };
 
@@ -149,7 +177,7 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
    * 1. 按 orderId 删除整个订单的所有完成记录
    * 2. 按 itemId 删除订单中的单个项目
    */
-  const removeCompletedOrder = async (orderId: string, itemId?: string, itemToRestore?: any) => {
+  const removeCompletedOrder = async (orderId: string, itemId?: string, completionKey?: string) => {
     try {
       let updated: CompletedOrder[];
 
@@ -165,7 +193,15 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
 
         const co = completedOrders[coIndex];
-        const updatedItems = (co.completedItems || []).filter(item => item.id !== itemId);
+        let updatedItems = [...(co.completedItems || [])];
+        if (completionKey) {
+          updatedItems = updatedItems.filter(item => item.completionKey !== completionKey);
+        } else {
+          const removeIndex = updatedItems.findIndex(item => item.id === itemId);
+          if (removeIndex !== -1) {
+            updatedItems.splice(removeIndex, 1);
+          }
+        }
 
         if (updatedItems.length > 0) {
           // 还有其他已完成项目，保留记录

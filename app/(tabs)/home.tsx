@@ -83,6 +83,33 @@ export default function HomeScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  const formatElapsedDuration = useCallback((elapsedSeconds?: number) => {
+    if (typeof elapsedSeconds !== 'number' || Number.isNaN(elapsedSeconds)) {
+      return '';
+    }
+    const total = Math.max(0, Math.floor(elapsedSeconds));
+    const hh = Math.floor(total / 3600);
+    const mm = Math.floor((total % 3600) / 60);
+    const ss = total % 60;
+    if (hh > 0) {
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    }
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  }, []);
+
+  const getElapsedFromOrderAndCompletedAt = useCallback((order: FormattedOrder, completedAt?: string) => {
+    if (!completedAt) {
+      return undefined;
+    }
+    const startRaw = order.kdsReceiveTime || order.orderTime;
+    const startDate = new Date(startRaw);
+    const endDate = new Date(completedAt);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return undefined;
+    }
+    return Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / 1000));
+  }, []);
+
   const availableWidth = dimensions.width - PADDING * 2;
   const availableHeight = dimensions.height;
   
@@ -184,6 +211,7 @@ export default function HomeScreen() {
     orderId: string,
     item: any,
     baseOrder: FormattedOrder,
+    completionKey?: string,
     onSuccess?: () => void
   ) => {
     try {
@@ -265,7 +293,7 @@ export default function HomeScreen() {
       }
 
       // 删除完成记录
-      removeCompletedOrder(orderId, itemId).catch(error => {
+      removeCompletedOrder(orderId, itemId, completionKey).catch(error => {
         console.error('[Home] 删除完成记录失败:', error);
       });
 
@@ -299,7 +327,7 @@ export default function HomeScreen() {
       return;
     }
 
-    await recallItemToOrder(itemId, itemName, orderId, item, order, () => {
+    await recallItemToOrder(itemId, itemName, orderId, item, order, undefined, () => {
       setToastVisible(false);
       setLastCompletedItemData(null);
     });
@@ -307,10 +335,10 @@ export default function HomeScreen() {
 
   // 处理 Recall（从菜单）
   const handleRecallItem = useCallback(async (completedItem: any) => {
-    const { itemId, itemName, completedOrder, item } = completedItem;
+    const { itemId, itemName, completedOrder, item, completionKey } = completedItem;
     const orderId = completedOrder.order.id;
 
-    await recallItemToOrder(itemId, itemName, orderId, item, completedOrder.order, () => {
+    await recallItemToOrder(itemId, itemName, orderId, item, completedOrder.order, completionKey, () => {
       setShowRecentItemsMenu(false);
     });
   }, [recallItemToOrder]);
@@ -622,6 +650,9 @@ export default function HomeScreen() {
                       tableNumber: co.order.tableNumber,
                       itemName: item.name,
                       itemId: item.id,
+                      completionKey: item.completionKey,
+                      itemCompletedAt: item.completedAt,
+                      itemCompletedElapsedSeconds: item.completedElapsedSeconds,
                       itemQuantity: item.quantity || 1,
                       completedOrder: co,
                       item: item,
@@ -673,6 +704,23 @@ export default function HomeScreen() {
                     >
                       {menuItem.itemName} {menuItem.itemQuantity > 1 ? `× ${menuItem.itemQuantity}` : ''}
                     </Text>
+
+                    {(typeof menuItem.itemCompletedElapsedSeconds === 'number' || menuItem.itemCompletedAt) ? (
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          marginBottom: 10,
+                          color: '#666',
+                          fontWeight: '500',
+                        }}
+                      >
+                        {formatElapsedDuration(
+                          typeof menuItem.itemCompletedElapsedSeconds === 'number'
+                            ? menuItem.itemCompletedElapsedSeconds
+                            : getElapsedFromOrderAndCompletedAt(menuItem.completedOrder.order, menuItem.itemCompletedAt)
+                        )}
+                      </Text>
+                    ) : null}
 
                     {/* Recall Button */}
                     <TouchableOpacity

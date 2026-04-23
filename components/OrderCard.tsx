@@ -81,6 +81,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   } = useSettings();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
+  const itemCompletedAtRef = useRef<{ [key: string]: string }>({});
   const completionInitSignatureRef = useRef<{ [orderId: string]: string }>({});
   const lastTapTimeRef = useRef<{ [key: string]: number }>({});  // 用于双击检测
   const [forceUpdateTrigger, setForceUpdateTrigger] = useState(0);  // 仅用于必要时触发重新渲染
@@ -95,6 +96,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const [toastVisible, setToastVisible] = useState(false);
   const [toastItemName, setToastItemName] = useState("");
   const [lastCompletedItemId, setLastCompletedItemId] = useState<string | null>(null);
+  const [lastCompletedEntryKey, setLastCompletedEntryKey] = useState<string | null>(null);
   const [lastRemovedItem, setLastRemovedItem] = useState<any>(null);
 
   // Calling Button 状态
@@ -131,6 +133,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     Object.keys(completedItemsRef.current).forEach((key) => {
       if (key.startsWith(`${order.id}-item-`)) {
         delete completedItemsRef.current[key];
+        delete itemCompletedAtRef.current[key];
       }
     });
 
@@ -138,7 +141,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const completedSet = new Set(completedIds);
       (order.products || []).forEach((item, index) => {
         if (completedSet.has(item.id)) {
-          completedItemsRef.current[`${order.id}-item-${index}`] = true;
+          const key = `${order.id}-item-${index}`;
+          completedItemsRef.current[key] = true;
+          itemCompletedAtRef.current[key] = new Date().toISOString();
         }
       });
     }
@@ -174,8 +179,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       completedItemIds,
     });
 
+    const doneAt = new Date().toISOString();
+    const completedItemsWithTime = (updatedOrderWithStatus.products || []).map((item, index) => {
+      const itemKey = `${order.id}-item-${index}`;
+      const completedAt = itemCompletedAtRef.current[itemKey] || doneAt;
+      return {
+        ...item,
+        __completedAt: completedAt,
+        __completedElapsedSeconds: toElapsedSecondsFromStart(completedAt),
+      };
+    });
+
     // Add to completed orders
-    addCompletedOrder(updatedOrderWithStatus, updatedOrderWithStatus.products || []).catch((error: any) => {
+    addCompletedOrder(updatedOrderWithStatus, completedItemsWithTime).catch((error: any) => {
       console.error('[OrderCard] Failed to add completed order:', error);
     });
 
@@ -283,7 +299,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       onItemCompleted?.(itemName, item.id, order.id);  // 通知父组件显示全局 Toast
 
       // 添加单项完成记录到 completed orders
-      await addCompletedOrder(order, [item]);
+      const completedAt = new Date().toISOString();
+      const completedEntries = await addCompletedOrder(order, [{
+        ...item,
+        __completedAt: completedAt,
+        __completedElapsedSeconds: toElapsedSecondsFromStart(completedAt),
+      }]);
+      setLastCompletedEntryKey(completedEntries[0]?.completionKey || null);
 
       console.log(`[OrderCard] Item completed and removed: ${itemName} (${item.id}), remaining items: ${updatedProducts.length}`);
 
@@ -335,7 +357,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       console.error('[completeItemOnly] Exception:', error);
       setToastVisible(false);
     }
-  }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, onItemCompleted]);
+  }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, onItemCompleted, toElapsedSecondsFromStart]);
 
   // 撤回单项完成 - 恢复项目到 order.products
   const undoItemCompletion = useCallback(() => {
@@ -350,16 +372,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       };
 
       // 从完成列表中删除该项目的完成记录
-      removeCompletedOrder(order.id, lastCompletedItemId);
+      removeCompletedOrder(order.id, lastCompletedItemId, lastCompletedEntryKey || undefined);
       
       // 通知父组件项目已恢复
       onItemRemoved?.(lastCompletedItemId, lastRemovedItem.name || "Item", restoredOrder);
       
       setLastCompletedItemId(null);
+      setLastCompletedEntryKey(null);
       setLastRemovedItem(null);
       setToastVisible(false);
     }
-  }, [lastCompletedItemId, lastRemovedItem, order, removeCompletedOrder, onItemRemoved]);
+  }, [lastCompletedItemId, lastCompletedEntryKey, lastRemovedItem, order, removeCompletedOrder, onItemRemoved]);
   
   // 判断是否应该显示数量（只有 >= 2 时才显示）
   const shouldShowQuantity = useCallback((quantity: any): boolean => {
@@ -406,7 +429,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [order.orderTime, showDateInDue]);
 
-  // 格式化完成时间 - 显示完整格式 time/day/month
+  // 格式化完成时间 - 显示具体时刻
   const formattedCompletedTime = useMemo(() => {
     if (!completedTime) return '';
     try {
@@ -424,6 +447,21 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [completedTime]);
 
+  // 格式化完成耗时
+  const formattedDuration = useMemo(() => {
+    if (!completedTime) return '';
+    try {
+      const start = getOrderStartTimeMs();
+      const end = new Date(completedTime).getTime();
+      if (isNaN(end)) return '';
+      
+      const elapsedSeconds = Math.max(0, Math.floor((end - start) / 1000));
+      return formatElapsedDuration(elapsedSeconds);
+    } catch (error) {
+      return '';
+    }
+  }, [completedTime, getOrderStartTimeMs, formatElapsedDuration]);
+
   const getPickupMethodDisplay = (method?: string) => {
     const lower = method?.toLowerCase() || '';
     if (lower === 'take-away') return { text: t("takeAway"), color: '#FF9B2F' };
@@ -436,6 +474,44 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     if (lower === 'network') return { text: 'QR', color: '#7C3AED' }; // Purple
     return { text: 'POS', color: '#10B981' }; // Green
   };
+
+  const getOrderStartTimeMs = useCallback(() => {
+    const startRaw = order.kdsReceiveTime || order.orderTime;
+    const startDate = new Date(startRaw);
+    if (Number.isNaN(startDate.getTime())) {
+      return Date.now();
+    }
+    return startDate.getTime();
+  }, [order.kdsReceiveTime, order.orderTime]);
+
+  const toElapsedSecondsFromStart = useCallback((completedAtIso: string) => {
+    const endDate = new Date(completedAtIso);
+    if (Number.isNaN(endDate.getTime())) {
+      return 0;
+    }
+    return Math.max(0, Math.floor((endDate.getTime() - getOrderStartTimeMs()) / 1000));
+  }, [getOrderStartTimeMs]);
+
+  const formatElapsedDuration = useCallback((elapsedSeconds?: number) => {
+    if (typeof elapsedSeconds !== 'number' || Number.isNaN(elapsedSeconds)) {
+      return '';
+    }
+    const total = Math.max(0, Math.floor(elapsedSeconds));
+    const hh = Math.floor(total / 3600);
+    const mm = Math.floor((total % 3600) / 60);
+    const ss = total % 60;
+    if (hh > 0) {
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    }
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  }, []);
+
+  const getItemCompletionDurationText = useCallback((item: any) => {
+    const elapsed = typeof item?.completedElapsedSeconds === 'number'
+      ? item.completedElapsedSeconds
+      : (item?.completedAt ? toElapsedSecondsFromStart(item.completedAt) : undefined);
+    return formatElapsedDuration(elapsed);
+  }, [formatElapsedDuration, toElapsedSecondsFromStart]);
 
   // 根据产品 category 名字获取对应的左边框颜色 - 使用 useCallback 记忆化，避免频繁重新创建
   const getCategoryBorderColor = useCallback((category?: string) => {
@@ -481,6 +557,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         // full order 模式：点击 item 时同步勾选/取消该 item 的所有 options
         const nextState = !completedItemsRef.current[itemKey];
         completedItemsRef.current[itemKey] = nextState;
+        if (nextState) {
+          itemCompletedAtRef.current[itemKey] = new Date().toISOString();
+        } else {
+          delete itemCompletedAtRef.current[itemKey];
+        }
         optionKeys.forEach((key: string) => {
           completedItemsRef.current[key] = nextState;
         });
@@ -522,6 +603,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
           {isVoided ? (
             <Text style={styles.cancelledText}>{t("cancelled")}</Text>
+          ) : item.completedAt || typeof item.completedElapsedSeconds === 'number' ? (
+            <Text style={styles.itemCompletedTime}>{getItemCompletionDurationText(item)}</Text>
           ) : !enableItemLevelCompletion && completedItemsRef.current[itemKey] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
@@ -645,7 +728,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
       </View>
     );
-  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger, getCategoryBorderColor, itemOptionFontSize]);
+  }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger, getCategoryBorderColor, itemOptionFontSize, t, getItemCompletionDurationText]);
 
   // 用 useMemo 缓存渲染出的商品列表。这样只要订单的 products 不变，就不会因为组件的无关重绘而反复调用 renderProductItem 和 log
   const renderedProductsList = useMemo(() => {
@@ -1038,6 +1121,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#007AFF",
     marginLeft: 12,
+  },
+  itemCompletedTime: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#666",
+    marginLeft: 12,
+    minWidth: 68,
+    textAlign: "right",
   },
   optionsContainer: {
     marginTop: 0,

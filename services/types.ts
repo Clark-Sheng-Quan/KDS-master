@@ -89,8 +89,15 @@ export interface FormattedOrder {
   completedItemIds?: string[];           // 整单模式下，记录已点完成的 item（用于撤回后恢复勾选状态）
 }
 
+export interface CompletedOrderItem extends OrderItem {
+  completionKey: string;                 // 每个完成记录的唯一键（同名/同ID也可区分）
+  completedAt: string;                   // 该 item 的最终完成时间（ISO）
+  completedElapsedSeconds?: number;      // 该 item 完成耗时（开始到完成，秒）
+  sourceItemId?: string;                 // 原始 item.id（用于追踪）
+}
+
 export interface CompletedOrder {
   order: FormattedOrder;
   completedAt: string;                   // 完成时间 (ISO 格式)
-  completedItems: OrderItem[];                // 完成的 items 列表（用于显示和 recall）
+  completedItems: CompletedOrderItem[];  // 完成的 items 列表（用于显示和 recall）
 } 

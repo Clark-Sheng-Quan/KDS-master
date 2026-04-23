@@ -70,6 +70,7 @@ export const translations = {
     // 取餐方式
     takeAway: "外带",
     dineIn: "堂食",
+    duration: "耗时",
     
     // 设置界面
     language: "语言",
@@ -443,8 +444,7 @@ export const translations = {
     
     // Pickup methods
     takeAway: "Take-Away",
-    dineIn: "Dine-In",
-    
+    dineIn: "Dine-In",    duration: "Duration",    
     // Settings screen
     language: "Language",
     chinese: "中文",
