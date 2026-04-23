@@ -396,8 +396,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       
       if (showDateInDue) {
         const day = String(date.getDate()).padStart(2, '0');
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const month = monthNames[date.getMonth()];
+        const month = String(date.getMonth() + 1).padStart(2, '0');
         return `${hours}:${minutes}/${day}/${month}`;
       } else {
         return `${hours}:${minutes}`;
@@ -418,8 +417,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const minutes = String(date.getMinutes()).padStart(2, '0');
 
       const day = String(date.getDate()).padStart(2, '0');
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const month = monthNames[date.getMonth()];
+      const month = String(date.getMonth() + 1).padStart(2, '0');
       return `${hours}:${minutes}/${day}/${month}`;
     } catch (error) {
       return completedTime;
@@ -458,10 +456,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     const isVoided = item.itemState === 'VOIDED';
     // 计算一次 borderColor，避免在多个地方重复调用 getCategoryBorderColor
     const itemBorderColor = getCategoryBorderColor(item.category);
+    const itemKey = `${order.id}-item-${index}`;
+    const getOptionKey = (optIndex: number) => `${order.id}-item-${index}-option-${optIndex}`;
+    const optionKeys = (item.options || []).map((_: any, optIndex: number) => getOptionKey(optIndex));
+
     const handleItemPress = () => {
       if (disableItems || disabled || isVoided) return;
-      
-      const itemKey = `${order.id}-item-${index}`;
       
       if (enableItemLevelCompletion) {
         // 项目级完成模式：需要双击才能完成单项
@@ -478,8 +478,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           lastTapTimeRef.current[itemKey] = now;
         }
       } else {
-        // 普通模式：标记 item 完成（仅用于显示，不实际移除）
-        completedItemsRef.current[itemKey] = !completedItemsRef.current[itemKey];
+        // full order 模式：点击 item 时同步勾选/取消该 item 的所有 options
+        const nextState = !completedItemsRef.current[itemKey];
+        completedItemsRef.current[itemKey] = nextState;
+        optionKeys.forEach((key: string) => {
+          completedItemsRef.current[key] = nextState;
+        });
         setForceUpdateTrigger(prev => prev + 1);
       }
     };
@@ -494,7 +498,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           activeOpacity={disableItems || isVoided ? 1 : 0.7}
           style={[
             styles.itemRow,
-            completedItemsRef.current[`${order.id}-item-${index}`] && styles.completedItem,
+            completedItemsRef.current[itemKey] && styles.completedItem,
             isVoided && styles.voidedItem,
             (!item.options || item.options.length === 0) && {
               borderBottomLeftRadius: 4,
@@ -518,7 +522,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
           {isVoided ? (
             <Text style={styles.cancelledText}>{t("cancelled")}</Text>
-          ) : !enableItemLevelCompletion && completedItemsRef.current[`${order.id}-item-${index}`] ? (
+          ) : !enableItemLevelCompletion && completedItemsRef.current[itemKey] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
             <Text style={styles.itemQuantity}>x{item.quantity}</Text>
@@ -528,6 +532,21 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         {item.options?.length > 0 && (
           <View style={styles.optionsContainer}>
             {item.options.map((option: any, optIndex: number) => {
+              const optionKey = getOptionKey(optIndex);
+              const isOptionCompleted = !!completedItemsRef.current[optionKey];
+
+              const handleOptionPress = () => {
+                if (disableItems || disabled || isVoided) return;
+
+                if (enableItemLevelCompletion) {
+                  // item-by-item 模式保持原行为：双击 item 完成
+                  handleItemPress();
+                } else {
+                  completedItemsRef.current[optionKey] = !completedItemsRef.current[optionKey];
+                  setForceUpdateTrigger(prev => prev + 1);
+                }
+              };
+
               // 判断是否为 POS order 格式（有 option_items）
               const isPOSFormat = option.option_items && Array.isArray(option.option_items);
               
@@ -543,12 +562,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 return (
                   <TouchableOpacity
                     key={`${order.id}-item-${index}-option-${optIndex}`}
-                    onPress={handleItemPress}
+                    onPress={handleOptionPress}
                     disabled={disableItems || disabled || isVoided}
                     activeOpacity={disableItems || isVoided ? 1 : 0.7}
                     style={[
                       styles.optionRow,
-                      completedItemsRef.current[`${order.id}-item-${index}`] && styles.completedItem,
+                      isOptionCompleted && styles.completedItem,
                       isVoided && styles.voidedOption,
                       optIndex === item.options.length - 1 && {
                         borderBottomLeftRadius: 4,
@@ -569,6 +588,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                         - {selectedItems.map((item: any) => item.name).join(', ')}
                       </Text>
                     </View>
+                    {!enableItemLevelCompletion && isOptionCompleted && (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.checkColor} />
+                    )}
                   </TouchableOpacity>
                 );
               } else {
@@ -576,12 +598,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 return (
                   <TouchableOpacity
                     key={`${order.id}-item-${index}-option-${optIndex}`}
-                    onPress={handleItemPress}
+                    onPress={handleOptionPress}
                     disabled={disableItems || disabled || isVoided}
                     activeOpacity={disableItems || isVoided ? 1 : 0.7}
                     style={[
                       styles.optionRow,
-                      completedItemsRef.current[`${order.id}-item-${index}`] && styles.completedItem,
+                      isOptionCompleted && styles.completedItem,
                       isVoided && styles.voidedOption,
                       optIndex === item.options.length - 1 && {
                         borderBottomLeftRadius: 4,
@@ -611,6 +633,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                         </Text>
                       )}
                     </View>
+                    {!enableItemLevelCompletion && isOptionCompleted && (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.checkColor} />
+                    )}
                   </TouchableOpacity>
                 );
               }

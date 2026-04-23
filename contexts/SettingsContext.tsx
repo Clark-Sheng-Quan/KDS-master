@@ -23,7 +23,7 @@ interface SettingsState {
 const defaultSettings: SettingsState = {
   cardsPerRow: DEFAULT_CARDS_PER_ROW,
   cardsPerColumn: DEFAULT_CARDS_PER_COLUMN,
-  itemLevelCompletion: true,
+  itemLevelCompletion: false,
   callingButton: false,
   cardTitleFontSize: 'medium',
   itemOptionFontSize: 'small',
@@ -71,7 +71,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSettings({
         cardsPerRow: savedCardsPerRow ? parseInt(savedCardsPerRow) : DEFAULT_CARDS_PER_ROW,
         cardsPerColumn: savedCardsPerColumn ? parseFloat(savedCardsPerColumn) : DEFAULT_CARDS_PER_COLUMN,
-        itemLevelCompletion: savedItemLevelCompletion !== 'false', // Default true
+        itemLevelCompletion: savedItemLevelCompletion === 'true', // Default false (full order)
         callingButton: savedCallingButton === 'true',
         cardTitleFontSize: (savedCardTitleFontSize as FontSize) || 'medium',
         itemOptionFontSize: (savedItemOptionFontSize as FontSize) || 'small',

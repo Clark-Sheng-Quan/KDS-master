@@ -172,6 +172,10 @@ export default function SettingsScreen() {
         );
         if (savedItemLevelCompletion !== null) {
           setEnableItemLevelCompletion(savedItemLevelCompletion === "true");
+        } else {
+          // 首次安装默认 full order（false），并持久化避免其他模块出现默认值分叉
+          setEnableItemLevelCompletion(false);
+          await AsyncStorage.setItem(STORAGE_KEY_ITEM_LEVEL_COMPLETION, "false");
         }
 
         // 加载 Calling Button 设置
@@ -359,12 +363,12 @@ export default function SettingsScreen() {
         settingsListener.emitSettingChange('cards_per_row', 5);
         settingsListener.emitSettingChange('cards_per_column', 2);
       } else {
-        setCardsPerRow(4);
-        setCardsPerColumn(3.5);
-        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, "4");
-        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "3.5");
-        settingsListener.emitSettingChange('cards_per_row', 4);
-        settingsListener.emitSettingChange('cards_per_column', 3.5);
+        setCardsPerRow(3);
+        setCardsPerColumn(3);
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_ROW, "3");
+        await AsyncStorage.setItem(STORAGE_KEY_CARDS_PER_COLUMN, "3");
+        settingsListener.emitSettingChange('cards_per_row', 3);
+        settingsListener.emitSettingChange('cards_per_column', 3);
       }
     } catch (error) {
       console.error("无法切换屏幕方向:", error);
@@ -948,14 +952,14 @@ export default function SettingsScreen() {
               )}
               {screenOrientation === "portrait" && (
                 <Picker
-                  selectedValue={cardsPerRow || 4}
+                  selectedValue={cardsPerRow || 3}
                   style={styles.textPicker}
                   onValueChange={handleCardsPerRowChange}
                   dropdownIconColor="#666"
                 >
-                  <Picker.Item label={t("small")} value={5} />
-                  <Picker.Item label={t("medium")} value={4} />
-                  <Picker.Item label={t("large")} value={3} />
+                  <Picker.Item label={t("small")} value={4} />
+                  <Picker.Item label={t("medium")} value={3} />
+                  <Picker.Item label={t("large")} value={2} />
                 </Picker>
               )}
             </View>
@@ -978,7 +982,7 @@ export default function SettingsScreen() {
               )}
               {screenOrientation === "portrait" && (
                 <Picker
-                  selectedValue={cardsPerColumn || 3.5}
+                  selectedValue={cardsPerColumn || 3}
                   style={styles.textPicker}
                   onValueChange={handleCardsPerColumnChange}
                   dropdownIconColor="#666"
