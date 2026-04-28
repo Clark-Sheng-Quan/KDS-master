@@ -397,6 +397,45 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     return numStr;
   };
 
+  // 格式化OrderTime - 根据showDateInDue决定是否显示日期
+  const formattedOrderTime = useMemo(() => {
+    try {
+      const date = new Date(order.orderTime);
+      if (isNaN(date.getTime())) return order.orderTime;
+
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+
+      if (showDateInDue) {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${hours}:${minutes}/${day}/${month}`;
+      }
+
+      return `${hours}:${minutes}`;
+    } catch (error) {
+      return order.orderTime;
+    }
+  }, [order.orderTime, showDateInDue]);
+
+  // 格式化完成时间 - 显示具体时刻
+  const formattedCompletedTime = useMemo(() => {
+    if (!completedTime) return '';
+
+    try {
+      const date = new Date(completedTime);
+      if (isNaN(date.getTime())) return completedTime;
+
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      return `${hours}:${minutes}/${day}/${month}`;
+    } catch (error) {
+      return completedTime;
+    }
+  }, [completedTime]);
+
   // 获取 order card title - 根据是否有 table 号显示不同格式
   const getOrderTitle = () => {
     if (order.tableNumber && order.tableNumber !== 'N/A') {
@@ -407,60 +446,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     const methodLabel = (pickupMethod === 'take-away') ? t("takeAway") : t("dineIn");
     return `${methodLabel} - #${getOrderDisplayNumber()}`;
   };
-
-  // 格式化OrderTime - 根据showDateInDue决定是否显示日期
-  const formattedOrderTime = useMemo(() => {
-    try {
-      const date = new Date(order.orderTime);
-      if (isNaN(date.getTime())) return order.orderTime;
-
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      
-      if (showDateInDue) {
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        return `${hours}:${minutes}/${day}/${month}`;
-      } else {
-        return `${hours}:${minutes}`;
-      }
-    } catch (error) {
-      return order.orderTime;
-    }
-  }, [order.orderTime, showDateInDue]);
-
-  // 格式化完成时间 - 显示具体时刻
-  const formattedCompletedTime = useMemo(() => {
-    if (!completedTime) return '';
-    try {
-      const date = new Date(completedTime);
-      if (isNaN(date.getTime())) return completedTime;
-
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      return `${hours}:${minutes}/${day}/${month}`;
-    } catch (error) {
-      return completedTime;
-    }
-  }, [completedTime]);
-
-  // 格式化完成耗时
-  const formattedDuration = useMemo(() => {
-    if (!completedTime) return '';
-    try {
-      const start = getOrderStartTimeMs();
-      const end = new Date(completedTime).getTime();
-      if (isNaN(end)) return '';
-      
-      const elapsedSeconds = Math.max(0, Math.floor((end - start) / 1000));
-      return formatElapsedDuration(elapsedSeconds);
-    } catch (error) {
-      return '';
-    }
-  }, [completedTime, getOrderStartTimeMs, formatElapsedDuration]);
 
   const getPickupMethodDisplay = (method?: string) => {
     const lower = method?.toLowerCase() || '';
@@ -603,7 +588,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
           {isVoided ? (
             <Text style={styles.cancelledText}>{t("cancelled")}</Text>
-          ) : item.completedAt || typeof item.completedElapsedSeconds === 'number' ? (
+          ) : completedTime && (item.completedAt || typeof item.completedElapsedSeconds === 'number') ? (
             <Text style={styles.itemCompletedTime}>{getItemCompletionDurationText(item)}</Text>
           ) : !enableItemLevelCompletion && completedItemsRef.current[itemKey] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
@@ -886,7 +871,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             itemLevelMode={enableItemLevelCompletion}
           />
         )}
-        {selectable && (
+        {selectable && !completedTime && (
           <View style={[styles.selectIndicator, completedTime ? styles.selectIndicatorLeftTop : styles.selectIndicatorRightTop]}>
             <Ionicons
               name={selected ? "checkmark-circle" : "ellipse-outline"}

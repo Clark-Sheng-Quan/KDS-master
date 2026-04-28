@@ -10,14 +10,15 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.0"
+VERSION="1.3.1"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.0
+## Version 1.3.1
 
 ### Major Improvements
-- Add the item level time duration display in the order details page, allowing users to see how long each item has been in preparation.
-- Modify the full order/item by item display bug
+- Fix the bug of item-level timer
+- Modify the completed order ui
+
 
 
 ### Download

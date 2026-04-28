@@ -30,6 +30,7 @@ export default function CompletedScreen() {
   const { completedOrders, removeCompletedOrder, loading: contextLoading, cleanExpiredOrdersNow } = useCompletedOrders();
   const { cardsPerRow, cardsPerColumn } = useSettings();
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(null);
+  const [isRecallMode, setIsRecallMode] = useState(false);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
   const [loading, setLoading] = useState(contextLoading);
@@ -38,12 +39,13 @@ export default function CompletedScreen() {
     setLoading(contextLoading);
   }, [contextLoading]);
 
-  // 处理订单选择 - 使用 useCallback 避免在每次渲染时创建新函数
+  // 处理订单选择 - 只在 recall 模式下才能选择
   const handleOrderSelect = useCallback((order: FormattedOrder) => {
-    setSelectedOrder((prevSelected) =>
-      prevSelected && prevSelected.id === order.id ? null : order
-    );
-  }, []);
+    if (!isRecallMode) {
+      return;
+    }
+    setSelectedOrder(order);
+  }, [isRecallMode]);
 
   // 根据 cardsPerColumn 计算初始渲染数量（渲染 cardsPerColumn 行）
   const initialNumToRender = cardsPerRow * cardsPerColumn;
@@ -55,7 +57,7 @@ export default function CompletedScreen() {
         order={item}
         style={[styles.cardStyle, cardStylesMap[index]]}
         disabled={false}
-        selectable={true}
+        selectable={isRecallMode}
         selected={selectedOrder?.id === item.id}
         onSelect={() => handleOrderSelect(item)}
         hideTimer={true}
@@ -68,7 +70,7 @@ export default function CompletedScreen() {
         hideBadges={true}
       />
     ),
-    [selectedOrder?.id, cardStylesMap]  // 依赖 selectedOrder 的 id 和 cardStylesMap
+    [selectedOrder?.id, cardStylesMap, handleOrderSelect, isRecallMode]  // 添加 isRecallMode 依赖
   );
 
   const availableWidth = dimensions.width - PADDING * 2;
@@ -95,41 +97,38 @@ export default function CompletedScreen() {
     return () => subscription?.remove();
   }, []);
 
-  // 召回订单功能 - 发起 recall
+  // 召回订单功能 - recall 按钮切换模式或执行召回
   const handleRecallOrder = async () => {
+    // 如果不在 recall 模式，点击按钮进入 recall 模式
+    if (!isRecallMode) {
+      setIsRecallMode(true);
+      setSelectedOrder(null);
+      return;
+    }
+
+    // 如果在 recall 模式但未选择订单，不执行
     if (!selectedOrder) {
       return;
     }
 
-    // 立即重置选择
-    setSelectedOrder(null);
-    
-    // 在后台执行 recall 和移除操作，不阻塞 UI
-    OrderService.recallOrder(selectedOrder).then(() => {
-      // 从完成列表中移除 - 不 await，让它在后台执行
-      removeCompletedOrder(selectedOrder.id).catch((error: any) => {
-        console.error("移除订单失败:", error);
-      });
-    }).catch((error: any) => {
+    // 执行 recall 操作
+    try {
+      await OrderService.recallOrder(selectedOrder);
+      // 从完成列表中移除
+      await removeCompletedOrder(selectedOrder.id);
+      // 退出 recall 模式
+      setIsRecallMode(false);
+      setSelectedOrder(null);
+    } catch (error: any) {
       console.error("召回订单失败:", error);
       Alert.alert(t("error"), "召回订单失败");
-    });
+    }
   };
 
-  // 移除订单功能 - 从已完成列表中移除
-  const handleRemoveOrder = async () => {
-    if (!selectedOrder) {
-      return;
-    }
-
-    // 立即重置选择
+  // 取消 recall 模式
+  const handleCancelRecall = () => {
+    setIsRecallMode(false);
     setSelectedOrder(null);
-    
-    // 在后台移除，不阻塞 UI
-    removeCompletedOrder(selectedOrder.id).catch((error: any) => {
-      console.error("移除订单失败:", error);
-      Alert.alert(t("error"), "移除订单失败");
-    });
   };
 
   // 清理过期订单功能
@@ -160,38 +159,47 @@ export default function CompletedScreen() {
 
         <View style={styles.buttonGroup}>
           <TouchableOpacity
-            style={[styles.recallButton, !selectedOrder && styles.disabledButton]}
+            style={[
+              styles.recallButton, 
+              isRecallMode ? styles.recallButtonActive : styles.recallButtonInactive,
+              isRecallMode && !selectedOrder && styles.disabledButton
+            ]}
             onPress={handleRecallOrder}
-            disabled={!selectedOrder}
+            disabled={isRecallMode && !selectedOrder}
           >
             <Ionicons
-              name="arrow-redo"
+              name={isRecallMode ? "arrow-redo" : "arrow-redo"}
               size={20}
-              color={selectedOrder ? "white" : "#888"}
+              color={isRecallMode ? "white" : (selectedOrder && isRecallMode ? "white" : "#888")}
               style={styles.buttonIcon}
             />
-            <Text style={[styles.recallButtonText, !selectedOrder && styles.disabledButtonText]}>
-              {t("recall")}
+            <Text style={[
+              styles.recallButtonText, 
+              isRecallMode && !selectedOrder && styles.disabledButtonText
+            ]}>
+              {isRecallMode ? t("recall") : t("recall")}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.removeButton, !selectedOrder && styles.disabledButton]}
-            onPress={handleRemoveOrder}
-            disabled={!selectedOrder}
-          >
-            <Ionicons
-              name="trash"
-              size={20}
-              color={selectedOrder ? "white" : "#888"}
-              style={styles.buttonIcon}
-            />
-            <Text style={[styles.removeButtonText, !selectedOrder && styles.disabledButtonText]}>
-              {t("remove")}
-            </Text>
-          </TouchableOpacity>
+          {isRecallMode && (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancelRecall}
+            >
+              <Ionicons
+                name="close"
+                size={20}
+                color="white"
+                style={styles.buttonIcon}
+              />
+              <Text style={styles.cancelButtonText}>
+                {t("cancel") || "取消"}
+              </Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
+          {/* 隐藏 clean expired 按钮 */}
+          {/* <TouchableOpacity
             style={styles.cleanButton}
             onPress={handleCleanExpired}
           >
@@ -204,7 +212,7 @@ export default function CompletedScreen() {
             <Text style={styles.cleanButtonText}>
               {t("cleanExpiredOrders")}
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
 
@@ -291,10 +299,16 @@ const completedStyles = {
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  removeButton: {
+  recallButtonActive: {
+    backgroundColor: "#FF6B2F",
+  },
+  recallButtonInactive: {
+    backgroundColor: "#FF9B2F",
+  },
+  cancelButton: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    backgroundColor: "#FF5252",
+    backgroundColor: "#666666",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
@@ -303,6 +317,11 @@ const completedStyles = {
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  cancelButtonText: {
+    color: "white",
+    fontWeight: "600" as const,
+    fontSize: 13,
   },
   cleanButton: {
     flexDirection: "row" as const,
@@ -325,11 +344,6 @@ const completedStyles = {
     color: "#999",
   },
   recallButtonText: {
-    color: "white",
-    fontWeight: "600" as const,
-    fontSize: 13,
-  },
-  removeButtonText: {
     color: "white",
     fontWeight: "600" as const,
     fontSize: 13,

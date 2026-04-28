@@ -40,6 +40,7 @@ const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 const STORAGE_KEY_SHOW_ORDER_TIMER = "show_order_timer";
 const STORAGE_KEY_SHOW_TIMER_HIGHLIGHT = "show_timer_highlight";
+const STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS = "auto_clean_expired_orders";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 const STORAGE_KEY_AUTO_START = "auto_start_enabled";
@@ -73,6 +74,7 @@ export default function SettingsScreen() {
   // 添加显示计时器开关状态
   const [showOrderTimer, setShowOrderTimer] = useState<boolean>(true);
   const [showTimerHighlight, setShowTimerHighlight] = useState<boolean>(true);
+  const [autoCleanExpiredOrders, setAutoCleanExpiredOrders] = useState<boolean>(false);
 
   // 添加项目级完成模式状态
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
@@ -164,6 +166,16 @@ export default function SettingsScreen() {
         );
         if (savedShowTimerHighlight !== null) {
           setShowTimerHighlight(savedShowTimerHighlight === "true");
+        }
+
+        const savedAutoCleanExpiredOrders = await AsyncStorage.getItem(
+          STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS
+        );
+        if (savedAutoCleanExpiredOrders !== null) {
+          setAutoCleanExpiredOrders(savedAutoCleanExpiredOrders === "true");
+        } else {
+          setAutoCleanExpiredOrders(false);
+          await AsyncStorage.setItem(STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS, "false");
         }
 
         // 加载项目级完成模式设置
@@ -421,6 +433,14 @@ export default function SettingsScreen() {
 
     settingsListener.emitSettingChange('show_timer_highlight', value);
     console.log('[Settings] 发出 show_timer_highlight 设置变化事件，值:', value);
+  }, []);
+
+  const handleAutoCleanExpiredOrdersChange = useCallback(async (value: boolean) => {
+    setAutoCleanExpiredOrders(value);
+    await AsyncStorage.setItem(STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS, value.toString());
+
+    settingsListener.emitSettingChange('auto_clean_expired_orders', value);
+    console.log('[Settings] 发出 auto_clean_expired_orders 设置变化事件，值:', value);
   }, []);
 
   // Handle card title font size change
@@ -753,6 +773,7 @@ export default function SettingsScreen() {
               </View>
               <TouchableOpacity
                 style={styles.disconnectCallingScreenButton}
+
                 onPress={() => {
                   Alert.alert(
                     t("confirm"),
@@ -1039,6 +1060,22 @@ export default function SettingsScreen() {
               <View style={[
                 styles.switchThumb,
                 showTimerHighlight && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("autoCleanExpiredOrders")}</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                autoCleanExpiredOrders && styles.switchButtonActive
+              ]}
+              onPress={() => handleAutoCleanExpiredOrdersChange(!autoCleanExpiredOrders)}
+            >
+              <View style={[
+                styles.switchThumb,
+                autoCleanExpiredOrders && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
           </View>

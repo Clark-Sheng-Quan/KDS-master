@@ -15,9 +15,10 @@ import { settingsListener } from "../services/settingsListener";
 interface OrderTimerProps {
   order: FormattedOrder;
   onTimeUpdate?: (elapsedTime: number, statusColor: string, formattedTime: string) => void;
+  hideDisplay?: boolean;
 }
 
-export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) => {
+export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate, hideDisplay = false }) => {
   const { t } = useLanguage();
   const URGENT_THRESHOLD_MINUTES = 10;
   const DELAYED_THRESHOLD_MINUTES = 20;
@@ -145,7 +146,7 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate }) =
     }
   }, [elapsedTime]); 
 
-  if (!showOrderTimer) {
+  if (!showOrderTimer || hideDisplay) {
     return null;
   }
 

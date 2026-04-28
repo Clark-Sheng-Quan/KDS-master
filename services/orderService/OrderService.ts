@@ -15,6 +15,7 @@ import * as Formatters from './formatters';
 import { API_BASE_URL } from './constants';
 import { callingScreenService } from '../CallingScreenService';
 import { callingScreenDiscovery } from '../CallingScreenDiscovery';
+import { settingsListener } from '../settingsListener';
 import { NativeEventEmitter, Platform } from 'react-native';
 
 // 添加订单ID缓存，用于防止重复处理
@@ -37,6 +38,10 @@ export class OrderService {
   // 添加订单ID缓存，用于防止重复处理
   private static processedOrderIds: Set<string> = new Set();
   private static processedOrderIdsArray: string[] = []; // 用于维护缓存顺序
+  
+  // 自动完成设置状态
+  private static autoCleanExpiredOrdersEnabled: boolean = false;
+  private static settingsListenerUnsubscribe: (() => void) | null = null;
   
   // 回调函数存储
   private static networkOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
@@ -668,6 +673,9 @@ export class OrderService {
       this.stopNetworkPolling();
     }
     
+    // 初始化设置监听器（第一次调用时）
+    this.initializeSettingsListener();
+    
     // 使用更长的轮询间隔 (30秒)
     const pollingInterval = 30000; // 30秒
     console.log(`开始网络订单轮询，间隔: ${pollingInterval}ms，当前时间: ${new Date().toISOString()}`);
@@ -682,12 +690,66 @@ export class OrderService {
   }
 
   /**
-   * 自动完成超过配置时间的订单
+   * 初始化设置监听器
+   */
+  private static async initializeSettingsListener() {
+    // 只初始化一次
+    if (this.settingsListenerUnsubscribe !== null) {
+      return;
+    }
+    
+    try {
+      // 从 AsyncStorage 加载初始值
+      const savedValue = await AsyncStorage.getItem('auto_clean_expired_orders');
+      this.autoCleanExpiredOrdersEnabled = savedValue === 'true';
+      console.log(`[OrderService] 初始化 autoCleanExpiredOrdersEnabled = ${this.autoCleanExpiredOrdersEnabled}`);
+      
+      // 设置监听器以追踪后续更改
+      const listener = (value: any) => {
+        this.autoCleanExpiredOrdersEnabled = value === true || value === 'true';
+        console.log(`[OrderService] 设置更新: autoCleanExpiredOrdersEnabled = ${this.autoCleanExpiredOrdersEnabled}`);
+      };
+      
+      settingsListener.onSettingChange('auto_clean_expired_orders', listener);
+      
+      // 保存注销函数供后续使用
+      this.settingsListenerUnsubscribe = () => {
+        settingsListener.offSettingChange('auto_clean_expired_orders', listener);
+      };
+    } catch (error) {
+      console.error('[OrderService] 初始化设置监听器失败:', error);
+      this.autoCleanExpiredOrdersEnabled = false;
+    }
+  }
+
+  /**
+   * 停止网络轮询
+   */
+  static stopNetworkPolling() {
+    if (this.networkPollingInterval) {
+      clearInterval(this.networkPollingInterval);
+      this.networkPollingInterval = null;
+    }
+    
+    // 同时停止监听设置变化
+    if (this.settingsListenerUnsubscribe) {
+      this.settingsListenerUnsubscribe();
+      this.settingsListenerUnsubscribe = null;
+    }
+  }
+
+  /**
+   * 自动完成超过配置时间的订单（仅在设置启用时执行）
    */
   private static async autoCompleteExpiredOrders() {
+    // 检查是否启用了自动清理设置
+    if (!this.autoCleanExpiredOrdersEnabled) {
+      return;
+    }
+    
     try {
       const now = Date.now();
-      // 硬编码 1 小时用于测试
+      // 24小时
       const twoHoursInMs = 24 * 60 * 60 * 1000;
       const expiredNetworkOrders = this.networkOrders.filter(order => {
         const orderStartTime = new Date(order.kdsReceiveTime).getTime();
@@ -714,16 +776,6 @@ export class OrderService {
       }
     } catch (error) {
       console.error('[OrderService] 自动完成订单失败:', error);
-    }
-  }
-
-  /**
-   * 停止网络轮询
-   */
-  static stopNetworkPolling() {
-    if (this.networkPollingInterval) {
-      clearInterval(this.networkPollingInterval);
-      this.networkPollingInterval = null;
     }
   }
 

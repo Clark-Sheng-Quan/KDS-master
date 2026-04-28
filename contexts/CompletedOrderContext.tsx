@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedOrder, CompletedOrderItem, FormattedOrder } from '../services/types';
+import { settingsListener } from '../services/settingsListener';
 
 const STORAGE_KEY = 'completed_orders';
+const AUTO_CLEAN_STORAGE_KEY = 'auto_clean_expired_orders';
 
 // 保留策略配置
 const RETENTION_CONFIG = {
@@ -24,10 +26,32 @@ const CompletedOrderContext = createContext<CompletedOrderContextType | undefine
 export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [autoCleanExpiredOrders, setAutoCleanExpiredOrders] = useState(false);
+
+  const autoCleanExpiredOrdersRef = React.useRef(false);
 
   // 初始化：从本地存储加载已完成的订单
   useEffect(() => {
     loadCompletedOrders();
+  }, []);
+
+  useEffect(() => {
+    const handleAutoCleanExpiredOrdersChange = (value: boolean) => {
+      autoCleanExpiredOrdersRef.current = value;
+      setAutoCleanExpiredOrders(value);
+
+      if (value) {
+        cleanExpiredOrdersNow().catch((error) => {
+          console.error('[CompletedOrderContext] 启用自动清理后立即清理失败:', error);
+        });
+      }
+    };
+
+    settingsListener.onSettingChange('auto_clean_expired_orders', handleAutoCleanExpiredOrdersChange);
+
+    return () => {
+      settingsListener.offSettingChange('auto_clean_expired_orders', handleAutoCleanExpiredOrdersChange);
+    };
   }, []);
 
   const cleanExpiredOrders = (orders: CompletedOrder[]): CompletedOrder[] => {
@@ -63,10 +87,21 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
   const loadCompletedOrders = async () => {
     try {
       setLoading(true);
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const [stored, savedAutoCleanExpiredOrders] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEY),
+        AsyncStorage.getItem(AUTO_CLEAN_STORAGE_KEY),
+      ]);
+
+      const autoCleanEnabled = savedAutoCleanExpiredOrders === 'true';
+      autoCleanExpiredOrdersRef.current = autoCleanEnabled;
+      setAutoCleanExpiredOrders(autoCleanEnabled);
+
       if (stored) {
         let orders = JSON.parse(stored) as CompletedOrder[];
-        // 直接加载，不自动清理
+        if (autoCleanEnabled) {
+          orders = cleanExpiredOrders(orders);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+        }
         setCompletedOrders(orders);
       }
     } catch (error) {
@@ -81,9 +116,9 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
    */
   const saveCompletedOrders = async (orders: CompletedOrder[]) => {
     try {
-      // 保存前清理过期数据
-      const cleaned = cleanExpiredOrders(orders);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+      const finalOrders = autoCleanExpiredOrdersRef.current ? cleanExpiredOrders(orders) : orders;
+      setCompletedOrders(finalOrders);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(finalOrders));
     } catch (error) {
       console.error('[CompletedOrderContext] 保存已完成订单失败:', error);
     }
@@ -129,7 +164,6 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
         itemsToComplete = [];
       }
 
-      const now = new Date().toISOString();
       const normalizedItems = normalizeCompletedItems(itemsToComplete);
       let updated = [...completedOrders];
 
@@ -137,6 +171,19 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
       const orderMetadata: FormattedOrder = {
         ...order,
         products: [],
+      };
+
+      // 获取所有完成items中最晚的完成时间作为订单的completedAt
+      const getLatestCompletionTime = (items: CompletedOrderItem[]): string => {
+        if (items.length === 0) {
+          return new Date().toISOString();
+        }
+        const latestTime = items.reduce((latest, item) => {
+          const itemTime = new Date(item.completedAt).getTime();
+          const latestItemTime = new Date(latest).getTime();
+          return itemTime > latestItemTime ? item.completedAt : latest;
+        }, items[0].completedAt);
+        return latestTime;
       };
 
       // 查找已存在的记录（按 order.id）
@@ -151,13 +198,13 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
           ...updated[existingIndex],
           order: orderMetadata,
           completedItems,
-          completedAt: now,
+          completedAt: getLatestCompletionTime(completedItems),
         };
       } else {
         // 创建新记录
         updated.unshift({
           order: orderMetadata,
-          completedAt: now,
+          completedAt: getLatestCompletionTime(normalizedItems),
           completedItems: normalizedItems,
         });
       }
