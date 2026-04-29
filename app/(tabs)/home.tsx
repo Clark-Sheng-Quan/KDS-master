@@ -32,7 +32,12 @@ import {
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
   const { completedOrders, addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
-  const { cardsPerRow, cardsPerColumn, itemLevelCompletion: enableItemLevelCompletion } = useSettings();
+  const {
+    cardsPerRow,
+    cardsPerColumn,
+    itemLevelCompletion: enableItemLevelCompletion,
+    showTimerHighlight,
+  } = useSettings();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [selectedShopName, setSelectedShopName] = useState<string>("");
@@ -43,10 +48,14 @@ export default function HomeScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastItemName, setToastItemName] = useState("");
   const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder} | null>(null);
+  const [orderToastVisible, setOrderToastVisible] = useState(false);
+  const [lastCompletedOrderData, setLastCompletedOrderData] = useState<{ order: FormattedOrder } | null>(null);
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
+  const [showRecentOrdersMenu, setShowRecentOrdersMenu] = useState(false);
   const recallingItemsRef = useRef<Set<string>>(new Set());  // 用 useRef 来同步控制，避免竞速问题，不显示 UI
-  const localOrdersRef = useRef<FormattedOrder[]>([]);
+  const recallingOrdersRef = useRef<Set<string>>(new Set());
   const recentMenuAnimValue = useMemo(() => new Animated.Value(0), []);
+  const recentOrdersMenuAnimValue = useMemo(() => new Animated.Value(0), []);
 
   // 动画处理 - 最近订单菜单
   useEffect(() => {
@@ -57,13 +66,48 @@ export default function HomeScreen() {
     }).start();
   }, [showRecentItemsMenu, recentMenuAnimValue]);
 
-  // 更新当前时间（每分钟刷新一次）
+  useEffect(() => {
+    Animated.timing(recentOrdersMenuAnimValue, {
+      toValue: showRecentOrdersMenu ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [showRecentOrdersMenu, recentOrdersMenuAnimValue]);
+
+  // 更新当前时间
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000);
+    }, 1000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  const formatElapsedDuration = useCallback((elapsedSeconds?: number) => {
+    if (typeof elapsedSeconds !== 'number' || Number.isNaN(elapsedSeconds)) {
+      return '';
+    }
+    const total = Math.max(0, Math.floor(elapsedSeconds));
+    const hh = Math.floor(total / 3600);
+    const mm = Math.floor((total % 3600) / 60);
+    const ss = total % 60;
+    if (hh > 0) {
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    }
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  }, []);
+
+  const getElapsedFromOrderAndCompletedAt = useCallback((order: FormattedOrder, completedAt?: string) => {
+    if (!completedAt) {
+      return undefined;
+    }
+    const startRaw = order.kdsReceiveTime || order.orderTime;
+    const startDate = new Date(startRaw);
+    const endDate = new Date(completedAt);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return undefined;
+    }
+    return Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / 1000));
   }, []);
 
   const availableWidth = dimensions.width - PADDING * 2;
@@ -90,11 +134,10 @@ export default function HomeScreen() {
     setCardStyles(styles);
   }, [filteredOrders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
 
-  // 同步 orders 到本地副本
+  // 直接使用来自 OrderService 的已过滤订单，无需在 home 中重复过滤
   useEffect(() => {
     setFilteredOrders(orders);
-    setLocalOrders(orders);
-    localOrdersRef.current = orders;
+    setLocalOrders(orders);  // 同步到本地副本
   }, [orders]);
 
   // 监听订单自动完成（24小时后）并记录到已完成订单列表
@@ -127,32 +170,39 @@ export default function HomeScreen() {
   }, [addCompletedOrder]);
 
   // 添加这个适配器函数
-  const handleOrderRemove = (order: FormattedOrder) => {
+  const handleOrderRemove = useCallback((order: FormattedOrder) => {
     removeOrder(order.id);
-  };
+
+    // whole 模式下，点击 Done 后显示快速整单撤回提示
+    if (!enableItemLevelCompletion) {
+      setLastCompletedOrderData({ order });
+      setOrderToastVisible(true);
+    }
+  }, [removeOrder, enableItemLevelCompletion]);
 
   // 处理项目移除 - 更新本地订单中的产品列表
   const handleItemRemoved = useCallback((itemId: string, itemName: string, updatedOrder: FormattedOrder) => {
-    setLocalOrders((prev) => {
-      const next = prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
-      localOrdersRef.current = next;
-      return next;
-    });
+    // 更新 localOrders 中的订单
+    setLocalOrders((prev) =>
+      prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
+    );
+    // 更新 filteredOrders 中的订单
     setFilteredOrders((prev) =>
       prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
     );
     console.log(`[Home] 项目已移除: ${itemName} (${itemId}), 订单剩余项目数: ${updatedOrder.products?.length || 0}`);
   }, []);
 
-  // 处理项目完成 - 显示 Toast（用 ref 读 localOrders，避免每次订单变化都重建此函数）
+  // 处理项目完成 - 显示 Toast
   const handleItemCompleted = useCallback((itemName: string, itemId: string, orderId: string) => {
-    const order = localOrdersRef.current.find(o => o.id === orderId);
+    // 从 localOrders 中找到订单
+    const order = localOrders.find(o => o.id === orderId);
     if (order) {
       setToastItemName(itemName);
       setLastCompletedItemData({itemId, itemName, orderId, order});
       setToastVisible(true);
     }
-  }, []);
+  }, [localOrders]);
 
   // 通用的 recall item 函数（Undo 和 Recall 都用这个）
   const recallItemToOrder = useCallback(async (
@@ -161,6 +211,7 @@ export default function HomeScreen() {
     orderId: string,
     item: any,
     baseOrder: FormattedOrder,
+    completionKey?: string,
     onSuccess?: () => void
   ) => {
     try {
@@ -172,8 +223,8 @@ export default function HomeScreen() {
 
       recallingItemsRef.current.add(itemId);
 
-      // 检查订单是否存在（用 ref 避免 stale closure）
-      const existingOrder = localOrdersRef.current.find(o => o.id === orderId);
+      // 检查订单是否存在
+      const existingOrder = localOrders.find(o => o.id === orderId);
       
       if (existingOrder) {
         // 订单存在，检查 item 是否已在其中
@@ -190,11 +241,9 @@ export default function HomeScreen() {
           products: [...(existingOrder.products || []), item],
         };
 
-        setLocalOrders(prev => {
-          const next = prev.map(order => order.id === orderId ? updatedOrder : order);
-          localOrdersRef.current = next;
-          return next;
-        });
+        setLocalOrders(prev =>
+          prev.map(order => order.id === orderId ? updatedOrder : order)
+        );
         setFilteredOrders(prev =>
           prev.map(order => order.id === orderId ? updatedOrder : order)
         );
@@ -219,11 +268,7 @@ export default function HomeScreen() {
           isRecalled: true,
         };
 
-        setLocalOrders(prev => {
-          const next = [...prev, newOrder];
-          localOrdersRef.current = next;
-          return next;
-        });
+        setLocalOrders(prev => [...prev, newOrder]);
         setFilteredOrders(prev => [...prev, newOrder]);
 
         OrderService.recallOrder(newOrder).catch(error => {
@@ -238,10 +283,17 @@ export default function HomeScreen() {
             console.warn('[Home] Failed to notify Calling Screen (new order):', error);
           });
         }
+
+        // 只在 home 没有 card 时才刷新
+        if (filteredOrders.length === 0) {
+          refreshOrders().catch(error => {
+            console.error('[Home] 刷新订单失败:', error);
+          });
+        }
       }
 
       // 删除完成记录
-      removeCompletedOrder(orderId, itemId).catch(error => {
+      removeCompletedOrder(orderId, itemId, completionKey).catch(error => {
         console.error('[Home] 删除完成记录失败:', error);
       });
 
@@ -254,7 +306,7 @@ export default function HomeScreen() {
         recallingItemsRef.current.delete(itemId);
       }, 50);
     }
-  }, [removeCompletedOrder]);
+  }, [localOrders, removeCompletedOrder, refreshOrders, filteredOrders]);
 
   // 处理 Undo（从 Toast）
   const handleItemUndoCompletion = useCallback(async () => {
@@ -275,7 +327,7 @@ export default function HomeScreen() {
       return;
     }
 
-    await recallItemToOrder(itemId, itemName, orderId, item, order, () => {
+    await recallItemToOrder(itemId, itemName, orderId, item, order, undefined, () => {
       setToastVisible(false);
       setLastCompletedItemData(null);
     });
@@ -283,13 +335,131 @@ export default function HomeScreen() {
 
   // 处理 Recall（从菜单）
   const handleRecallItem = useCallback(async (completedItem: any) => {
-    const { itemId, itemName, completedOrder, item } = completedItem;
+    const { itemId, itemName, completedOrder, item, completionKey } = completedItem;
     const orderId = completedOrder.order.id;
 
-    await recallItemToOrder(itemId, itemName, orderId, item, completedOrder.order, () => {
+    await recallItemToOrder(itemId, itemName, orderId, item, completedOrder.order, completionKey, () => {
       setShowRecentItemsMenu(false);
     });
-  }, [recallItemToOrder]);  useEffect(() => {
+  }, [recallItemToOrder]);
+
+  // 通用整单 recall（菜单与 Toast 共用）
+  const recallWholeOrder = useCallback(async (
+    baseOrder: FormattedOrder,
+    completedItems: any[],
+    onSuccess?: () => void
+  ) => {
+    const orderId = baseOrder.id;
+    if (!orderId) {
+      return;
+    }
+
+    if (recallingOrdersRef.current.has(orderId)) {
+      console.log(`[Home] Order 正在处理中，跳过: ${orderId}`);
+      return;
+    }
+
+    try {
+      recallingOrdersRef.current.add(orderId);
+
+      if (completedItems.length === 0) {
+        console.warn(`[Home] 整单撤回失败：完成列表为空 ${orderId}`);
+        return;
+      }
+
+      const existingOrder = localOrders.find((o) => o.id === orderId);
+
+      let recalledOrder: FormattedOrder;
+      if (existingOrder) {
+        const existingProductIds = new Set((existingOrder.products || []).map((p) => p.id));
+        const missingProducts = completedItems.filter((p) => !existingProductIds.has(p.id));
+        recalledOrder = {
+          ...existingOrder,
+          isRecalled: true,
+          products: [...(existingOrder.products || []), ...missingProducts],
+          completedItemIds: baseOrder.completedItemIds || existingOrder.completedItemIds || [],
+        };
+
+        setLocalOrders((prev) =>
+          prev.map((order) => (order.id === orderId ? recalledOrder : order))
+        );
+        setFilteredOrders((prev) =>
+          prev.map((order) => (order.id === orderId ? recalledOrder : order))
+        );
+      } else {
+        recalledOrder = {
+          ...baseOrder,
+          isRecalled: true,
+          products: completedItems,
+          completedItemIds: baseOrder.completedItemIds || [],
+        };
+
+        setLocalOrders((prev) => [...prev, recalledOrder]);
+        setFilteredOrders((prev) => [...prev, recalledOrder]);
+
+        // 仅在 home 没有卡片时刷新
+        if (filteredOrders.length === 0) {
+          refreshOrders().catch((error) => {
+            console.error("[Home] 刷新订单失败:", error);
+          });
+        }
+      }
+
+      await OrderService.recallOrder(recalledOrder);
+
+      // 通知 Calling Screen 订单产品数量变化
+      const device = callingScreenDiscovery.getCachedDevice();
+      if (device) {
+        const itemCount = recalledOrder.products.reduce(
+          (total, p) => total + (p.quantity || 1),
+          0
+        );
+        callingScreenService
+          .notifyOrderAdded(
+            device,
+            recalledOrder._id,
+            String(recalledOrder.num),
+            itemCount,
+            recalledOrder.tableNumber
+          )
+          .catch((error: any) => {
+            console.warn("[Home] Failed to notify Calling Screen (recalled order):", error);
+          });
+      }
+
+      await removeCompletedOrder(orderId);
+      onSuccess?.();
+      console.log(`[Home] ✓ 整单已撤回: ${orderId}`);
+    } catch (error) {
+      console.error("[Home] 整单撤回失败:", error);
+    } finally {
+      setTimeout(() => {
+        recallingOrdersRef.current.delete(orderId);
+      }, 80);
+    }
+  }, [localOrders, filteredOrders, refreshOrders, removeCompletedOrder]);
+
+  // 处理整单 Recall（从菜单）
+  const handleRecallOrder = useCallback(async (completedOrder: CompletedOrder) => {
+    await recallWholeOrder(completedOrder.order, completedOrder.completedItems || [], () => {
+      setShowRecentOrdersMenu(false);
+    });
+  }, [recallWholeOrder]);
+
+  // 处理整单快速撤回（从 Toast）
+  const handleOrderUndoCompletion = useCallback(async () => {
+    if (!lastCompletedOrderData) {
+      return;
+    }
+
+    const { order } = lastCompletedOrderData;
+    await recallWholeOrder(order, order.products || [], () => {
+      setOrderToastVisible(false);
+      setLastCompletedOrderData(null);
+    });
+  }, [lastCompletedOrderData, recallWholeOrder]);
+
+  useEffect(() => {
     const loadShopInfo = async () => {
       try {
         const shopName = await AsyncStorage.getItem("selectedShopName");
@@ -335,11 +505,38 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#007bff',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+              }}
+              onPress={() => {
+                setShowRecentItemsMenu(false);
+                setShowRecentOrdersMenu(true);
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
+                {t("recallOrder")}
+              </Text>
+            </TouchableOpacity>
             {enableItemLevelCompletion && (
               <TouchableOpacity 
-                onPress={() => setShowRecentItemsMenu(true)}
+                style={{
+                  backgroundColor: '#2e7d32',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                }}
+                onPress={() => {
+                  setShowRecentOrdersMenu(false);
+                  setShowRecentItemsMenu(true);
+                }}
               >
-                <Ionicons name="list" size={40} color={theme.colors.primaryColor} />
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
+                  {t("recallItem")}
+                </Text>
               </TouchableOpacity>
             )}
             <View style={styles.timeDisplayContainer}>
@@ -363,8 +560,9 @@ export default function HomeScreen() {
                 onOrderCancel={handleOrderRemove}
                 onItemRemoved={handleItemRemoved}
                 onItemCompleted={handleItemCompleted}
+                showDateInDue={true}
                 selectable={false}
-                enableDelayEffects={true}
+                enableDelayEffects={showTimerHighlight}
               />
             ))}
           </View>
@@ -383,7 +581,7 @@ export default function HomeScreen() {
               right: 0,
               bottom: 0,
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 999,
+              zIndex: 1100,
             }}
             onPress={() => setShowRecentItemsMenu(false)}
             activeOpacity={1}
@@ -396,8 +594,8 @@ export default function HomeScreen() {
               top: 16,
               right: 16,
               height: dimensions.height * 0.7,
-              width: Math.max(dimensions.width * 0.35, 320),
-              maxWidth: dimensions.width * 0.55,
+              width: Math.max(dimensions.width * 0.3, 280),
+              maxWidth: dimensions.width * 0.45,
               backgroundColor: '#fff',
               borderRadius: 16,
               elevation: 8,
@@ -405,13 +603,13 @@ export default function HomeScreen() {
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.2,
               shadowRadius: 8,
-              zIndex: 1000,
+              zIndex: 1101,
               overflow: 'hidden',
               transform: [
                 {
                   translateX: recentMenuAnimValue.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [Math.max(dimensions.width * 0.35, 320) + 32, 0],
+                    outputRange: [Math.max(dimensions.width * 0.3, 280) + 32, 0],
                   }),
                 },
               ],
@@ -431,7 +629,7 @@ export default function HomeScreen() {
               }}
             >
               <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', flex: 1 }}>
-                {t("recentlyCompleted")}
+                {t("recallItem")}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowRecentItemsMenu(false)}
@@ -452,6 +650,9 @@ export default function HomeScreen() {
                       tableNumber: co.order.tableNumber,
                       itemName: item.name,
                       itemId: item.id,
+                      completionKey: item.completionKey,
+                      itemCompletedAt: item.completedAt,
+                      itemCompletedElapsedSeconds: item.completedElapsedSeconds,
                       itemQuantity: item.quantity || 1,
                       completedOrder: co,
                       item: item,
@@ -504,6 +705,23 @@ export default function HomeScreen() {
                       {menuItem.itemName} {menuItem.itemQuantity > 1 ? `× ${menuItem.itemQuantity}` : ''}
                     </Text>
 
+                    {(typeof menuItem.itemCompletedElapsedSeconds === 'number' || menuItem.itemCompletedAt) ? (
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          marginBottom: 10,
+                          color: '#666',
+                          fontWeight: '500',
+                        }}
+                      >
+                        {formatElapsedDuration(
+                          typeof menuItem.itemCompletedElapsedSeconds === 'number'
+                            ? menuItem.itemCompletedElapsedSeconds
+                            : getElapsedFromOrderAndCompletedAt(menuItem.completedOrder.order, menuItem.itemCompletedAt)
+                        )}
+                      </Text>
+                    ) : null}
+
                     {/* Recall Button */}
                     <TouchableOpacity
                       onPress={() => {
@@ -513,7 +731,7 @@ export default function HomeScreen() {
                       style={{
                         paddingVertical: 10,
                         paddingHorizontal: 14,
-                        backgroundColor: theme.colors.primaryColor,
+                        backgroundColor: '#2e7d32',
                         borderRadius: 8,
                         elevation: 1,
                         shadowColor: '#000',
@@ -530,7 +748,7 @@ export default function HomeScreen() {
                           fontSize: 14,
                         }}
                       >
-                        {t("recall")}
+                        {t("recallOrder")}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -552,6 +770,165 @@ export default function HomeScreen() {
           </Animated.View>
         </>
       )}
+
+      {/* Recent Orders Menu - Animated Overlay */}
+      {showRecentOrdersMenu && (
+        <>
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 1100,
+            }}
+            onPress={() => setShowRecentOrdersMenu(false)}
+            activeOpacity={1}
+          />
+
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              height: dimensions.height * 0.7,
+              width: Math.max(dimensions.width * 0.35, 320),
+              maxWidth: dimensions.width * 0.55,
+              backgroundColor: '#fff',
+              borderRadius: 16,
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              zIndex: 1101,
+              overflow: 'hidden',
+              transform: [
+                {
+                  translateX: recentOrdersMenuAnimValue.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [Math.max(dimensions.width * 0.35, 320) + 32, 0],
+                  }),
+                },
+              ],
+            }}
+          >
+            <View
+              style={{
+                padding: 18,
+                paddingBottom: 14,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottomWidth: 1,
+                borderBottomColor: '#f0f0f0',
+                backgroundColor: '#fafafa',
+              }}
+            >
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', flex: 1 }}>
+                {t("recall")} {t("order")}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowRecentOrdersMenu(false)}
+                style={{ padding: 8, marginLeft: 8 }}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {completedOrders.length > 0 ? (
+              <FlatList
+                data={completedOrders.slice(0, 30)}
+                renderItem={({ item: completedOrder }) => {
+                  const itemCount = (completedOrder.completedItems || []).reduce(
+                    (sum, p) => sum + (p.quantity || 1),
+                    0
+                  );
+                  const tableNo = completedOrder.order.tableNumber?.trim();
+                  const summaryParts = [
+                    ...(tableNo ? [`${t("table")} ${tableNo}`] : []),
+                    `${t("order")} #${completedOrder.order.num}`,
+                    `${itemCount} ${t("items")}`,
+                  ];
+                  const itemNamesLine = (completedOrder.completedItems || [])
+                    .map((p) => `${p.name}${(p.quantity || 1) > 1 ? ` x${p.quantity}` : ""}`)
+                    .join(" | ");
+
+                  return (
+                    <View
+                      style={{
+                        padding: 14,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#f5f5f5',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontWeight: '700',
+                          fontSize: 15,
+                          marginBottom: 6,
+                          color: '#1a1a1a',
+                        }}
+                      >
+                        {summaryParts.join(" | ")}
+                      </Text>
+
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          marginBottom: 10,
+                          color: '#666',
+                          fontWeight: '500',
+                        }}
+                      >
+                        {itemNamesLine}
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={() => handleRecallOrder(completedOrder)}
+                        style={{
+                          paddingVertical: 10,
+                          paddingHorizontal: 14,
+                          backgroundColor: theme.colors.primaryColor,
+                          borderRadius: 8,
+                          elevation: 1,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.1,
+                          shadowRadius: 2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: 'white',
+                            textAlign: 'center',
+                            fontWeight: '600',
+                            fontSize: 14,
+                          }}
+                        >
+                          {t("recallOrder")}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }}
+                keyExtractor={(item, idx) => `${item.order.id}-${item.completedAt}-${idx}`}
+                contentContainerStyle={{ paddingBottom: 16 }}
+                scrollEnabled={true}
+              />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
+                <Ionicons name="file-tray-full" size={48} color="#ddd" />
+                <Text style={{ color: '#aaa', fontSize: 15, marginTop: 12, textAlign: 'center' }}>
+                  {t("noCompletedOrders")}
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        </>
+      )}
       
       <ItemCompletionToast
         visible={toastVisible}
@@ -560,6 +937,22 @@ export default function HomeScreen() {
         onDismiss={() => setToastVisible(false)}
         duration={5000}
         positionTop={80}
+        labelText={t("itemCompleted")}
+        actionText={t("undo")}
+      />
+
+      <ItemCompletionToast
+        visible={orderToastVisible}
+        itemName={lastCompletedOrderData ? `${t("order")} #${lastCompletedOrderData.order.num}` : ""}
+        onUndo={handleOrderUndoCompletion}
+        onDismiss={() => {
+          setOrderToastVisible(false);
+          setLastCompletedOrderData(null);
+        }}
+        duration={5000}
+        positionTop={80}
+        labelText={t("orderCompleted")}
+        actionText={t("recallOrder")}
       />
     </View>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   TouchableOpacity,
   StyleSheet,
@@ -6,17 +6,14 @@ import {
   ActivityIndicator,
   View,
   Text,
-  AppState,
-  AppStateStatus,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { FormattedOrder } from "../services/types";
 import { colors } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeModules } from "react-native";
 import { checkPrinter } from "../services/orderPrinter";
-import { settingsListener } from "../services/settingsListener";
+import { useSettings } from "../contexts/SettingsContext";
 
 const { Printer_K1215 } = NativeModules;
 
@@ -30,72 +27,8 @@ export const PrintButton: React.FC<PrintButtonProps> = ({
   disabled = false,
 }) => {
   const { t } = useLanguage();
+  const { showPrintButton } = useSettings();
   const [isPrinting, setIsPrinting] = useState(false);
-  const [showPrintButton, setShowPrintButton] = useState(false);
-  const appState = React.useRef(AppState.currentState);
-  const listenerRef = React.useRef<((value: boolean) => void) | null>(null);
-
-  // 加载打印按钮设置
-  useEffect(() => {
-    const loadPrintButtonSetting = async () => {
-      try {
-        const setting = await AsyncStorage.getItem("show_print_button");
-        setShowPrintButton(setting === "true");
-      } catch (error) {
-        console.error("Failed to load print button setting:", error);
-        setShowPrintButton(false);
-      }
-    };
-    loadPrintButtonSetting();
-  }, []);
-
-  // 监听应用状态变化，当应用恢复到前台时重新检查设置
-  useEffect(() => {
-    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === "active"
-      ) {
-        // 应用从后台恢复到前台，重新检查设置
-        try {
-          const setting = await AsyncStorage.getItem("show_print_button");
-          setShowPrintButton(setting === "true");
-        } catch (error) {
-          console.error("Failed to reload print button setting:", error);
-        }
-      }
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener("change", handleAppStateChange);
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
-  // 监听设置变化事件 - 实现即时生效
-  useEffect(() => {
-    // 防止重复注册监听器
-    if (listenerRef.current) {
-      settingsListener.offSettingChange('show_print_button', listenerRef.current);
-    }
-
-    const handlePrintButtonChange = (value: boolean) => {
-      setShowPrintButton(value);
-    };
-
-    listenerRef.current = handlePrintButtonChange;
-    settingsListener.onSettingChange('show_print_button', handlePrintButtonChange);
-
-    // 清理函数：组件卸载时移除监听
-    return () => {
-      if (listenerRef.current) {
-        settingsListener.offSettingChange('show_print_button', listenerRef.current);
-        listenerRef.current = null;
-      }
-    };
-  }, []);
 
   // 打印订单处理函数
   const handlePrint = async () => {
