@@ -461,13 +461,15 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   };
 
   const getOrderStartTimeMs = useCallback(() => {
-    const startRaw = order.kdsReceiveTime || order.orderTime;
+    // 优先使用原始的 kdsReceiveTime（用于被召回的订单保留原始计时起点）
+    // 否则使用当前的 kdsReceiveTime，最后才用 orderTime
+    const startRaw = order.originalKdsReceiveTime || order.kdsReceiveTime || order.orderTime;
     const startDate = new Date(startRaw);
     if (Number.isNaN(startDate.getTime())) {
       return Date.now();
     }
     return startDate.getTime();
-  }, [order.kdsReceiveTime, order.orderTime]);
+  }, [order.kdsReceiveTime, order.orderTime, order.originalKdsReceiveTime]);
 
   const toElapsedSecondsFromStart = useCallback((completedAtIso: string) => {
     const endDate = new Date(completedAtIso);
@@ -564,7 +566,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           activeOpacity={disableItems || isVoided ? 1 : 0.7}
           style={[
             styles.itemRow,
-            completedItemsRef.current[itemKey] && styles.completedItem,
+            // completedItem 样式只在 home 页面显示（completedTime 不存在时），不应该在 completed 页面显示
+            !completedTime && completedItemsRef.current[itemKey] && styles.completedItem,
             isVoided && styles.voidedItem,
             (!item.options || item.options.length === 0) && {
               borderBottomLeftRadius: 4,

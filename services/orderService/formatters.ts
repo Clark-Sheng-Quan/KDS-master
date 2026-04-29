@@ -167,8 +167,9 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       products: formattedItems,
       source: 'tcp',
       notes: orderNotes,
-      // total_prepare_time: totalPrepareTime,
       tableNumber,
+      // 保留原始的 kdsReceiveTime（如果存在），用于被召回的订单
+      ...(orderData.originalKdsReceiveTime && { originalKdsReceiveTime: orderData.originalKdsReceiveTime }),
     };
 
     return formattedOrder;
@@ -254,6 +255,8 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       notes: orderNotes,
       total_prepare_time: order.total_prepare_time || 0, // Add total prepare time
       tableNumber: order.tableNumber || '', // Add table number
+      // 保留原始的 kdsReceiveTime（如果存在），用于被召回的订单
+      ...(order.originalKdsReceiveTime && { originalKdsReceiveTime: order.originalKdsReceiveTime }),
     };
   } catch (error) {
     console.error('[Format] Failed to format network order:', error, order);

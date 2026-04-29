@@ -953,6 +953,8 @@ export class OrderService {
         ...order,
         orderTime: currentLocalTime,
         isRecalled: true,
+        // 如果是第一次召回，保存原始的 kdsReceiveTime；如果已经有 originalKdsReceiveTime，保持不变
+        originalKdsReceiveTime: order.originalKdsReceiveTime || order.kdsReceiveTime,
       };
       
       // 保存到网络订单存储（不播放提示音）
