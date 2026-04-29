@@ -67,7 +67,6 @@ const fetchWithRetry = async (
       if (attempt < maxRetries) {
         // 指数退避：第一次等 500ms，第二次等 1000ms
         const backoffMs = 500 * Math.pow(2, attempt);
-        console.log(`等待 ${backoffMs}ms 后重试...`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
     }
@@ -136,20 +135,55 @@ export const getTableNumber = async (tableId: string): Promise<string> => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP错误! 状态: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log(`[networkService] table_number_search: ${tableId} =>`, JSON.stringify(data));
     if (data.tables && data.tables.length > 0) {
       return String(data.tables[0].table_number || "");
     }
     return "";
   } catch (error) {
-    console.error(`获取 table ${tableId} 信息失败:`, error);
+    console.error(`table ${tableId} Error:`, error);
     return "";
   }
 };
 
+
+export const getTableIdByOrderId = async (orderId: string): Promise<string | null> => {
+  try {
+    const token = await getToken();
+    const response = await fetchWithRetry(`${API_BASE_URL}/search/table_order_search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: token,
+        query: {
+          order_ids: orderId,
+          status: "active"
+        },
+        detail: true,
+        page_size: 0,
+        page_idx: 0,
+        ignore_pagination: true
+      })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    console.log(`[networkService] table_order_search: ${orderId} =>`, JSON.stringify(data));
+    if (data.table_orders && data.table_orders.length > 0) {
+      const foundTableId = data.table_orders[0].table_id || null;
+      return foundTableId;
+    }
+    return null;
+  } catch (error) {
+    console.error(`获取 order ${orderId} 的 table_id 失败:`, error);
+    return null;
+  }
+};
 
 export const fetchOrdersFromNetwork = async (
   timeRange: [string, string],
@@ -203,7 +237,22 @@ export const fetchOrdersFromNetwork = async (
     // Check returned order data
     if (result && result.orders && Array.isArray(result.orders)) {
       console.log(`[networkService] 30s Fetched ${result.orders.length} orders from API`);
-      // Log raw order data
+
+      // 并行处理获取 table_id
+      const patchTasks = result.orders.map(async (order: any) => {
+        if (!order.table_id && order._id) {
+          try {
+            const tableId = await getTableIdByOrderId(order._id);
+            if (tableId) {
+              order.table_id = tableId;
+            }
+          } catch (e) {
+            console.warn(`Failed to patch table_id for ${order._id}:`, e);
+          }
+        }
+      });
+      await Promise.all(patchTasks);
+
       for (const order of result.orders) {
         console.log(`[networkService] ========== Raw network order ==========`);
         console.log(`[networkService] Raw order data:`, JSON.stringify(order, null, 2));
