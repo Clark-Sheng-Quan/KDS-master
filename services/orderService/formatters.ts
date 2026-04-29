@@ -6,6 +6,7 @@
 import { DateTime } from 'luxon';
 import { FormattedOrder } from '../types';
 import { convertToLocalTime } from './timeConfig';
+import { getTableNumber } from './networkService';
 
 /**
  * 将 UTC 时间转换为本地时区时间（向后兼容包装器）
@@ -241,6 +242,19 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
         ? order.notes.trim()
         : '';
     
+    // 获取桌号信息
+    let tableNumber = order.tableNumber || '';
+    if (order.table_id) {
+      try {
+        const fetchedTableNumber = await getTableNumber(order.table_id);
+        if (fetchedTableNumber) {
+          tableNumber = fetchedTableNumber;
+        }
+      } catch (err) {
+        console.error(`[Format] 获取桌号信息失败 for order ${orderNum}:`, err);
+      }
+    }
+    
     return {
       id: order._id.toString(),
       _id: order._id || order._id.toString(),
@@ -254,7 +268,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       source: order.source,
       notes: orderNotes,
       total_prepare_time: order.total_prepare_time || 0, // Add total prepare time
-      tableNumber: order.tableNumber || '', // Add table number
+      tableNumber: tableNumber, // Add table number
       // 保留原始的 kdsReceiveTime（如果存在），用于被召回的订单
       ...(order.originalKdsReceiveTime && { originalKdsReceiveTime: order.originalKdsReceiveTime }),
     };

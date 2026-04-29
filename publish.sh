@@ -10,14 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.3"
+VERSION="1.3.4"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.3
+## Version 1.3.4
 
 ### Major Improvements
-- In app download UI optimization, now it shows the download progress.
-- fix the display of completed items
+- able to add table number on network order page
 
 
 

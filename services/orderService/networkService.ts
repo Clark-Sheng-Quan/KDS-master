@@ -114,6 +114,42 @@ export const getProductPrepareTime = async (productId: string): Promise<number> 
   }
 };
 
+/**
+ * 根据 table_id 获取 table number
+ */
+export const getTableNumber = async (tableId: string): Promise<string> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/search/table_search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: {
+          _id: tableId
+        },
+        detail: true,
+        page_size: 0,
+        page_idx: 0,
+        ignore_pagination: true
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP错误! 状态: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.tables && data.tables.length > 0) {
+      return String(data.tables[0].table_number || "");
+    }
+    return "";
+  } catch (error) {
+    console.error(`获取 table ${tableId} 信息失败:`, error);
+    return "";
+  }
+};
+
 
 export const fetchOrdersFromNetwork = async (
   timeRange: [string, string],

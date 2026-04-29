@@ -1216,18 +1216,6 @@ export default function SettingsScreen() {
           <Text style={styles.infoText}>{t("systemVersion")}: {appVersion}</Text>
           <Text style={styles.infoText}>{t("copyright")}</Text>
           
-          <TouchableOpacity 
-            style={[styles.deviceDiscoveryButton, { marginTop: 10, minWidth: 'auto' }]} 
-            onPress={handleCheckUpdate}
-            disabled={checkingUpdate || updateDownloadStatus === "downloading"}
-          >
-            {checkingUpdate ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text style={styles.deviceDiscoveryButtonText}>🔄 {t("checkUpdate")}</Text>
-            )}
-          </TouchableOpacity>
-
           {updateDownloadStatus === "downloading" && (
             <View style={styles.updateProgressContainer}>
               <Text style={styles.updateProgressText}>
@@ -1243,6 +1231,18 @@ export default function SettingsScreen() {
               </View>
             </View>
           )}
+          
+          <TouchableOpacity 
+            style={[styles.deviceDiscoveryButton, { marginTop: 10, minWidth: 'auto' }]} 
+            onPress={handleCheckUpdate}
+            disabled={checkingUpdate || updateDownloadStatus === "downloading"}
+          >
+            {checkingUpdate ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Text style={styles.deviceDiscoveryButtonText}>🔄 {t("checkUpdate")}</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -1396,19 +1396,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   updateProgressText: {
-    fontSize: 13,
+    fontSize: 16,
     color: "#666",
     marginTop: 8,
+    fontWeight: "500",
   },
   updateProgressContainer: {
     marginTop: 8,
+    marginBottom: 12,
   },
   updateProgressBar: {
-    height: 8,
+    height: 20,
     backgroundColor: "#e5e7eb",
-    borderRadius: 6,
+    borderRadius: 10,
     overflow: "hidden",
-    marginTop: 6,
+    marginTop: 8,
   },
   updateProgressFill: {
     height: "100%",
