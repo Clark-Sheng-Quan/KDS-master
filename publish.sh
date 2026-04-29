@@ -10,14 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.5"
+VERSION="1.3.6"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.5
+## Version 1.3.6
 
 ### Major Improvements
-- able to add table number on network order page
-- fix error
+- timer max
 
 
 

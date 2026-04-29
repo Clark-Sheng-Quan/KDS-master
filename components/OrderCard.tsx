@@ -486,11 +486,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     const total = Math.max(0, Math.floor(elapsedSeconds));
     const hh = Math.floor(total / 3600);
     const mm = Math.floor((total % 3600) / 60);
-    const ss = total % 60;
     if (hh > 0) {
-      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
     }
-    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    return `${String(mm).padStart(2, '0')}m`;
   }, []);
 
   const getItemCompletionDurationText = useCallback((item: any) => {

@@ -96,33 +96,34 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate, hid
   // 保持 onTimeUpdate 引用最新
 
   useEffect(() => {
-    // 每秒更新一次时间差
-    const interval = setInterval(() => {
+    // 每分钟更新一次（elapsedTime 单位：分钟）
+    const tick = () => {
       const now = new Date();
       const diffMs = now.getTime() - startTime.getTime();
-      const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
-      setElapsedTime(diffSeconds);
-    }, 1000);
+      setElapsedTime(Math.max(0, Math.floor(diffMs / 60000)));
+    };
+
+    tick(); // 立即算一次，避免刚挂载时显示 0 的时间过长
+    const interval = setInterval(tick, 60000);
 
     return () => clearInterval(interval);
   }, [startTime]);
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+
     if (hours > 0) {
-      return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+      return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
     } else {
-      return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+      return `${mins.toString().padStart(2, "0")}m`;
     }
   };
 
 
   const getStatusInfo = () => {
 
-    const elapsedMinutes = Math.floor(elapsedTime / 60);
+    const elapsedMinutes = elapsedTime; // elapsedTime 现在直接就是分钟
 
     if (elapsedMinutes < URGENT_THRESHOLD_MINUTES) {
       return { text: t("active"), color: colors.activeColor };
@@ -142,9 +143,9 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate, hid
     if (onTimeUpdateRef.current) {
       const formattedTime = formatTime(elapsedTime);
       const color = getStatusInfo().color;
-      onTimeUpdateRef.current(elapsedTime, color, formattedTime);
+      onTimeUpdateRef.current(elapsedTime * 60, color, formattedTime); // 外部仍按秒接收
     }
-  }, [elapsedTime]); 
+  }, [elapsedTime]);
 
   if (!showOrderTimer || hideDisplay) {
     return null;

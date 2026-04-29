@@ -57,11 +57,11 @@ export default function HomeScreen() {
     }).start();
   }, [showRecentItemsMenu, recentMenuAnimValue]);
 
-  // 更新当前时间
+  // 更新当前时间（每分钟刷新一次）
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 1000);
+    }, 60000);
 
     return () => clearInterval(timer);
   }, []);
@@ -364,6 +364,7 @@ export default function HomeScreen() {
                 onItemRemoved={handleItemRemoved}
                 onItemCompleted={handleItemCompleted}
                 selectable={false}
+                enableDelayEffects={true}
               />
             ))}
           </View>
