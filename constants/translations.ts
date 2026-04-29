@@ -374,6 +374,10 @@ export const translations = {
     newVersion: "新版本",
     downloadingUpdate: "正在下载更新",
     downloadingUpdateHint: "下载完成后会自动弹出安装界面，请按系统提示确认安装。",
+    downloadCompletePrompt: "下载完成，是否安装？",
+    installNow: "立即安装",
+    installFailed: "安装失败",
+    downloadFailed: "下载失败",
   },
   
   en: {
@@ -736,6 +740,10 @@ export const translations = {
     newVersion: "New Version",
     downloadingUpdate: "Downloading update",
     downloadingUpdateHint: "Installer will open automatically after download. Please confirm installation in system prompt.",
+    downloadCompletePrompt: "Download completed. Install now?",
+    installNow: "Install Now",
+    installFailed: "Installation failed",
+    downloadFailed: "Download failed",
   }
 };
 

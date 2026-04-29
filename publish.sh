@@ -10,14 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.1"
+VERSION="1.3.2"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.1
+## Version 1.3.2
 
 ### Major Improvements
-- Fix the bug of item-level timer
-- Modify the completed order ui
+- In app download UI optimization, now it shows the download progress.
 
 
 
@@ -100,18 +99,27 @@ else
     TAG_EXISTS=false
 fi
 
-# 5. 跳过 APK 构建（使用本地已构建文件）
-echo -e "\n${YELLOW}[5/8]${NC} 跳过 APK 构建（使用现有 APK）..."
+# 5. 编译 APK
+echo -e "\n${YELLOW}[5/8]${NC} 编译 APK..."
+
+cd android
+if ./gradlew assembleRelease; then
+    echo -e "${GREEN}✓${NC} APK 编译成功"
+    cd ..
+else
+    echo -e "${RED}❌ APK 编译失败${NC}"
+    cd ..
+    exit 1
+fi
 
 APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
 if [ ! -f "$APK_PATH" ]; then
-    echo -e "${RED}❌ 找不到 APK 文件: $APK_PATH${NC}"
-    echo -e "${YELLOW}请先手动构建 APK，再重新运行脚本${NC}"
+    echo -e "${RED}❌ 找不到编译后的 APK 文件: $APK_PATH${NC}"
     exit 1
 fi
 
 APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-echo -e "${GREEN}✓${NC} 使用已构建 APK (${YELLOW}$APK_SIZE${NC})"
+echo -e "${GREEN}✓${NC} APK 编译完成 (${YELLOW}$APK_SIZE${NC})"
 
 # 6. 创建 git 标签和 GitHub release
 echo -e "\n${YELLOW}[6/8]${NC} 创建 GitHub release..."

@@ -99,6 +99,10 @@ export default function SettingsScreen() {
   const [autoStartPermissionOk, setAutoStartPermissionOk] = useState<boolean | null>(null);
   const [batteryPermissionOk, setBatteryPermissionOk] = useState<boolean | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false);
+  const [updateDownloadId, setUpdateDownloadId] = useState<number | null>(null);
+  const [updateDownloadFilePath, setUpdateDownloadFilePath] = useState<string | null>(null);
+  const [updateDownloadProgress, setUpdateDownloadProgress] = useState<number>(0);
+  const [updateDownloadStatus, setUpdateDownloadStatus] = useState<"idle" | "downloading" | "completed" | "failed">("idle");
 
   const bootPermissionModule = NativeModules.BootPermissionModule;
   const apkUpdateModule = NativeModules.ApkUpdateModule;
@@ -552,6 +556,69 @@ export default function SettingsScreen() {
     }
   }, [handleCheckAutoStart]);
 
+  useEffect(() => {
+    if (!updateDownloadId || !apkUpdateModule?.getDownloadStatus) {
+      return;
+    }
+
+    let isActive = true;
+    const intervalId = setInterval(async () => {
+      try {
+        const status = await apkUpdateModule.getDownloadStatus(updateDownloadId);
+        if (!isActive || !status) {
+          return;
+        }
+
+        const bytesTotal = Number(status?.bytesTotal) || 0;
+        const bytesDownloaded = Number(status?.bytesDownloaded) || 0;
+        if (bytesTotal > 0) {
+          setUpdateDownloadProgress(Math.min(1, bytesDownloaded / bytesTotal));
+        }
+
+        const state = String(status?.status || "");
+        if (state === "successful" && updateDownloadStatus !== "completed") {
+          setUpdateDownloadStatus("completed");
+          setUpdateDownloadId(null);
+          setUpdateDownloadProgress(1);
+
+          Alert.alert(
+            t("updateAvailable"),
+            t("downloadCompletePrompt"),
+            [
+              { text: t("cancel"), style: "cancel" },
+              {
+                text: t("installNow"),
+                onPress: async () => {
+                  if (Platform.OS === "android" && apkUpdateModule?.installDownloadedApk && updateDownloadFilePath) {
+                    try {
+                      await apkUpdateModule.installDownloadedApk(updateDownloadFilePath);
+                    } catch (installError) {
+                      console.error("APK install failed:", installError);
+                      Alert.alert(t("error"), t("installFailed"));
+                    }
+                  }
+                }
+              }
+            ]
+          );
+        } else if (state === "failed" && updateDownloadStatus !== "failed") {
+          setUpdateDownloadStatus("failed");
+          setUpdateDownloadId(null);
+          Alert.alert(t("error"), t("downloadFailed"));
+        } else if (state === "running") {
+          setUpdateDownloadStatus("downloading");
+        }
+      } catch (error) {
+        console.error("Update download status failed:", error);
+      }
+    }, 1000);
+
+    return () => {
+      isActive = false;
+      clearInterval(intervalId);
+    };
+  }, [apkUpdateModule, t, updateDownloadFilePath, updateDownloadId, updateDownloadStatus]);
+
   const handleCheckUpdate = useCallback(async () => {
     setCheckingUpdate(true);
     try {
@@ -572,22 +639,30 @@ export default function SettingsScreen() {
             `${t("newVersion")}: ${latestVersion}\n\n${data.body || ""}`,
             [
               { text: t("cancel"), style: "cancel" },
-              { 
+              {
                 text: t("downloadUpdate"),
                 onPress: async () => {
                   try {
                     if (Platform.OS === "android" && apkUpdateModule?.downloadAndInstallApk) {
-                      setCheckingUpdate(true);
-                      await apkUpdateModule.downloadAndInstallApk(apkDownloadUrl);
-                      Alert.alert(t("downloadingUpdate"), t("downloadingUpdateHint"));
+                      setUpdateDownloadStatus("downloading");
+                      setUpdateDownloadProgress(0);
+                      setUpdateDownloadFilePath(null);
+                      const result = await apkUpdateModule.downloadAndInstallApk(apkDownloadUrl);
+                      const downloadId = Number(result?.downloadId);
+                      const filePath = typeof result?.filePath === "string" ? result.filePath : null;
+                      if (Number.isFinite(downloadId)) {
+                        setUpdateDownloadId(downloadId);
+                      }
+                      if (filePath) {
+                        setUpdateDownloadFilePath(filePath);
+                      }
                     } else {
                       await Linking.openURL(apkDownloadUrl);
                     }
                   } catch (downloadError) {
                     console.error("APK update failed:", downloadError);
+                    setUpdateDownloadStatus("failed");
                     Alert.alert(t("error"), t("checkUpdateFailed"));
-                  } finally {
-                    setCheckingUpdate(false);
                   }
                 }
               }
@@ -605,7 +680,7 @@ export default function SettingsScreen() {
     } finally {
       setCheckingUpdate(false);
     }
-  }, [appVersion, t]);
+  }, [appVersion, apkUpdateModule, t]);
 
   // 重置设置
   // const resetSettings = useCallback(() => {
@@ -1144,7 +1219,7 @@ export default function SettingsScreen() {
           <TouchableOpacity 
             style={[styles.deviceDiscoveryButton, { marginTop: 10, minWidth: 'auto' }]} 
             onPress={handleCheckUpdate}
-            disabled={checkingUpdate}
+            disabled={checkingUpdate || updateDownloadStatus === "downloading"}
           >
             {checkingUpdate ? (
               <ActivityIndicator color="white" size="small" />
@@ -1152,6 +1227,22 @@ export default function SettingsScreen() {
               <Text style={styles.deviceDiscoveryButtonText}>🔄 {t("checkUpdate")}</Text>
             )}
           </TouchableOpacity>
+
+          {updateDownloadStatus === "downloading" && (
+            <View style={styles.updateProgressContainer}>
+              <Text style={styles.updateProgressText}>
+                {t("downloadingUpdate")} {Math.round(updateDownloadProgress * 100)}%
+              </Text>
+              <View style={styles.updateProgressBar}>
+                <View
+                  style={[
+                    styles.updateProgressFill,
+                    { width: `${Math.round(updateDownloadProgress * 100)}%` }
+                  ]}
+                />
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -1303,6 +1394,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginBottom: 4,
+  },
+  updateProgressText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 8,
+  },
+  updateProgressContainer: {
+    marginTop: 8,
+  },
+  updateProgressBar: {
+    height: 8,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 6,
+    overflow: "hidden",
+    marginTop: 6,
+  },
+  updateProgressFill: {
+    height: "100%",
+    backgroundColor: "#22c55e",
   },
   /* Master 模式相关样式已删除: roleSelector, roleButton, roleButtonActive, roleText, roleTextActive */
   textInput: {

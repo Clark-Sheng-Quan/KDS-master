@@ -1,10 +1,7 @@
 package com.anonymous.KDS;
 
 import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -70,57 +67,34 @@ public class ApkUpdateModule extends ReactContextBaseJavaModule {
       DownloadManager.Request request = new DownloadManager.Request(Uri.parse(apkUrl));
       request.setTitle("KDS Update");
       request.setDescription("Downloading app-release.apk");
-      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN);
       request.setAllowedOverMetered(true);
       request.setAllowedOverRoaming(true);
       request.setDestinationUri(Uri.fromFile(apkFile));
 
       currentDownloadId = downloadManager.enqueue(request);
-      registerDownloadReceiver(context, downloadManager, apkFile);
 
       WritableMap result = Arguments.createMap();
       result.putDouble("downloadId", currentDownloadId);
+      result.putString("filePath", apkFile.getAbsolutePath());
       promise.resolve(result);
     } catch (Exception e) {
       promise.reject("DOWNLOAD_START_FAILED", e);
     }
   }
 
-  private void registerDownloadReceiver(ReactApplicationContext context, DownloadManager downloadManager, File apkFile) {
-    downloadReceiver = new BroadcastReceiver() {
-      @Override
-      public void onReceive(Context receiverContext, Intent intent) {
-        if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
-          return;
-        }
-
-        long downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
-        if (downloadId != currentDownloadId) {
-          return;
-        }
-
-        boolean success = isDownloadSuccessful(downloadManager, downloadId);
-        if (success) {
-          promptInstallApk(context, apkFile);
-        } else {
-          Log.e(TAG, "APK download failed for id: " + downloadId);
-        }
-
-        unregisterDownloadReceiverIfNeeded();
-      }
-    };
-
-    IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      context.registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-    } else {
-      context.registerReceiver(downloadReceiver, filter);
+  @ReactMethod
+  public void getDownloadStatus(double downloadId, Promise promise) {
+    ReactApplicationContext context = getReactApplicationContext();
+    DownloadManager downloadManager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+    if (downloadManager == null) {
+      promise.reject("DOWNLOAD_MANAGER_UNAVAILABLE", "DownloadManager is unavailable");
+      return;
     }
-  }
 
-  private boolean isDownloadSuccessful(DownloadManager downloadManager, long downloadId) {
+    long id = (long) downloadId;
     DownloadManager.Query query = new DownloadManager.Query();
-    query.setFilterById(downloadId);
+    query.setFilterById(id);
 
     Cursor cursor = null;
     try {
@@ -128,16 +102,63 @@ public class ApkUpdateModule extends ReactContextBaseJavaModule {
       if (cursor != null && cursor.moveToFirst()) {
         int statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
         int status = cursor.getInt(statusIndex);
-        return status == DownloadManager.STATUS_SUCCESSFUL;
+        long bytesDownloaded = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+        long bytesTotal = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+        int reason = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_REASON));
+        String localUri = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+
+        WritableMap result = Arguments.createMap();
+        result.putString("status", mapStatus(status));
+        result.putDouble("bytesDownloaded", bytesDownloaded);
+        result.putDouble("bytesTotal", bytesTotal);
+        result.putDouble("reason", reason);
+        result.putString("localUri", localUri);
+        promise.resolve(result);
+        return;
       }
+      promise.reject("DOWNLOAD_NOT_FOUND", "Download id not found");
     } catch (Exception e) {
-      Log.e(TAG, "Failed querying download status", e);
+      promise.reject("DOWNLOAD_QUERY_FAILED", e);
     } finally {
       if (cursor != null) {
         cursor.close();
       }
     }
-    return false;
+  }
+
+  @ReactMethod
+  public void installDownloadedApk(String filePath, Promise promise) {
+    try {
+      if (filePath == null || filePath.isEmpty()) {
+        promise.reject("INVALID_FILE_PATH", "APK file path is empty");
+        return;
+      }
+
+      File apkFile = new File(filePath);
+      promptInstallApk(getReactApplicationContext(), apkFile);
+      promise.resolve(true);
+    } catch (Exception e) {
+      promise.reject("INSTALL_FAILED", e);
+    }
+  }
+
+  private String mapStatus(int status) {
+    if (status == DownloadManager.STATUS_PENDING) {
+      return "pending";
+    }
+    if (status == DownloadManager.STATUS_RUNNING) {
+      return "running";
+    }
+    if (status == DownloadManager.STATUS_PAUSED) {
+      return "paused";
+    }
+    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+      return "successful";
+    }
+    if (status == DownloadManager.STATUS_FAILED) {
+      return "failed";
+    }
+    return "unknown";
   }
 
   private void promptInstallApk(ReactApplicationContext context, File apkFile) {

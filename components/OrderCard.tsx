@@ -1152,8 +1152,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   completedItem: {
-    opacity: 0.6,
-    backgroundColor: "#e0e0e0",
+    opacity: 0.8,
+    backgroundColor: "#f0fdf4",
+    borderWidth: 2,
+    borderColor: "#22c55e",
   },
   voidedItem: {
     backgroundColor: "#f5f5f5",
