@@ -2,6 +2,7 @@ package com.anonymous.KDS;
 
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -24,7 +25,6 @@ public class ApkUpdateModule extends ReactContextBaseJavaModule {
   private static final String TAG = "ApkUpdateModule";
   private static final String APK_FILE_NAME = "kds-update.apk";
 
-  private BroadcastReceiver downloadReceiver;
   private long currentDownloadId = -1L;
 
   public ApkUpdateModule(ReactApplicationContext reactContext) {
@@ -51,8 +51,6 @@ public class ApkUpdateModule extends ReactContextBaseJavaModule {
     }
 
     try {
-      unregisterDownloadReceiverIfNeeded();
-
       File downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
       if (downloadsDir == null) {
         promise.reject("DOWNLOAD_DIR_UNAVAILABLE", "Download directory is unavailable");
@@ -193,22 +191,8 @@ public class ApkUpdateModule extends ReactContextBaseJavaModule {
     }
   }
 
-  private void unregisterDownloadReceiverIfNeeded() {
-    ReactApplicationContext context = getReactApplicationContext();
-    if (downloadReceiver != null) {
-      try {
-        context.unregisterReceiver(downloadReceiver);
-      } catch (Exception e) {
-        Log.w(TAG, "Receiver already unregistered", e);
-      } finally {
-        downloadReceiver = null;
-      }
-    }
-  }
-
   @Override
   public void invalidate() {
     super.invalidate();
-    unregisterDownloadReceiverIfNeeded();
   }
 }
