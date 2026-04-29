@@ -10,13 +10,14 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.7"
+VERSION="1.3.8"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.7
+## Version 1.3.8
 
 ### Major Improvements
-- timer max
+- optimize order complete speed
+- change complete mode name
 
 
 

@@ -171,6 +171,10 @@ export default function HomeScreen() {
 
   // 添加这个适配器函数
   const handleOrderRemove = useCallback((order: FormattedOrder) => {
+    // Optimistic: remove from display state immediately, before OrderContext propagates
+    setFilteredOrders(prev => prev.filter(o => o.id !== order.id));
+    setLocalOrders(prev => prev.filter(o => o.id !== order.id));
+
     removeOrder(order.id);
 
     // whole 模式下，点击 Done 后显示快速整单撤回提示

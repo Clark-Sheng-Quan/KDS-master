@@ -971,7 +971,7 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("orderCompletionMode")}</Text>
+            <Text style={styles.infoLabel}>{t("itemClickMode")}</Text>
             <View style={styles.completionModeContainer}>
               <TouchableOpacity
                 style={[
@@ -989,7 +989,7 @@ export default function SettingsScreen() {
                   styles.completionModeButtonText,
                   !enableItemLevelCompletion && styles.completionModeButtonTextActive
                 ]}>
-                  {t("fullOrder")}
+                  {t("clickToMark")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1008,7 +1008,7 @@ export default function SettingsScreen() {
                   styles.completionModeButtonText,
                   enableItemLevelCompletion && styles.completionModeButtonTextActive
                 ]}>
-                  {t("itemLevel")}
+                  {t("doubleClickToRemove")}
                 </Text>
               </TouchableOpacity>
             </View>
