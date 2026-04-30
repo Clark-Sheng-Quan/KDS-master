@@ -10,14 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.8"
+VERSION="1.3.9"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.8
+## Version 1.3.9
 
 ### Major Improvements
-- optimize order complete speed
-- change complete mode name
+- optimize to flatlist for better performance and stability
 
 
 

@@ -24,7 +24,40 @@ import {
   calculateCardHeight,
 } from "../../constants/cardConfig";
 
-const { width } = Dimensions.get("window");
+// Isolated cell — React.memo means only the 2 cards that change (deselect/select) re-render on selection
+const CompletedOrderCell = React.memo<{
+  completedOrder: any;
+  style: any;
+  isRecallMode: boolean;
+  isSelected: boolean;
+  onSelect: (order: FormattedOrder) => void;
+}>(({ completedOrder, style, isRecallMode, isSelected, onSelect }) => {
+  const displayOrder = useMemo(() => ({
+    ...completedOrder.order,
+    products: completedOrder.completedItems || completedOrder.order?.products || [],
+  }), [completedOrder]);
+
+  const handleSelect = useCallback(() => onSelect(displayOrder), [onSelect, displayOrder]);
+
+  return (
+    <OrderCard
+      order={displayOrder}
+      style={style}
+      disabled={false}
+      selectable={isRecallMode}
+      selected={isSelected}
+      onSelect={handleSelect}
+      hideTimer={true}
+      hideActions={true}
+      rightCompact={true}
+      scrollIndicatorAtBottom={true}
+      disableItems={true}
+      showDateInDue={true}
+      completedTime={completedOrder.completedAt}
+      hideBadges={true}
+    />
+  );
+});
 
 export default function CompletedScreen() {
   const { t } = useLanguage();
@@ -35,43 +68,21 @@ export default function CompletedScreen() {
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [loading, setLoading] = useState(contextLoading);
 
+  // Sync ref — always current before any render reads it, no useEffect lag
+  const isRecallModeRef = React.useRef(isRecallMode);
+  isRecallModeRef.current = isRecallMode;
+
   useEffect(() => {
     setLoading(contextLoading);
   }, [contextLoading]);
 
-  // 处理订单选择 - 只在 recall 模式下才能选择
-  const handleOrderSelect = useCallback((order: FormattedOrder) => {
-    if (!isRecallMode) {
-      return;
-    }
+  // Stable forever — reads isRecallMode from ref to avoid stale closure
+  const handleOrderSelectStable = useCallback((order: FormattedOrder) => {
+    if (!isRecallModeRef.current) return;
     setSelectedOrder(order);
-  }, [isRecallMode]);
+  }, []);
 
-  // 根据 cardsPerColumn 计算初始渲染数量（渲染 cardsPerColumn 行）
   const initialNumToRender = cardsPerRow * cardsPerColumn;
-
-  // FlatList renderItem 回调 - 只在显示时才渲染
-  const renderOrderCard = useCallback(
-    ({ item, index, completedTime }: { item: FormattedOrder; index: number; completedTime?: string }) => (
-      <OrderCard
-        order={item}
-        style={mergedCardStyles[index % cardsPerRow]}
-        disabled={false}
-        selectable={isRecallMode}
-        selected={selectedOrder?.id === item.id}
-        onSelect={() => handleOrderSelect(item)}
-        hideTimer={true}
-        hideActions={true}
-        rightCompact={true}
-        scrollIndicatorAtBottom={true}
-        disableItems={true}
-        showDateInDue={true}
-        completedTime={completedTime}
-        hideBadges={true}
-      />
-    ),
-    [selectedOrder?.id, mergedCardStyles, cardsPerRow, handleOrderSelect, isRecallMode]
-  );
 
   const availableWidth = dimensions.width - PADDING * 2;
   const availableHeight = dimensions.height;
@@ -125,8 +136,7 @@ export default function CompletedScreen() {
       await OrderService.recallOrder(selectedOrder);
       // 从完成列表中移除
       await removeCompletedOrder(selectedOrder.id);
-      // 退出 recall 模式
-      setIsRecallMode(false);
+      // 保持 recall 模式，只清除选中状态，方便继续 recall 其他订单
       setSelectedOrder(null);
     } catch (error: any) {
       console.error("召回订单失败:", error);
@@ -228,14 +238,16 @@ export default function CompletedScreen() {
       <FlatList
         key={`completed-grid-${cardsPerRow}`}
         data={completedOrders}
-        renderItem={({ item, index }) => {
-          // 为完成的 items 构建一个虚拟的订单对象用于显示
-          const displayOrder = {
-            ...item.order,
-            products: item.completedItems || item.order.products || []
-          };
-          return renderOrderCard({ item: displayOrder, index, completedTime: item.completedAt });
-        }}
+        extraData={{ isRecallMode, selectedId: selectedOrder?.id }}
+        renderItem={({ item, index }) => (
+          <CompletedOrderCell
+            completedOrder={item}
+            style={mergedCardStyles[index % cardsPerRow]}
+            isRecallMode={isRecallMode}
+            isSelected={selectedOrder?.id === item.order?.id}
+            onSelect={handleOrderSelectStable}
+          />
+        )}
         keyExtractor={(item: any) => item.order?.id || Math.random().toString()}
         numColumns={cardsPerRow}
         scrollEnabled={true}

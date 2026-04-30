@@ -231,13 +231,14 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
                 <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("completedOrders")}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
+              {/* history 已隐藏 */}
+              {/* <TouchableOpacity
                 style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
                 onPress={() => navigateTo("/(tabs)/history")}
               >
                 <Ionicons name="time" size={navIconSize} color="white" />
                 <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("searchHistory")}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
 
             {/* stock management 已隐藏 */}
             {/* <TouchableOpacity

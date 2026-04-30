@@ -8,6 +8,7 @@ import {
   StyleProp,
   ViewStyle,
   useWindowDimensions,
+  InteractionManager,
 } from "react-native";
 import { FormattedOrder } from "../services/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -205,10 +206,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     // Trigger UI removal immediately — before any async/heavy work
     onOrderComplete?.(updatedOrderWithStatus);
 
-    // Defer the heavy recording to after React has rendered the removal
+    // Defer the heavy recording until all animations have settled
     const doneAt = new Date().toISOString();
     const snapshotItemCompletedAt = { ...itemCompletedAtRef.current };
-    setTimeout(() => {
+    InteractionManager.runAfterInteractions(() => {
       const completedItemsWithTime = (updatedOrderWithStatus.products || []).map((item, index) => {
         const itemKey = `${order.id}-item-${index}`;
         const completedAt = snapshotItemCompletedAt[itemKey] || doneAt;
@@ -221,7 +222,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       addCompletedOrder(updatedOrderWithStatus, completedItemsWithTime).catch((error: any) => {
         console.error('[OrderCard] Failed to add completed order:', error);
       });
-    }, 0);
+    });
   };
 
   // Handle Call button press - send "ready" notification
@@ -331,16 +332,20 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         updateOrderStatusToReady(order.id, source);
       }
 
-      // 异步记录完成历史，不阻塞 UI
+      // Snapshot timestamp now for accuracy; defer heavy write until after animations
       const completedAt = new Date().toISOString();
-      addCompletedOrder(order, [{
-        ...item,
-        __completedAt: completedAt,
-        __completedElapsedSeconds: toElapsedSecondsFromStart(completedAt),
-      }]).then((completedEntries) => {
-        setLastCompletedEntryKey(completedEntries[0]?.completionKey || null);
-      }).catch((error) => {
-        console.error('[OrderCard] Failed to add completed order:', error);
+      const snapshotItem = { ...item };
+      const snapshotOrder = order;
+      InteractionManager.runAfterInteractions(() => {
+        addCompletedOrder(snapshotOrder, [{
+          ...snapshotItem,
+          __completedAt: completedAt,
+          __completedElapsedSeconds: toElapsedSecondsFromStart(completedAt),
+        }]).then((completedEntries) => {
+          setLastCompletedEntryKey(completedEntries[0]?.completionKey || null);
+        }).catch((error) => {
+          console.error('[OrderCard] Failed to add completed order:', error);
+        });
       });
     } catch (error) {
       console.error('[completeItemOnly] Exception:', error);
