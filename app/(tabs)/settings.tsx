@@ -38,6 +38,7 @@ const DEFAULT_CARDS_PER_ROW = 5;
 const STORAGE_KEY_CARDS_PER_COLUMN = "cards_per_column";
 const DEFAULT_CARDS_PER_COLUMN = 1.75;
 const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
+const STORAGE_KEY_AUTO_PRINT_NEW_ORDERS = "auto_print_new_orders";
 const STORAGE_KEY_SHOW_ORDER_TIMER = "show_order_timer";
 const STORAGE_KEY_SHOW_TIMER_HIGHLIGHT = "show_timer_highlight";
 const STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS = "auto_clean_expired_orders";
@@ -70,6 +71,9 @@ export default function SettingsScreen() {
 
   // 添加显示打印按钮开关状态
   const [showPrintButton, setShowPrintButton] = useState<boolean>(true);
+
+  // 添加自动打印新订单开关状态
+  const [autoPrintNewOrders, setAutoPrintNewOrders] = useState<boolean>(false);
 
   // 添加显示计时器开关状态
   const [showOrderTimer, setShowOrderTimer] = useState<boolean>(true);
@@ -155,6 +159,14 @@ export default function SettingsScreen() {
         );
         if (savedShowPrintButton !== null) {
           setShowPrintButton(savedShowPrintButton === "true");
+        }
+
+        // 加载自动打印新订单设置
+        const savedAutoPrintNewOrders = await AsyncStorage.getItem(
+          STORAGE_KEY_AUTO_PRINT_NEW_ORDERS
+        );
+        if (savedAutoPrintNewOrders !== null) {
+          setAutoPrintNewOrders(savedAutoPrintNewOrders === "true");
         }
 
         // 加载计时器显示设置
@@ -415,10 +427,20 @@ export default function SettingsScreen() {
   const handleShowPrintButtonChange = useCallback(async (value: boolean) => {
     setShowPrintButton(value);
     await AsyncStorage.setItem(STORAGE_KEY_SHOW_PRINT_BUTTON, value.toString());
-    
+
     // 发出设置变化事件，使 PrintButton 组件即时响应
     settingsListener.emitSettingChange('show_print_button', value);
     console.log('[Settings] 发出 show_print_button 设置变化事件，值:', value);
+  }, []);
+
+  // 处理自动打印新订单开关
+  const handleAutoPrintNewOrdersChange = useCallback(async (value: boolean) => {
+    setAutoPrintNewOrders(value);
+    await AsyncStorage.setItem(STORAGE_KEY_AUTO_PRINT_NEW_ORDERS, value.toString());
+
+    // 发出设置变化事件
+    settingsListener.emitSettingChange('auto_print_new_orders', value);
+    console.log('[Settings] 发出 auto_print_new_orders 设置变化事件，值:', value);
   }, []);
 
   // 处理计时器显示开关
@@ -1103,6 +1125,22 @@ export default function SettingsScreen() {
               <View style={[
                 styles.switchThumb,
                 showPrintButton && styles.switchThumbActive
+              ]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("autoPrintNewOrders")}</Text>
+            <TouchableOpacity
+              style={[
+                styles.switchButton,
+                autoPrintNewOrders && styles.switchButtonActive
+              ]}
+              onPress={() => handleAutoPrintNewOrdersChange(!autoPrintNewOrders)}
+            >
+              <View style={[
+                styles.switchThumb,
+                autoPrintNewOrders && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
           </View>

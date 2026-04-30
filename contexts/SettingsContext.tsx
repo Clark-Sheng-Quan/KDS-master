@@ -15,6 +15,7 @@ interface SettingsState {
   itemOptionFontSize: FontSize;
   categoryColorsMapping: { [categoryName: string]: string };
   showPrintButton: boolean;
+  autoPrintNewOrders: boolean;
   showOrderTimer: boolean;
   showTimerHighlight: boolean;
   loading: boolean;
@@ -29,6 +30,7 @@ const defaultSettings: SettingsState = {
   itemOptionFontSize: 'small',
   categoryColorsMapping: {},
   showPrintButton: true,
+  autoPrintNewOrders: false,
   showOrderTimer: true,
   showTimerHighlight: true,
   loading: true,
@@ -52,6 +54,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         savedCardTitleFontSize,
         savedItemOptionFontSize,
         savedShowPrintButton,
+        savedAutoPrintNewOrders,
         savedShowOrderTimer,
         savedShowTimerHighlight,
         savedCategoryColors
@@ -63,6 +66,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         AsyncStorage.getItem('card_title_font_size'),
         AsyncStorage.getItem('item_option_font_size'),
         AsyncStorage.getItem('show_print_button'),
+        AsyncStorage.getItem('auto_print_new_orders'),
         AsyncStorage.getItem('show_order_timer'),
         AsyncStorage.getItem('show_timer_highlight'),
         CategoryColorService.loadCategoryColorMapping()
@@ -76,6 +80,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         cardTitleFontSize: (savedCardTitleFontSize as FontSize) || 'medium',
         itemOptionFontSize: (savedItemOptionFontSize as FontSize) || 'small',
         showPrintButton: savedShowPrintButton !== 'false',
+        autoPrintNewOrders: savedAutoPrintNewOrders === 'true',
         showOrderTimer: savedShowOrderTimer !== 'false',
         showTimerHighlight: savedShowTimerHighlight !== 'false',
         categoryColorsMapping: savedCategoryColors || {},
@@ -97,6 +102,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleCardTitleFontSizeChange = (val: FontSize) => setSettings(s => ({ ...s, cardTitleFontSize: val }));
     const handleItemOptionFontSizeChange = (val: FontSize) => setSettings(s => ({ ...s, itemOptionFontSize: val }));
     const handleShowPrintButtonChange = (val: boolean) => setSettings(s => ({ ...s, showPrintButton: val }));
+    const handleAutoPrintNewOrdersChange = (val: boolean) => setSettings(s => ({ ...s, autoPrintNewOrders: val }));
     const handleShowOrderTimerChange = (val: boolean) => setSettings(s => ({ ...s, showOrderTimer: val }));
     const handleShowTimerHighlightChange = (val: boolean) => setSettings(s => ({ ...s, showTimerHighlight: val }));
     const handleCategoryColorsMappingChange = (val: any) => setSettings(s => ({ ...s, categoryColorsMapping: val }));
@@ -108,6 +114,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     settingsListener.onSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
     settingsListener.onSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
     settingsListener.onSettingChange('show_print_button', handleShowPrintButtonChange);
+    settingsListener.onSettingChange('auto_print_new_orders', handleAutoPrintNewOrdersChange);
     settingsListener.onSettingChange('show_order_timer', handleShowOrderTimerChange);
     settingsListener.onSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
     settingsListener.onSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
@@ -120,6 +127,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       settingsListener.offSettingChange('card_title_font_size', handleCardTitleFontSizeChange);
       settingsListener.offSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
       settingsListener.offSettingChange('show_print_button', handleShowPrintButtonChange);
+      settingsListener.offSettingChange('auto_print_new_orders', handleAutoPrintNewOrdersChange);
       settingsListener.offSettingChange('show_order_timer', handleShowOrderTimerChange);
       settingsListener.offSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
       settingsListener.offSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
