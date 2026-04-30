@@ -9,6 +9,7 @@ import { ModalProvider } from "../contexts/ModalContext";
 import { View } from "react-native";
 import { useState, useEffect } from "react";
 import { ConnectionBanner } from "../components/ConnectionBanner";
+import { AutoPrintInitializer } from "../components/AutoPrintInitializer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 import * as SystemUI from "expo-system-ui";
@@ -84,6 +85,7 @@ export default function RootLayout() {
                 <CompletedOrderProvider>
                   <View style={{ flex: 1 }}>
                     <StatusBar hidden={true} />
+                    <AutoPrintInitializer />
                     <NetworkConnectionBanner />
                     <Stack screenOptions={{ headerShown: false }}>
                       <Stack.Screen name="index" />

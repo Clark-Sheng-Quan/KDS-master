@@ -49,6 +49,7 @@ export class OrderService {
   private static combinedOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   private static combinedOrderUpdateCallbacks: Array<(orders: FormattedOrder[]) => void> = [];
   private static orderCompletionCallbacks: Array<(order: FormattedOrder) => void> = [];
+  private static newOrderCallbacks: Array<(order: FormattedOrder) => void> = [];
   
   /**
    * 设置订单更新回调函数（支持多个订阅者）
@@ -88,6 +89,19 @@ export class OrderService {
   }
 
   /**
+   * 设置新订单回调函数
+   */
+  public static setNewOrderCallback(callback: (order: FormattedOrder) => void) {
+    this.newOrderCallbacks.push(callback);
+    return () => {
+      const index = this.newOrderCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.newOrderCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  /**
    * 触发所有已注册的订单完成回调
    */
   private static emitOrderCompletion(order: FormattedOrder) {
@@ -98,6 +112,20 @@ export class OrderService {
         callback(order);
       } catch (error) {
         console.error(`[OrderService] 完成回调 #${index + 1} 执行出错:`, error);
+      }
+    });
+  }
+
+  /**
+   * 触发所有已注册的新订单回调
+   */
+  private static emitNewOrder(order: FormattedOrder) {
+    console.log(`[OrderService] emitNewOrder - 触发新订单事件: ${order.id}`);
+    this.newOrderCallbacks.forEach((callback, index) => {
+      try {
+        callback(order);
+      } catch (error) {
+        console.error(`[OrderService] 新订单回调 #${index + 1} 执行出错:`, error);
       }
     });
   }
@@ -270,6 +298,9 @@ export class OrderService {
           await StorageService.saveNetworkOrders(this.networkOrders);
           
           console.log(`[addNetworkOrder] Updated recalled order ${order.id}, added ${newProducts.length} new products`);
+
+          // 触发新订单/更新订单回调 (用于自动打印)
+          this.emitNewOrder(mergedOrder);
           
           // Notify Calling Screen of order product count change
           const device = callingScreenDiscovery.getCachedDevice();
@@ -340,6 +371,9 @@ export class OrderService {
       // Add new order to end (already filtered)
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
+
+      // 触发新订单回调
+      this.emitNewOrder(order);
       
       // Notify Calling Screen about new order (fire and forget)
       // Notify all orders: new orders, recalled orders, any source should notify
@@ -467,6 +501,9 @@ export class OrderService {
         await StorageService.saveTCPOrders(this.tcpOrders);
         
         console.log(`[addTCPOrder] 订单 ${order.id} 已更新，updateCount=${mergedOrder.updateCount}, isInInitWindow=${isInInitializationWindow}`);
+
+        // 触发更新订单回调 (用于自动打印)
+        this.emitNewOrder(mergedOrder);
         
         // 音效逻辑：根据是否有新产品或仅更新产品来播放不同声音
         if (!isInInitializationWindow) {
@@ -516,6 +553,9 @@ export class OrderService {
       // 添加到列表末尾（已经是过滤后的）
       this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
+
+      // 触发新订单回调
+      this.emitNewOrder(order);
       
       // 记录订单的初始化时间，用于判断后续消息是否仍在初始化窗口内
       this.tcpOrderInitializationTimes.set(order.id, Date.now());

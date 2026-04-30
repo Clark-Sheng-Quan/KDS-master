@@ -10,13 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.3.9"
+VERSION="1.4。0"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.3.9
+## Version 1.4。0
 
 ### Major Improvements
-- optimize to flatlist for better performance and stability
+- Auto print
 
 
 

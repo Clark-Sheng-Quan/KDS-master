@@ -351,7 +351,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       console.error('[completeItemOnly] Exception:', error);
       setToastVisible(false);
     }
-  }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, onItemCompleted, toElapsedSecondsFromStart]);
+  }, [order, addCompletedOrder, onItemRemoved, onOrderComplete, onItemCompleted]);
 
   // 撤回单项完成 - 恢复项目到 order.products
   const undoItemCompletion = useCallback(() => {
