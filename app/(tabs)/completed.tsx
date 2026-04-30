@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import {
   PADDING,
   CARD_MARGIN,
   cardStyles,
-  preCalculateCardStyles,
+  calculateCardWidth,
+  calculateCardHeight,
 } from "../../constants/cardConfig";
 
 const { width } = Dimensions.get("window");
@@ -32,7 +33,6 @@ export default function CompletedScreen() {
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(null);
   const [isRecallMode, setIsRecallMode] = useState(false);
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
-  const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
   const [loading, setLoading] = useState(contextLoading);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function CompletedScreen() {
     ({ item, index, completedTime }: { item: FormattedOrder; index: number; completedTime?: string }) => (
       <OrderCard
         order={item}
-        style={[styles.cardStyle, cardStylesMap[index]]}
+        style={mergedCardStyles[index % cardsPerRow]}
         disabled={false}
         selectable={isRecallMode}
         selected={selectedOrder?.id === item.id}
@@ -70,23 +70,32 @@ export default function CompletedScreen() {
         hideBadges={true}
       />
     ),
-    [selectedOrder?.id, cardStylesMap, handleOrderSelect, isRecallMode]  // 添加 isRecallMode 依赖
+    [selectedOrder?.id, mergedCardStyles, cardsPerRow, handleOrderSelect, isRecallMode]
   );
 
   const availableWidth = dimensions.width - PADDING * 2;
   const availableHeight = dimensions.height;
 
-  // 当完成订单、卡片尺寸改变时，重新计算卡片样式
-  useEffect(() => {
-    const styles = preCalculateCardStyles(
-      completedOrders.length,
-      availableWidth,
-      availableHeight,
-      cardsPerRow,
-      cardsPerColumn
-    );
-    setCardStylesMap(styles);
-  }, [completedOrders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
+  const cardWidth = useMemo(
+    () => calculateCardWidth(availableWidth, cardsPerRow),
+    [availableWidth, cardsPerRow]
+  );
+  const cardHeight = useMemo(
+    () => calculateCardHeight(availableHeight, cardsPerColumn),
+    [availableHeight, cardsPerColumn]
+  );
+
+  // One stable style object per column position — doesn't change on order count changes
+  const mergedCardStyles = useMemo(
+    () =>
+      Array.from({ length: cardsPerRow }, (_, colIndex) => ({
+        ...completedStyles.cardStyle,
+        width: cardWidth,
+        height: cardHeight,
+        marginRight: colIndex === cardsPerRow - 1 ? 0 : CARD_MARGIN,
+      })),
+    [cardWidth, cardHeight, cardsPerRow]
+  );
 
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
@@ -218,7 +227,7 @@ export default function CompletedScreen() {
 
       <FlatList
         key={`completed-grid-${cardsPerRow}`}
-        data={cardStylesMap.length > 0 ? completedOrders : []}
+        data={completedOrders}
         renderItem={({ item, index }) => {
           // 为完成的 items 构建一个虚拟的订单对象用于显示
           const displayOrder = {

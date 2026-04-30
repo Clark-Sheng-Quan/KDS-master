@@ -96,12 +96,13 @@ export default function GlobalNav() {
             <Text style={styles.buttonText}>{t("preOrders")}</Text>
           </TouchableOpacity> */}
 
-          <TouchableOpacity
+          {/* history 已隐藏 */}
+          {/* <TouchableOpacity
             style={styles.navButton}
             onPress={() => router.push("/(tabs)/history")}
           >
             <Text style={styles.buttonText}>{t("searchHistory")}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {/* stock management 已隐藏 */}
           {/* <TouchableOpacity

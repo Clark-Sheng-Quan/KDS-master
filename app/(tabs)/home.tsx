@@ -1,37 +1,56 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
-  ScrollView,
+  FlatList,
   ActivityIndicator,
   Text,
   Dimensions,
   TouchableOpacity,
-  FlatList,
   Animated,
 } from "react-native";
 import { OrderCard } from "../../components/OrderCard";
 import { ItemCompletionToast } from "../../components/ItemCompletionToast";
+import { RecallOrdersPanel } from "../../components/RecallOrdersPanel";
+import { RecallItemsPanel } from "../../components/RecallItemsPanel";
 import { useOrders } from "../../contexts/OrderContext";
 import { useCompletedOrders } from "../../contexts/CompletedOrderContext";
-import { theme } from "../../constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FormattedOrder, CompletedOrder } from "@/services/types";
-import { Ionicons } from "@expo/vector-icons";
 import { OrderService } from "../../services/orderService/OrderService";
 import { callingScreenService } from "../../services/CallingScreenService";
 import { callingScreenDiscovery } from "../../services/CallingScreenDiscovery";
 import { useSettings } from "../../contexts/SettingsContext";
 import {
   PADDING,
+  CARD_MARGIN,
   cardStyles as cardStylesSheet,
-  preCalculateCardStyles,
+  calculateCardWidth,
+  calculateCardHeight,
   formatTime,
 } from "../../constants/cardConfig";
 
+const clockStyles = {
+  timeDisplay: {
+    ...cardStylesSheet.timeDisplay,
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600" as const,
+  },
+};
+
+const ClockDisplay = React.memo(() => {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <Text style={clockStyles.timeDisplay}>{formatTime(time)}</Text>;
+});
+
 export default function HomeScreen() {
   const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
-  const { completedOrders, addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
+  const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
   const {
     cardsPerRow,
     cardsPerColumn,
@@ -42,8 +61,6 @@ export default function HomeScreen() {
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [cardStyles, setCardStyles] = useState<any[]>([]);
   const [localOrders, setLocalOrders] = useState<FormattedOrder[]>([]);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastItemName, setToastItemName] = useState("");
@@ -52,7 +69,8 @@ export default function HomeScreen() {
   const [lastCompletedOrderData, setLastCompletedOrderData] = useState<{ order: FormattedOrder } | null>(null);
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
   const [showRecentOrdersMenu, setShowRecentOrdersMenu] = useState(false);
-  const recallingItemsRef = useRef<Set<string>>(new Set());  // 用 useRef 来同步控制，避免竞速问题，不显示 UI
+  const localOrdersRef = useRef<FormattedOrder[]>([]);
+  const recallingItemsRef = useRef<Set<string>>(new Set());
   const recallingOrdersRef = useRef<Set<string>>(new Set());
   const recentMenuAnimValue = useMemo(() => new Animated.Value(0), []);
   const recentOrdersMenuAnimValue = useMemo(() => new Animated.Value(0), []);
@@ -74,45 +92,39 @@ export default function HomeScreen() {
     }).start();
   }, [showRecentOrdersMenu, recentOrdersMenuAnimValue]);
 
-  // 更新当前时间
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatElapsedDuration = useCallback((elapsedSeconds?: number) => {
-    if (typeof elapsedSeconds !== 'number' || Number.isNaN(elapsedSeconds)) {
-      return '';
-    }
-    const total = Math.max(0, Math.floor(elapsedSeconds));
-    const hh = Math.floor(total / 3600);
-    const mm = Math.floor((total % 3600) / 60);
-    const ss = total % 60;
-    if (hh > 0) {
-      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-    }
-    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-  }, []);
-
-  const getElapsedFromOrderAndCompletedAt = useCallback((order: FormattedOrder, completedAt?: string) => {
-    if (!completedAt) {
-      return undefined;
-    }
-    const startRaw = order.kdsReceiveTime || order.orderTime;
-    const startDate = new Date(startRaw);
-    const endDate = new Date(completedAt);
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      return undefined;
-    }
-    return Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / 1000));
-  }, []);
-
   const availableWidth = dimensions.width - PADDING * 2;
   const availableHeight = dimensions.height;
-  
+
+  const cardWidth = useMemo(
+    () => calculateCardWidth(availableWidth, cardsPerRow),
+    [availableWidth, cardsPerRow]
+  );
+  const cardHeight = useMemo(
+    () => calculateCardHeight(availableHeight, cardsPerColumn),
+    [availableHeight, cardsPerColumn]
+  );
+
+  // One merged style per column position — stable across order completions
+  const mergedCardStyles = useMemo(
+    () =>
+      Array.from({ length: cardsPerRow }, (_, colIndex) => ({
+        ...styles.cardStyle,
+        width: cardWidth,
+        height: cardHeight,
+        marginRight: colIndex === cardsPerRow - 1 ? 0 : CARD_MARGIN,
+      })),
+    [cardWidth, cardHeight, cardsPerRow]
+  );
+
+  // Group orders into rows for FlatList virtualisation
+  const rows = useMemo(() => {
+    const result: FormattedOrder[][] = [];
+    for (let i = 0; i < filteredOrders.length; i += cardsPerRow) {
+      result.push(filteredOrders.slice(i, i + cardsPerRow));
+    }
+    return result;
+  }, [filteredOrders, cardsPerRow]);
+
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
     const subscription = Dimensions.addEventListener("change", ({ window }) => {
@@ -122,23 +134,16 @@ export default function HomeScreen() {
     return () => subscription?.remove();
   }, []);
 
-  // 当订单、卡片尺寸、尺寸改变时，重新计算卡片样式
-  useEffect(() => {
-    const styles = preCalculateCardStyles(
-      filteredOrders.length,
-      availableWidth,
-      availableHeight,
-      cardsPerRow,
-      cardsPerColumn
-    );
-    setCardStyles(styles);
-  }, [filteredOrders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
-
   // 直接使用来自 OrderService 的已过滤订单，无需在 home 中重复过滤
   useEffect(() => {
     setFilteredOrders(orders);
-    setLocalOrders(orders);  // 同步到本地副本
+    setLocalOrders(orders);
   }, [orders]);
+
+  // 保持 localOrdersRef 与 localOrders 同步，供 stable callbacks 读取
+  useEffect(() => {
+    localOrdersRef.current = localOrders;
+  }, [localOrders]);
 
   // 监听订单自动完成（24小时后）并记录到已完成订单列表
   useEffect(() => {
@@ -199,14 +204,13 @@ export default function HomeScreen() {
 
   // 处理项目完成 - 显示 Toast
   const handleItemCompleted = useCallback((itemName: string, itemId: string, orderId: string) => {
-    // 从 localOrders 中找到订单
-    const order = localOrders.find(o => o.id === orderId);
+    const order = localOrdersRef.current.find(o => o.id === orderId);
     if (order) {
       setToastItemName(itemName);
       setLastCompletedItemData({itemId, itemName, orderId, order});
       setToastVisible(true);
     }
-  }, [localOrders]);
+  }, []);
 
   // 通用的 recall item 函数（Undo 和 Recall 都用这个）
   const recallItemToOrder = useCallback(async (
@@ -496,442 +500,110 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollContainer}
-        contentContainerStyle={{ flexGrow: 1 }}
-        nestedScrollEnabled={true}
-        directionalLockEnabled={true}
-      >
-        <View style={styles.headerContainer}>
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>
-              {t("newOrders")} ({filteredOrders.length})
+      <View style={styles.headerContainer}>
+        <View style={[styles.titleSection, { flex: 1 }]}>
+          <Text style={styles.title}>
+            {t("newOrders")} ({filteredOrders.length})
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#007bff',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+            }}
+            onPress={() => {
+              setShowRecentItemsMenu(false);
+              setShowRecentOrdersMenu(true);
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
+              {t("recallOrder")}
             </Text>
-          </View>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+          </TouchableOpacity>
+          {enableItemLevelCompletion && (
             <TouchableOpacity
               style={{
-                backgroundColor: '#007bff',
+                backgroundColor: '#2e7d32',
                 paddingHorizontal: 12,
                 paddingVertical: 8,
                 borderRadius: 8,
               }}
               onPress={() => {
-                setShowRecentItemsMenu(false);
-                setShowRecentOrdersMenu(true);
+                setShowRecentOrdersMenu(false);
+                setShowRecentItemsMenu(true);
               }}
             >
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
-                {t("recallOrder")}
-              </Text>
-            </TouchableOpacity>
-            {enableItemLevelCompletion && (
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: '#2e7d32',
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                }}
-                onPress={() => {
-                  setShowRecentOrdersMenu(false);
-                  setShowRecentItemsMenu(true);
-                }}
-              >
-                <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
-                  {t("recallItem")}
-                </Text>
-              </TouchableOpacity>
-            )}
-            <View style={styles.timeDisplayContainer}>
-              <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
-            </View>
-          </View>
-        </View>
-
-        {orders.length === 0 ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
-            <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
-          </View>
-        ) : (
-          <View style={styles.cardsContainer}>
-            {cardStyles.length > 0 && filteredOrders.map((order, index) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                style={[styles.cardStyle, cardStyles[index]]}
-                onOrderComplete={handleOrderRemove}
-                onOrderCancel={handleOrderRemove}
-                onItemRemoved={handleItemRemoved}
-                onItemCompleted={handleItemCompleted}
-                showDateInDue={true}
-                selectable={false}
-                enableDelayEffects={showTimerHighlight}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Recent Items Menu - Animated Overlay */}
-      {showRecentItemsMenu && enableItemLevelCompletion && (
-        <>
-          {/* Backdrop */}
-          <TouchableOpacity
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1100,
-            }}
-            onPress={() => setShowRecentItemsMenu(false)}
-            activeOpacity={1}
-          />
-
-          {/* Animated Menu - Top aligned */}
-          <Animated.View
-            style={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              height: dimensions.height * 0.7,
-              width: Math.max(dimensions.width * 0.3, 280),
-              maxWidth: dimensions.width * 0.45,
-              backgroundColor: '#fff',
-              borderRadius: 16,
-              elevation: 8,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              zIndex: 1101,
-              overflow: 'hidden',
-              transform: [
-                {
-                  translateX: recentMenuAnimValue.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [Math.max(dimensions.width * 0.3, 280) + 32, 0],
-                  }),
-                },
-              ],
-            }}
-          >
-            {/* Header */}
-            <View
-              style={{
-                padding: 18,
-                paddingBottom: 14,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderBottomWidth: 1,
-                borderBottomColor: '#f0f0f0',
-                backgroundColor: '#fafafa',
-              }}
-            >
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', flex: 1 }}>
                 {t("recallItem")}
               </Text>
-              <TouchableOpacity
-                onPress={() => setShowRecentItemsMenu(false)}
-                style={{ padding: 8, marginLeft: 8 }}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+          <View style={styles.timeDisplayContainer}>
+            <ClockDisplay />
+          </View>
+        </View>
+      </View>
+
+      {orders.length === 0 ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
+          <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={rows}
+          keyExtractor={(_, index) => `row-${index}`}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: PADDING, paddingBottom: 16 }}
+          showsVerticalScrollIndicator={false}
+          windowSize={5}
+          maxToRenderPerBatch={3}
+          initialNumToRender={Math.ceil(cardsPerColumn) + 1}
+          getItemLayout={(_, index) => ({
+            length: cardHeight + CARD_MARGIN,
+            offset: (cardHeight + CARD_MARGIN) * index,
+            index,
+          })}
+          renderItem={({ item: rowOrders, index: rowIndex }) => (
+            <View style={{ flexDirection: 'row', marginBottom: CARD_MARGIN }}>
+              {rowOrders.map((order, colIndex) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  style={mergedCardStyles[colIndex]}
+                  onOrderComplete={handleOrderRemove}
+                  onOrderCancel={handleOrderRemove}
+                  onItemRemoved={handleItemRemoved}
+                  onItemCompleted={handleItemCompleted}
+                  showDateInDue={true}
+                  selectable={false}
+                  enableDelayEffects={showTimerHighlight}
+                />
+              ))}
             </View>
-
-            {/* Items List */}
-            {completedOrders.length > 0 ? (
-              <FlatList
-                data={completedOrders
-                  .slice(0, 30)
-                  .flatMap(co => 
-                    (co.completedItems || []).map(item => ({
-                      orderNum: co.order.num,
-                      tableNumber: co.order.tableNumber,
-                      itemName: item.name,
-                      itemId: item.id,
-                      completionKey: item.completionKey,
-                      itemCompletedAt: item.completedAt,
-                      itemCompletedElapsedSeconds: item.completedElapsedSeconds,
-                      itemQuantity: item.quantity || 1,
-                      completedOrder: co,
-                      item: item,
-                    }))
-                  )
-                }
-                renderItem={({ item: menuItem }) => (
-                  <View
-                    style={{
-                      padding: 14,
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#f5f5f5',
-                    }}
-                  >
-                    {/* Order Number */}
-                    <Text
-                      style={{
-                        fontWeight: '700',
-                        fontSize: 16,
-                        marginBottom: 6,
-                        color: '#1a1a1a',
-                      }}
-                    >
-                      {t("order")} #{menuItem.orderNum}
-                    </Text>
-
-                    {/* Table Number */}
-                    {menuItem.tableNumber && (
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          marginBottom: 6,
-                          color: '#888',
-                          fontWeight: '500',
-                        }}
-                      >
-                        {t("table")} {menuItem.tableNumber}
-                      </Text>
-                    )}
-
-                    {/* Item Name with Quantity */}
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        marginBottom: 10,
-                        color: '#333',
-                        fontWeight: '600',
-                      }}
-                    >
-                      {menuItem.itemName} {menuItem.itemQuantity > 1 ? `× ${menuItem.itemQuantity}` : ''}
-                    </Text>
-
-                    {(typeof menuItem.itemCompletedElapsedSeconds === 'number' || menuItem.itemCompletedAt) ? (
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          marginBottom: 10,
-                          color: '#666',
-                          fontWeight: '500',
-                        }}
-                      >
-                        {formatElapsedDuration(
-                          typeof menuItem.itemCompletedElapsedSeconds === 'number'
-                            ? menuItem.itemCompletedElapsedSeconds
-                            : getElapsedFromOrderAndCompletedAt(menuItem.completedOrder.order, menuItem.itemCompletedAt)
-                        )}
-                      </Text>
-                    ) : null}
-
-                    {/* Recall Button */}
-                    <TouchableOpacity
-                      onPress={() => {
-                        // menuItem 已包含所有需要的数据：completedOrder, itemId, itemName, item
-                        handleRecallItem(menuItem);
-                      }}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 14,
-                        backgroundColor: '#2e7d32',
-                        borderRadius: 8,
-                        elevation: 1,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 2,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: 'white',
-                          textAlign: 'center',
-                          fontWeight: '600',
-                          fontSize: 14,
-                        }}
-                      >
-                        {t("recallOrder")}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                keyExtractor={(item, idx) =>
-                  `${item.completedOrder.order.id}-${item.itemId}-${idx}`
-                }
-                contentContainerStyle={{ paddingBottom: 16 }}
-                scrollEnabled={true}
-              />
-            ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
-                <Ionicons name="list" size={48} color="#ddd" />
-                <Text style={{ color: '#aaa', fontSize: 15, marginTop: 12, textAlign: 'center' }}>
-                  {t("noRecentlyCompletedItems")}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        </>
+          )}
+        />
       )}
 
-      {/* Recent Orders Menu - Animated Overlay */}
+      {showRecentItemsMenu && enableItemLevelCompletion && (
+        <RecallItemsPanel
+          onRecall={handleRecallItem}
+          onClose={() => setShowRecentItemsMenu(false)}
+          animValue={recentMenuAnimValue}
+          dimensions={dimensions}
+        />
+      )}
+
       {showRecentOrdersMenu && (
-        <>
-          <TouchableOpacity
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1100,
-            }}
-            onPress={() => setShowRecentOrdersMenu(false)}
-            activeOpacity={1}
-          />
-
-          <Animated.View
-            style={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              height: dimensions.height * 0.7,
-              width: Math.max(dimensions.width * 0.35, 320),
-              maxWidth: dimensions.width * 0.55,
-              backgroundColor: '#fff',
-              borderRadius: 16,
-              elevation: 8,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              zIndex: 1101,
-              overflow: 'hidden',
-              transform: [
-                {
-                  translateX: recentOrdersMenuAnimValue.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [Math.max(dimensions.width * 0.35, 320) + 32, 0],
-                  }),
-                },
-              ],
-            }}
-          >
-            <View
-              style={{
-                padding: 18,
-                paddingBottom: 14,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderBottomWidth: 1,
-                borderBottomColor: '#f0f0f0',
-                backgroundColor: '#fafafa',
-              }}
-            >
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', flex: 1 }}>
-                {t("recall")} {t("order")}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowRecentOrdersMenu(false)}
-                style={{ padding: 8, marginLeft: 8 }}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {completedOrders.length > 0 ? (
-              <FlatList
-                data={completedOrders.slice(0, 30)}
-                renderItem={({ item: completedOrder }) => {
-                  const itemCount = (completedOrder.completedItems || []).reduce(
-                    (sum, p) => sum + (p.quantity || 1),
-                    0
-                  );
-                  const tableNo = completedOrder.order.tableNumber?.trim();
-                  const summaryParts = [
-                    ...(tableNo ? [`${t("table")} ${tableNo}`] : []),
-                    `${t("order")} #${completedOrder.order.num}`,
-                    `${itemCount} ${t("items")}`,
-                  ];
-                  const itemNamesLine = (completedOrder.completedItems || [])
-                    .map((p) => `${p.name}${(p.quantity || 1) > 1 ? ` x${p.quantity}` : ""}`)
-                    .join(" | ");
-
-                  return (
-                    <View
-                      style={{
-                        padding: 14,
-                        borderBottomWidth: 1,
-                        borderBottomColor: '#f5f5f5',
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontWeight: '700',
-                          fontSize: 15,
-                          marginBottom: 6,
-                          color: '#1a1a1a',
-                        }}
-                      >
-                        {summaryParts.join(" | ")}
-                      </Text>
-
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          marginBottom: 10,
-                          color: '#666',
-                          fontWeight: '500',
-                        }}
-                      >
-                        {itemNamesLine}
-                      </Text>
-
-                      <TouchableOpacity
-                        onPress={() => handleRecallOrder(completedOrder)}
-                        style={{
-                          paddingVertical: 10,
-                          paddingHorizontal: 14,
-                          backgroundColor: theme.colors.primaryColor,
-                          borderRadius: 8,
-                          elevation: 1,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.1,
-                          shadowRadius: 2,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: 'white',
-                            textAlign: 'center',
-                            fontWeight: '600',
-                            fontSize: 14,
-                          }}
-                        >
-                          {t("recallOrder")}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                }}
-                keyExtractor={(item, idx) => `${item.order.id}-${item.completedAt}-${idx}`}
-                contentContainerStyle={{ paddingBottom: 16 }}
-                scrollEnabled={true}
-              />
-            ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
-                <Ionicons name="file-tray-full" size={48} color="#ddd" />
-                <Text style={{ color: '#aaa', fontSize: 15, marginTop: 12, textAlign: 'center' }}>
-                  {t("noCompletedOrders")}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        </>
+        <RecallOrdersPanel
+          onRecall={handleRecallOrder}
+          onClose={() => setShowRecentOrdersMenu(false)}
+          animValue={recentOrdersMenuAnimValue}
+          dimensions={dimensions}
+        />
       )}
       
       <ItemCompletionToast
