@@ -10,13 +10,13 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.4.0"
+VERSION="1.4.1"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.4.0
+## Version 1.4.1
 
 ### Major Improvements
-- Auto print
+- Print template
 
 
 
