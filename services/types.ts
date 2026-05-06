@@ -65,6 +65,8 @@ export interface OrderItem {
   itemState?: 'PROCESSED' | 'VOIDED'; // POS item state
   isUpdated?: boolean;                 // 标记此item是否在本次订单更新中被修改或新增
   isValidKds?: boolean;                // POS标记：此item是否对当前KDS有效 (true才处理，false或无值则跳过)
+  notes?: string;                      // Item-level notes (from TCP/POS)
+  suffix?: Array<{name: string; is_visible: boolean}>; // Suffix information
 }
 
 export interface FormattedOrder {

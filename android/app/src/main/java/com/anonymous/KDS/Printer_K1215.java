@@ -19,16 +19,16 @@ import com.facebook.react.bridge.ReadableMap;
 import java.io.File;
 
 import java.util.Set;
-import java.util.Arrays;
 import java.util.List;
-
-
+import java.io.ByteArrayOutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
 import android.util.Log;
 
 
 public class  Printer_K1215 extends ReactContextBaseJavaModule{
 
-
+    private static final String TAG = "Printer_K1215";
     private ReactApplicationContext appContext;
     private POSPrinter printer;
     public Printer_K1215(ReactApplicationContext reactContext){
@@ -356,9 +356,7 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
     public void printOrder(ReadableMap orderData, Promise promise) {
         try {
             if (printer == null) {
-                // 如果打印机未初始化，尝试重新连接
                 CreateUsbConnection();
-                // 给打印机一些初始化时间
                 Thread.sleep(1000);
                 if (printer == null) {
                     promise.reject("PRINTER_ERROR", "打印机未连接");
@@ -366,123 +364,194 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
                 }
             }
             
-            // 检查打印机连接状态
-            printer.isConnect(
-                (int status) -> {
-                    if (status != 1) {
-                        promise.reject("PRINTER_ERROR", "打印机未连接，状态码: " + status);
-                        return;
-                    }
-                    
-                    try {
-                        // 设置文本样式
-                        int H2 = POSConst.TXT_1WIDTH | POSConst.TXT_1HEIGHT;
-                        int H1 = POSConst.TXT_2WIDTH | POSConst.TXT_2HEIGHT;
-                        
-                        // 打印店铺信息
-                        String shopName = orderData.hasKey("shopName") ? orderData.getString("shopName") : "KDS Restaurant";
-                        if (shopName != null && !shopName.isEmpty()) {
-                            printer.printText(shopName + "\n", POSConst.ALIGNMENT_CENTER, POSConst.FNT_BOLD, H1);
-                        }
-                        
-                        // 打印订单信息
-                        String orderId = orderData.hasKey("orderId") ? orderData.getString("orderId") : "N/A";
-                        String orderTime = orderData.hasKey("orderTime") ? orderData.getString("orderTime") : "";
-                        String pickupMethod = orderData.hasKey("pickupMethod") ? orderData.getString("pickupMethod") : "";
-                        
-                        if (orderId != null && !orderId.isEmpty()) {
-                            printer.printText("Order #: " + orderId + "\n", POSConst.ALIGNMENT_LEFT, POSConst.FNT_DEFAULT, H2);
-                        }
-                        if (orderTime != null && !orderTime.isEmpty()) {
-                            printer.printText("Time: " + orderTime + "\n", POSConst.ALIGNMENT_LEFT, POSConst.FNT_DEFAULT, H2);
-                        }
-                        if (pickupMethod != null && !pickupMethod.isEmpty()) {
-                            printer.printText("Pickup: " + pickupMethod + "\n", POSConst.ALIGNMENT_LEFT, POSConst.FNT_DEFAULT, H2);
-                        }
-                        
-                        if (orderData.hasKey("tableNumber")) {
-                            String tableNumber = orderData.getString("tableNumber");
-                            if (tableNumber != null && !tableNumber.isEmpty()) {
-                                printer.printText("Table #: " + tableNumber + "\n", POSConst.ALIGNMENT_LEFT, POSConst.FNT_DEFAULT, H2);
-                            }
-                        }
-                        
-                        // 打印分隔线
-                        printer.printText("--------------------------------\n", POSConst.ALIGNMENT_CENTER, POSConst.FNT_DEFAULT, H2);
-                        
-                        // 打印表头
-                        printer.printText("Item                  Qty    Price\n", POSConst.ALIGNMENT_LEFT, POSConst.FNT_BOLD, H2);
-                        printer.printText("--------------------------------\n", POSConst.ALIGNMENT_CENTER, POSConst.FNT_DEFAULT, H2);
-                        
-                        // 打印商品列表
-                        ReadableArray items = orderData.hasKey("items") ? orderData.getArray("items") : null;
-                        double total = 0;
-                        
-                        if (items != null && items.size() > 0) {
-                            for (int i = 0; i < items.size(); i++) {
-                                ReadableMap item = items.getMap(i);
-                                if (item == null) continue;
-                                
-                                String name = item.hasKey("name") ? item.getString("name") : "Unknown Item";
-                                double price = item.hasKey("price") ? item.getDouble("price") : 0;
-                                int quantity = item.hasKey("quantity") ? item.getInt("quantity") : 1;
-                                total += price * quantity;
-                                
-                                // 格式化商品行
-                                String itemLine = String.format("%-20s %3d %8.2f\n", 
-                                    name != null && name.length() > 20 ? name.substring(0, 17) + "..." : (name != null ? name : ""), 
-                                    quantity, price);
-                                printer.printText(itemLine, POSConst.ALIGNMENT_LEFT, POSConst.FNT_DEFAULT, H2);
-                                
-                                // 打印选项
-                                if (item.hasKey("options")) {
-                                    ReadableArray options = item.getArray("options");
-                                    if (options != null && options.size() > 0) {
-                                        for (int j = 0; j < options.size(); j++) {
-                                            ReadableMap option = options.getMap(j);
-                                            if (option == null) continue;
-                                            
-                                            String optName = option.hasKey("name") ? option.getString("name") : "";
-                                            String optValue = option.hasKey("value") ? option.getString("value") : "";
-                                            double optPrice = option.hasKey("price") ? option.getDouble("price") : 0;
-                                            
-                                            String optionLine = String.format("  - %s: %s", 
-                                                optName != null ? optName : "", 
-                                                optValue != null ? optValue : "");
-                                            if (optPrice > 0) {
-                                                optionLine += String.format(" (+%.2f)", optPrice);
-                                                total += optPrice;
-                                            }
-                                            
-                                            printer.printText(optionLine + "\n", POSConst.ALIGNMENT_LEFT, POSConst.FNT_DEFAULT, H2);
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            printer.printText("No items\n", POSConst.ALIGNMENT_CENTER, POSConst.FNT_DEFAULT, H2);
-                        }
-                        
-                        // 打印合计
-                        printer.printText("--------------------------------\n", POSConst.ALIGNMENT_CENTER, POSConst.FNT_DEFAULT, H2);
-                        printer.printText(String.format("Total: $%.2f\n\n", total), POSConst.ALIGNMENT_RIGHT, POSConst.FNT_BOLD, H2);
-                        
-                        // 打印结束语
-                        printer.printText("Thank you!\n", POSConst.ALIGNMENT_CENTER, POSConst.FNT_DEFAULT, H2);
-                        
-                        // 走纸并切纸
-                        printer.feedLine(5);
-                        printer.cutPaper(POSConst.CUT_ALL);
-                        
-                        promise.resolve(true);
-                    } catch (Exception e) {
-                        promise.reject("PRINT_ERROR", "Print error: " + e.getMessage());
-                    }
+            printer.isConnect((int status) -> {
+                if (status != 1) {
+                    promise.reject("PRINTER_ERROR", "打印机未连接，状态码: " + status);
+                    return;
                 }
-            );
+                
+                try {
+                    byte[] printBytes = buildKitchenDocketBytes(orderData);
+                    printer.sendData(printBytes);
+                    promise.resolve(true);
+                } catch (Exception e) {
+                    promise.reject("PRINT_ERROR", "打印错误: " + e.getMessage());
+                }
+            });
         } catch (Exception e) {
             promise.reject("PRINT_ERROR", "打印初始化错误: " + e.getMessage());
         }
+    }
+
+    /**
+     * 构建厨房订单单据的 ESC/POS 字节数组
+     * 适配 80mm 热敏打印机
+     */
+    private byte[] buildKitchenDocketBytes(ReadableMap orderData) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        // 1. 初始化打印机
+        baos.write(new byte[]{0x1B, 0x40});
+
+        // 2. 表头（大、加粗、居中）
+        baos.write(new byte[]{0x1B, 0x61, 0x01}); // 居中
+        baos.write(new byte[]{0x1D, 0x21, 0x11}); // 双倍宽度和高度
+        baos.write(new byte[]{0x1B, 0x45, 0x01}); // 加粗开启
+
+        // 桌号
+        if (orderData.hasKey("tableNumber")) {
+            String tableNumber = orderData.getString("tableNumber");
+            if (tableNumber != null && !tableNumber.trim().isEmpty()) {
+                baos.write(("TABLE " + tableNumber + "\n").getBytes("GBK"));
+            }
+        }
+
+        // 订单号
+        if (orderData.hasKey("orderId")) {
+            String orderId = orderData.getString("orderId");
+            if (orderId != null && !orderId.isEmpty()) {
+                baos.write(("ORDER #" + orderId + "\n").getBytes("GBK"));
+            }
+        }
+        baos.write("\n".getBytes());
+
+        // 3. 元数据（普通大小、左对齐）
+        baos.write(new byte[]{0x1B, 0x61, 0x00}); // 左对齐
+        baos.write(new byte[]{0x1D, 0x21, 0x00}); // 普通大小
+        baos.write(new byte[]{0x1B, 0x45, 0x00}); // 加粗关闭
+
+        // 时间
+        String timeStr = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new java.util.Date());
+        baos.write(createTwoColumnLine("Time:", timeStr));
+
+        // 取餐方式
+        if (orderData.hasKey("pickupMethod")) {
+            String pickupMethod = orderData.getString("pickupMethod");
+            if (pickupMethod != null && !pickupMethod.isEmpty()) {
+                baos.write(createTwoColumnLine("Pickup:", pickupMethod));
+            }
+        }
+
+        baos.write("------------------------------------------------\n\n".getBytes());
+
+        // 4. 商品列表
+        baos.write(new byte[]{0x1C, 0x26}); // 启用中文字符模式
+
+        ReadableArray items = orderData.hasKey("items") ? orderData.getArray("items") : null;
+        if (items != null && items.size() > 0) {
+            for (int i = 0; i < items.size(); i++) {
+                ReadableMap item = items.getMap(i);
+                if (item == null) continue;
+
+                String itemState = item.hasKey("itemState") ? item.getString("itemState") : "PROCESSED";
+                boolean isVoided = "VOIDED".equals(itemState);
+
+                // VOID 标记
+                if (isVoided) {
+                    baos.write(new byte[]{0x1B, 0x61, 0x01}); // 居中
+                    baos.write("*** VOID ***\n".getBytes("GBK"));
+                    baos.write(new byte[]{0x1B, 0x61, 0x00}); // 左对齐
+                }
+
+                // 商品名称行（加粗、1x2 大小）
+                baos.write(new byte[]{0x1B, 0x45, 0x01}); // 加粗
+                baos.write(new byte[]{0x1D, 0x21, 0x01}); // 双倍高度
+
+                int quantity = item.hasKey("quantity") ? item.getInt("quantity") : 1;
+                String name = item.hasKey("name") ? item.getString("name") : "Unknown Item";
+                String qtyStr = (isVoided ? "-" : "") + quantity + "x";
+                String nameStr = (isVoided ? "[VOID] " : "") + (name != null ? name : "");
+                baos.write((qtyStr + " " + nameStr + "\n").getBytes("GBK"));
+
+                // 恢复为普通格式
+                baos.write(new byte[]{0x1D, 0x21, 0x00}); // 普通大小
+                baos.write(new byte[]{0x1B, 0x45, 0x00}); // 加粗关闭
+
+                // 后缀
+                if (item.hasKey("suffix")) {
+                    ReadableArray suffix = item.getArray("suffix");
+                    if (suffix != null && suffix.size() > 0) {
+                        for (int s = 0; s < suffix.size(); s++) {
+                            ReadableMap suffixItem = suffix.getMap(s);
+                            if (suffixItem != null && suffixItem.hasKey("name")) {
+                                String suffixName = suffixItem.getString("name");
+                                baos.write(("   " + suffixName + "\n").getBytes("GBK"));
+                            }
+                        }
+                    }
+                }
+
+                // 选项/加菜
+                if (item.hasKey("options")) {
+                    ReadableArray options = item.getArray("options");
+                    if (options != null && options.size() > 0) {
+                        for (int j = 0; j < options.size(); j++) {
+                            ReadableMap option = options.getMap(j);
+                            if (option == null) continue;
+
+                            String optName = option.hasKey("name") ? option.getString("name") : "";
+                            String optValue = option.hasKey("value") ? option.getString("value") : "";
+                            
+                            baos.write(("   + " + (optName != null ? optName : "") + 
+                                    (optValue != null && !optValue.isEmpty() ? ": " + optValue : "") + 
+                                    "\n").getBytes("GBK"));
+                        }
+                    }
+                }
+
+                // 商品备注（加粗）
+                if (item.hasKey("notes")) {
+                    String notes = item.getString("notes");
+                    if (notes != null && !notes.isEmpty()) {
+                        baos.write(new byte[]{0x1B, 0x45, 0x01}); // 加粗开启
+                        baos.write(("   Note: " + notes + "\n").getBytes("GBK"));
+                        baos.write(new byte[]{0x1B, 0x45, 0x00}); // 加粗关闭
+                    }
+                }
+                baos.write("\n".getBytes());
+            }
+        }
+
+        // 5. 订单备注
+        if (orderData.hasKey("notes")) {
+            String notes = orderData.getString("notes");
+            if (notes != null && !notes.isEmpty()) {
+                baos.write("------------------------------------------------\n".getBytes());
+                baos.write(new byte[]{0x1B, 0x45, 0x01}); // 加粗
+                baos.write(("ORDER NOTE: " + notes + "\n").getBytes("GBK"));
+                baos.write(new byte[]{0x1B, 0x45, 0x00}); // 加粗关闭
+            }
+        }
+
+        baos.write(new byte[]{0x1C, 0x2E}); // 关闭中文模式
+
+        // 6. 走纸和切纸
+        baos.write("\n\n\n\n\n".getBytes());
+        baos.write(new byte[]{0x1D, 0x56, 0x41, 0x03}); // 完全切纸命令
+
+        return baos.toByteArray();
+    }
+
+    /**
+     * 创建两列格式的打印行
+     */
+    private byte[] createTwoColumnLine(String label, String value) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        int totalWidth = 48; // 80mm 打印机宽度（字符数）
+        int labelWidth = label.length();
+        int spacing = totalWidth - labelWidth - (value != null ? value.length() : 0);
+        
+        StringBuilder line = new StringBuilder(label);
+        for (int i = 0; i < spacing; i++) {
+            line.append(" ");
+        }
+        if (value != null) {
+            line.append(value);
+        }
+        line.append("\n");
+        
+        baos.write(line.toString().getBytes("GBK"));
+        return baos.toByteArray();
     }
 
     @ReactMethod

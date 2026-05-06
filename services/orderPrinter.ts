@@ -50,20 +50,45 @@ export const printFormattedOrder = async (order: FormattedOrder, silentMode: boo
       return false;
     }
 
-    // 格式化订单数据为打印机需要的格式
+    // 格式化订单数据为打印机需要的格式 - 匹配Java模板的完整字段
     const printData = {
+      // 基本信息
       shopName: "KDS Restaurant",
       orderId: order.num,
       orderTime: order.pickupTime || new Date().toLocaleString(),
       pickupMethod: order.pickupMethod || "取餐",
       tableNumber: order.tableNumber || null,
+      
+      // 订单备注
+      notes: order.notes || "",
+      
+      // 商品列表 - 带完整的 itemState、options、notes、suffix 等
       items: order.products ? order.products.map((product: any) => ({
+        // 基本信息
+        id: product.id || "unknown",
         name: product.name || "未知商品",
         price: product.price || 0,
         quantity: product.quantity || 1,
-        options: product.options || []
+        
+        // VOIDED 状态
+        itemState: product.itemState || "PROCESSED",
+        
+        // 选项/加菜信息
+        options: product.options || [],
+        
+        // 准备时间
+        prepare_time: product.prepare_time || 0,
+        
+        // 分类
+        category: product.category || "default",
+        
+        // Item-level notes 和 suffix
+        notes: product.notes || "",
+        suffix: product.suffix || [],
       })) : []
     };
+
+    console.log(`[PrintOrder] 发送打印数据:`, JSON.stringify(printData, null, 2));
 
     // 发送打印命令
     const result = await Printer_K1215.printOrder(printData);
