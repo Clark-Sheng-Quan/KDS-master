@@ -16,7 +16,7 @@ RELEASE_NOTES=$(cat <<'EOF'
 ## Version 1.4.2
 
 ### Major Improvements
-- Printer item
+- Print per item, beeping, and quick order to kds
 
 
 
