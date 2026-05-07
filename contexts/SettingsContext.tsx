@@ -5,6 +5,7 @@ import { DEFAULT_CARDS_PER_ROW, DEFAULT_CARDS_PER_COLUMN, STORAGE_KEY_CARDS_PER_
 import { CategoryColorService } from '../services/categoryColorService';
 
 type FontSize = 'small' | 'medium' | 'large';
+type PrintMode = 'single_item' | 'single_order';
 
 interface SettingsState {
   cardsPerRow: number;
@@ -16,6 +17,7 @@ interface SettingsState {
   categoryColorsMapping: { [categoryName: string]: string };
   showPrintButton: boolean;
   autoPrintNewOrders: boolean;
+  printMode: PrintMode;
   showOrderTimer: boolean;
   showTimerHighlight: boolean;
   loading: boolean;
@@ -31,6 +33,7 @@ const defaultSettings: SettingsState = {
   categoryColorsMapping: {},
   showPrintButton: true,
   autoPrintNewOrders: false,
+  printMode: 'single_item',
   showOrderTimer: true,
   showTimerHighlight: true,
   loading: true,
@@ -55,6 +58,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         savedItemOptionFontSize,
         savedShowPrintButton,
         savedAutoPrintNewOrders,
+        savedPrintMode,
         savedShowOrderTimer,
         savedShowTimerHighlight,
         savedCategoryColors
@@ -67,6 +71,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         AsyncStorage.getItem('item_option_font_size'),
         AsyncStorage.getItem('show_print_button'),
         AsyncStorage.getItem('auto_print_new_orders'),
+        AsyncStorage.getItem('print_mode'),
         AsyncStorage.getItem('show_order_timer'),
         AsyncStorage.getItem('show_timer_highlight'),
         CategoryColorService.loadCategoryColorMapping()
@@ -81,6 +86,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         itemOptionFontSize: (savedItemOptionFontSize as FontSize) || 'small',
         showPrintButton: savedShowPrintButton !== 'false',
         autoPrintNewOrders: savedAutoPrintNewOrders === 'true',
+        printMode: (savedPrintMode as PrintMode) || 'single_item',
         showOrderTimer: savedShowOrderTimer !== 'false',
         showTimerHighlight: savedShowTimerHighlight !== 'false',
         categoryColorsMapping: savedCategoryColors || {},
@@ -103,6 +109,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleItemOptionFontSizeChange = (val: FontSize) => setSettings(s => ({ ...s, itemOptionFontSize: val }));
     const handleShowPrintButtonChange = (val: boolean) => setSettings(s => ({ ...s, showPrintButton: val }));
     const handleAutoPrintNewOrdersChange = (val: boolean) => setSettings(s => ({ ...s, autoPrintNewOrders: val }));
+    const handlePrintModeChange = (val: PrintMode) => setSettings(s => ({ ...s, printMode: val }));
     const handleShowOrderTimerChange = (val: boolean) => setSettings(s => ({ ...s, showOrderTimer: val }));
     const handleShowTimerHighlightChange = (val: boolean) => setSettings(s => ({ ...s, showTimerHighlight: val }));
     const handleCategoryColorsMappingChange = (val: any) => setSettings(s => ({ ...s, categoryColorsMapping: val }));
@@ -115,6 +122,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     settingsListener.onSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
     settingsListener.onSettingChange('show_print_button', handleShowPrintButtonChange);
     settingsListener.onSettingChange('auto_print_new_orders', handleAutoPrintNewOrdersChange);
+    settingsListener.onSettingChange('print_mode', handlePrintModeChange);
     settingsListener.onSettingChange('show_order_timer', handleShowOrderTimerChange);
     settingsListener.onSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
     settingsListener.onSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
@@ -128,6 +136,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       settingsListener.offSettingChange('item_option_font_size', handleItemOptionFontSizeChange);
       settingsListener.offSettingChange('show_print_button', handleShowPrintButtonChange);
       settingsListener.offSettingChange('auto_print_new_orders', handleAutoPrintNewOrdersChange);
+      settingsListener.offSettingChange('print_mode', handlePrintModeChange);
       settingsListener.offSettingChange('show_order_timer', handleShowOrderTimerChange);
       settingsListener.offSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
       settingsListener.offSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);

@@ -56,7 +56,7 @@ export const printFormattedOrder = async (order: FormattedOrder, silentMode: boo
       shopName: "KDS Restaurant",
       orderId: order.num,
       orderTime: order.pickupTime || new Date().toLocaleString(),
-      pickupMethod: order.pickupMethod || "取餐",
+      method: order.pickupMethod || "取餐",
       tableNumber: order.tableNumber || null,
       
       // 订单备注
@@ -97,6 +97,69 @@ export const printFormattedOrder = async (order: FormattedOrder, silentMode: boo
   } catch (error) {
     if (!silentMode) {
       console.error('[PrintOrder] 打印订单失败:', error);
+    }
+    return false;
+  }
+};
+
+// 打印单个商品（一品一切模式）
+export const printSingleItem = async (order: FormattedOrder, item: any, silentMode: boolean = false) => {
+  try {
+    // 先检查打印机状态
+    const ready = await checkPrinter();
+    if (!ready) {
+      if (!silentMode) {
+        console.error('打印机未就绪');
+      }
+      return false;
+    }
+
+    // 格式化单个 item 为打印机需要的格式
+    const printData = {
+      // 基本信息
+      shopName: "KDS Restaurant",
+      orderId: order.num,
+      orderTime: order.pickupTime || new Date().toLocaleString(),
+      method: order.pickupMethod || "取餐",
+      tableNumber: order.tableNumber || null,
+      
+      // 订单备注
+      notes: order.notes || "",
+      
+      // 单个商品
+      items: [{
+        id: item.id || "unknown",
+        name: item.name || "未知商品",
+        price: item.price || 0,
+        quantity: item.quantity || 1,
+        
+        // VOIDED 状态
+        itemState: item.itemState || "PROCESSED",
+        
+        // 选项/加菜信息
+        options: item.options || [],
+        
+        // 准备时间
+        prepare_time: item.prepare_time || 0,
+        
+        // 分类
+        category: item.category || "default",
+        
+        // Item-level notes 和 suffix
+        notes: item.notes || "",
+        suffix: item.suffix || [],
+      }]
+    };
+
+    console.log(`[PrintOrder] 单品打印数据:`, JSON.stringify(printData, null, 2));
+
+    // 发送打印命令
+    const result = await Printer_K1215.printOrder(printData);
+    console.log(`[PrintOrder] 单品打印结果:`, result);
+    return result;
+  } catch (error) {
+    if (!silentMode) {
+      console.error('[PrintOrder] 单品打印失败:', error);
     }
     return false;
   }

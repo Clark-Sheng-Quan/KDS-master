@@ -425,10 +425,10 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
         baos.write(createTwoColumnLine("Time:", timeStr));
 
         // 取餐方式
-        if (orderData.hasKey("pickupMethod")) {
-            String pickupMethod = orderData.getString("pickupMethod");
-            if (pickupMethod != null && !pickupMethod.isEmpty()) {
-                baos.write(createTwoColumnLine("Pickup:", pickupMethod));
+        if (orderData.hasKey("method")) {
+            String method = orderData.getString("method");
+            if (method != null && !method.isEmpty()) {
+                baos.write(createTwoColumnLine("Method:", method));
             }
         }
 

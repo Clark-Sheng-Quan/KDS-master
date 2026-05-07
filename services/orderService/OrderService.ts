@@ -17,6 +17,7 @@ import { callingScreenService } from '../CallingScreenService';
 import { callingScreenDiscovery } from '../CallingScreenDiscovery';
 import { settingsListener } from '../settingsListener';
 import { NativeEventEmitter, Platform } from 'react-native';
+import { printSingleItem, printFormattedOrder } from '../orderPrinter';
 
 // 添加订单ID缓存，用于防止重复处理
 const PROCESSED_ORDER_CACHE_SIZE = 100; // 缓存最近处理的100个订单ID
@@ -43,6 +44,9 @@ export class OrderService {
   private static autoCleanExpiredOrdersEnabled: boolean = false;
   private static settingsListenerUnsubscribe: (() => void) | null = null;
   
+  // 打印模式设置 (single_item 或 single_order)
+  private static printMode: 'single_item' | 'single_order' = 'single_order';
+  
   // 回调函数存储
   private static networkOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
   private static tcpOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
@@ -50,6 +54,9 @@ export class OrderService {
   private static combinedOrderUpdateCallbacks: Array<(orders: FormattedOrder[]) => void> = [];
   private static orderCompletionCallbacks: Array<(order: FormattedOrder) => void> = [];
   private static newOrderCallbacks: Array<(order: FormattedOrder) => void> = [];
+  
+  // 新的回调：用于处理新增加的产品（一品一切打印）
+  private static newProductCallbacks: Array<(order: FormattedOrder, product: any) => void> = [];
   
   /**
    * 设置订单更新回调函数（支持多个订阅者）
@@ -102,6 +109,33 @@ export class OrderService {
   }
 
   /**
+   * 设置新产品回调函数（用于一品一切打印模式）
+   */
+  public static setNewProductCallback(callback: (order: FormattedOrder, product: any) => void) {
+    this.newProductCallbacks.push(callback);
+    return () => {
+      const index = this.newProductCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.newProductCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * 获取当前打印模式
+   */
+  public static getPrintMode(): 'single_item' | 'single_order' {
+    return this.printMode;
+  }
+
+  /**
+   * 设置打印模式（用于初始化或测试）
+   */
+  public static setPrintMode(mode: 'single_item' | 'single_order') {
+    this.printMode = mode;
+  }
+
+  /**
    * 触发所有已注册的订单完成回调
    */
   private static emitOrderCompletion(order: FormattedOrder) {
@@ -126,6 +160,20 @@ export class OrderService {
         callback(order);
       } catch (error) {
         console.error(`[OrderService] 新订单回调 #${index + 1} 执行出错:`, error);
+      }
+    });
+  }
+
+  /**
+   * 触发所有已注册的新产品回调（用于一品一切打印）
+   */
+  private static emitNewProduct(order: FormattedOrder, product: any) {
+    console.log(`[OrderService] emitNewProduct - 订单 ${order.num || order.id} 添加新产品 ${product.id}`);
+    this.newProductCallbacks.forEach((callback, index) => {
+      try {
+        callback(order, product);
+      } catch (error) {
+        console.error(`[OrderService] 新产品回调 #${index + 1} 执行出错:`, error);
       }
     });
   }
@@ -299,7 +347,14 @@ export class OrderService {
           
           console.log(`[addNetworkOrder] Updated recalled order ${order.id}, added ${newProducts.length} new products`);
 
-          // 触发新订单/更新订单回调 (用于自动打印)
+          // 对新增产品触发单品事件（供一品一切打印使用）
+          if (newProducts.length > 0) {
+            for (const product of newProducts) {
+              this.emitNewProduct(mergedOrder, product);
+            }
+          }
+
+          // 始终触发完整订单事件（供一单一切打印使用）
           this.emitNewOrder(mergedOrder);
           
           // Notify Calling Screen of order product count change
@@ -372,7 +427,14 @@ export class OrderService {
       this.networkOrders = [...this.networkOrders, order];
       await StorageService.saveNetworkOrders(this.networkOrders);
 
-      // 触发新订单回调
+      // 对所有产品触发单品事件（供一品一切打印使用）
+      if (filteredProducts.length > 0) {
+        for (const product of filteredProducts) {
+          this.emitNewProduct(order, product);
+        }
+      }
+
+      // 始终触发完整订单事件（供一单一切打印使用）
       this.emitNewOrder(order);
       
       // Notify Calling Screen about new order (fire and forget)
@@ -449,6 +511,7 @@ export class OrderService {
         let hasNewProducts = false;  // 有新产品被添加
         let hasUpdatedProducts = false;  // 有现有产品被更新
         let mergedProducts = [...(oldOrder.products || [])];
+        const newlyAddedProducts: any[] = [];  // 记录新增的产品
         
         for (const newProduct of newFilteredProducts) {
           const existingIndex = mergedProducts.findIndex(p => p.id === newProduct.id);
@@ -464,6 +527,7 @@ export class OrderService {
           } else {
             // ID 不存在，添加新产品
             mergedProducts.push(newProduct);
+            newlyAddedProducts.push(newProduct);  // 记录新增产品
             hasNewProducts = true;
             console.log(`[addTCPOrder] 订单 ${order.id} 添加新产品 ${newProduct.id}`);
           }
@@ -501,6 +565,13 @@ export class OrderService {
         await StorageService.saveTCPOrders(this.tcpOrders);
         
         console.log(`[addTCPOrder] 订单 ${order.id} 已更新，updateCount=${mergedOrder.updateCount}, isInInitWindow=${isInInitializationWindow}`);
+
+        // 对于一品一切打印模式，立即打印新增的产品
+        if (this.printMode === 'single_item' && newlyAddedProducts.length > 0) {
+          for (const product of newlyAddedProducts) {
+            this.emitNewProduct(mergedOrder, product);
+          }
+        }
 
         // 触发更新订单回调 (用于自动打印)
         this.emitNewOrder(mergedOrder);
@@ -553,6 +624,13 @@ export class OrderService {
       // 添加到列表末尾（已经是过滤后的）
       this.tcpOrders = [...this.tcpOrders, order];
       await StorageService.saveTCPOrders(this.tcpOrders);
+
+      // 对于一品一切打印模式，立即打印每个产品
+      if (this.printMode === 'single_item' && filteredProducts.length > 0) {
+        for (const product of filteredProducts) {
+          this.emitNewProduct(order, product);
+        }
+      }
 
       // 触发新订单回调
       this.emitNewOrder(order);
@@ -714,7 +792,9 @@ export class OrderService {
     }
     
     // 初始化设置监听器（第一次调用时）
-    this.initializeSettingsListener();
+    this.initializeSettingsListener().catch((error) => {
+      console.error('[OrderService] 初始化设置监听器失败:', error);
+    });
     
     // 使用更长的轮询间隔 (30秒)
     const pollingInterval = 30000; // 30秒
@@ -730,7 +810,7 @@ export class OrderService {
   }
 
   /**
-   * 初始化设置监听器
+   * 初始化设置监听器（应在应用启动时调用一次）
    */
   private static async initializeSettingsListener() {
     // 只初始化一次
@@ -743,6 +823,12 @@ export class OrderService {
       const savedValue = await AsyncStorage.getItem('auto_clean_expired_orders');
       this.autoCleanExpiredOrdersEnabled = savedValue === 'true';
       console.log(`[OrderService] 初始化 autoCleanExpiredOrdersEnabled = ${this.autoCleanExpiredOrdersEnabled}`);
+      
+      // 监听打印模式变化
+      settingsListener.onSettingChange('print_mode', (value: string) => {
+        this.printMode = value as ('single_item' | 'single_order');
+        console.log(`[OrderService] 打印模式已更新: ${this.printMode}`);
+      });
       
       // 设置监听器以追踪后续更改
       const listener = (value: any) => {

@@ -75,6 +75,9 @@ export default function SettingsScreen() {
   // 添加自动打印新订单开关状态
   const [autoPrintNewOrders, setAutoPrintNewOrders] = useState<boolean>(false);
 
+  // 添加打印模式状态
+  const [printMode, setPrintMode] = useState<'single_item' | 'single_order'>('single_item');
+
   // 添加显示计时器开关状态
   const [showOrderTimer, setShowOrderTimer] = useState<boolean>(true);
   const [showTimerHighlight, setShowTimerHighlight] = useState<boolean>(true);
@@ -167,6 +170,14 @@ export default function SettingsScreen() {
         );
         if (savedAutoPrintNewOrders !== null) {
           setAutoPrintNewOrders(savedAutoPrintNewOrders === "true");
+        }
+
+        const savedPrintMode = await AsyncStorage.getItem('print_mode');
+        if (savedPrintMode !== null) {
+          setPrintMode(savedPrintMode as 'single_item' | 'single_order');
+        } else {
+          setPrintMode('single_item');
+          await AsyncStorage.setItem('print_mode', 'single_item');
         }
 
         // 加载计时器显示设置
@@ -441,6 +452,14 @@ export default function SettingsScreen() {
     // 发出设置变化事件
     settingsListener.emitSettingChange('auto_print_new_orders', value);
     console.log('[Settings] 发出 auto_print_new_orders 设置变化事件，值:', value);
+  }, []);
+
+  // 处理打印模式变化
+  const handlePrintModeChange = useCallback(async (value: 'single_item' | 'single_order') => {
+    setPrintMode(value);
+    await AsyncStorage.setItem('print_mode', value);
+    settingsListener.emitSettingChange('print_mode', value);
+    console.log('[Settings] 发出 print_mode 设置变化事件，值:', value);
   }, []);
 
   // 处理计时器显示开关
@@ -1003,7 +1022,7 @@ export default function SettingsScreen() {
                 onPress={() => handleItemLevelCompletionChange(false)}
               >
                 <Ionicons
-                  name="receipt"
+                  name="checkmark"
                   size={18}
                   color={!enableItemLevelCompletion ? "white" : "#333"}
                 />
@@ -1022,7 +1041,7 @@ export default function SettingsScreen() {
                 onPress={() => handleItemLevelCompletionChange(true)}
               >
                 <Ionicons
-                  name="checkmark"
+                  name="remove-circle"
                   size={18}
                   color={enableItemLevelCompletion ? "white" : "#333"}
                 />
@@ -1144,6 +1163,52 @@ export default function SettingsScreen() {
               ]} />
             </TouchableOpacity>
           </View>
+
+          {autoPrintNewOrders && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{t("printMode")}</Text>
+              <View style={styles.completionModeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.completionModeButton,
+                    printMode === 'single_item' && styles.completionModeButtonActive
+                  ]}
+                  onPress={() => handlePrintModeChange('single_item')}
+                >
+                  <Ionicons
+                    name="cut"
+                    size={18}
+                    color={printMode === 'single_item' ? "white" : "#333"}
+                  />
+                  <Text style={[
+                    styles.completionModeButtonText,
+                    printMode === 'single_item' && styles.completionModeButtonTextActive
+                  ]}>
+                    {t("singleItem")}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.completionModeButton,
+                    printMode === 'single_order' && styles.completionModeButtonActive
+                  ]}
+                  onPress={() => handlePrintModeChange('single_order')}
+                >
+                  <Ionicons
+                    name="cut"
+                    size={18}
+                    color={printMode === 'single_order' ? "white" : "#333"}
+                  />
+                  <Text style={[
+                    styles.completionModeButtonText,
+                    printMode === 'single_order' && styles.completionModeButtonTextActive
+                  ]}>
+                    {t("singleOrder")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("showOrderTimer")}</Text>
