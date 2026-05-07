@@ -555,6 +555,38 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
     }
 
     @ReactMethod
+    public void beep(int count, int duration, Promise promise) {
+        try {
+            if (printer == null) {
+                CreateUsbConnection();
+                Thread.sleep(500);
+                if (printer == null) {
+                    promise.reject("PRINTER_ERROR", "打印机未连接");
+                    return;
+                }
+            }
+
+            printer.isConnect((int status) -> {
+                if (status != 1) {
+                    promise.reject("PRINTER_ERROR", "打印机未连接，状态码: " + status);
+                    return;
+                }
+                try {
+                    // ESC/POS beep: ESC B n t
+                    byte n = (byte) Math.min(Math.max(count, 1), 9);
+                    byte t = (byte) Math.min(Math.max(duration, 1), 9);
+                    printer.sendData(new byte[]{0x1B, 0x42, n, t});
+                    promise.resolve(true);
+                } catch (Exception e) {
+                    promise.reject("BEEP_ERROR", "蜂鸣器错误: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            promise.reject("BEEP_ERROR", "蜂鸣器初始化错误: " + e.getMessage());
+        }
+    }
+
+    @ReactMethod
     public void reconnectPrinter(Promise promise) {
         try {
             // 先断开现有连接

@@ -3,6 +3,22 @@ import { FormattedOrder } from './types';
 
 const { Printer_K1215 } = NativeModules;
 
+/**
+ * 触发打印机蜂鸣
+ * @param count   鸣叫次数 1-9，默认 3
+ * @param duration 每次时长（单位 100ms）1-9，默认 2 = 200ms
+ */
+export const beepPrinter = async (count = 3, duration = 2): Promise<boolean> => {
+  try {
+    const ready = await checkPrinter();
+    if (!ready) return false;
+    return await Printer_K1215.beep(count, duration);
+  } catch (error) {
+    console.error('[Printer] beep 失败:', error);
+    return false;
+  }
+};
+
 // 检查打印机连接
 export const checkPrinter = async () => {
   try {
@@ -93,6 +109,7 @@ export const printFormattedOrder = async (order: FormattedOrder, silentMode: boo
     // 发送打印命令
     const result = await Printer_K1215.printOrder(printData);
     console.log(`[PrintOrder] 订单 #${order.num} 打印结果:`, result);
+    if (result) beepPrinter().catch(() => {});
     return result;
   } catch (error) {
     if (!silentMode) {
@@ -156,6 +173,7 @@ export const printSingleItem = async (order: FormattedOrder, item: any, silentMo
     // 发送打印命令
     const result = await Printer_K1215.printOrder(printData);
     console.log(`[PrintOrder] 单品打印结果:`, result);
+    if (result) beepPrinter().catch(() => {});
     return result;
   } catch (error) {
     if (!silentMode) {

@@ -11,11 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { FormattedOrder } from "../services/types";
 import { colors } from "../constants/theme";
 import { useLanguage } from "../contexts/LanguageContext";
-import { NativeModules } from "react-native";
-import { checkPrinter } from "../services/orderPrinter";
+import { printFormattedOrder } from "../services/orderPrinter";
 import { useSettings } from "../contexts/SettingsContext";
-
-const { Printer_K1215 } = NativeModules;
 
 interface PrintButtonProps {
   order: FormattedOrder;
@@ -30,45 +27,13 @@ export const PrintButton: React.FC<PrintButtonProps> = ({
   const { showPrintButton } = useSettings();
   const [isPrinting, setIsPrinting] = useState(false);
 
-  // 打印订单处理函数
   const handlePrint = async () => {
     if (isPrinting) return;
-
     setIsPrinting(true);
     try {
-      // 检查打印机连接状态
-      const isReady = await checkPrinter();
-
-      if (!isReady) {
-        Alert.alert(t("notConnected"), t("printerNotConnected"));
-        return;
-      }
-
-      // 格式化订单数据为打印机需要的格式
-      const printData = {
-        shopName: "KDS Restaurant", // 可以从配置读取
-        orderId: order.num,  // 使用 num (订单号)
-        orderTime: order.pickupTime || new Date().toLocaleString(),
-        pickupMethod: order.pickupMethod || "取餐",
-        tableNumber: order.tableNumber || null,
-        items: order.products ? order.products.map((product: any) => ({
-          name: product.name || "未知商品",
-          price: product.price || 0,
-          quantity: product.quantity || 1,
-          options: product.options || []
-        })) : []
-      };
-
-      console.log("打印数据:", JSON.stringify(printData, null, 2));
-
-      // 直接打印当前订单
-      const result = await Printer_K1215.printOrder(printData);
-
+      const result = await printFormattedOrder(order);
       if (result) {
-        Alert.alert(
-          t("success"),
-          `${t("orderPrinted")} #${order.num}`
-        );
+        Alert.alert(t("success"), `${t("orderPrinted")} #${order.num}`);
       } else {
         Alert.alert(t("failed"), t("printOrderFailed"));
       }
