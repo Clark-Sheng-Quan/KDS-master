@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kitchen Display System — Product Overview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f9fafb;
+      color: #111827;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: #fafafa;
+      border-right: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar::-webkit-scrollbar { width: 0; }
+
+    .sidebar-header {
+      padding: 24px 20px 18px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .sidebar-eyebrow {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.35;
+    }
+
+    .sidebar-sub {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    .nav { padding: 10px 0 24px; }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      padding: 14px 20px 4px;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 6px 20px;
+      font-size: 13.5px;
+      color: #6b7280;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: color 0.1s, background 0.1s;
+      user-select: none;
+    }
+
+    .nav-item:hover { color: #111827; background: #f3f4f6; }
+
+    .nav-item.active {
+      color: #111827;
+      font-weight: 500;
+      background: #f3f4f6;
+      border-left-color: #111827;
+    }
+
+    .nav-item.sub { padding-left: 32px; font-size: 13px; }
+
+    /* group with disclosure */
+    .nav-group { }
+    .nav-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 20px;
+      font-size: 13.5px;
+      color: #6b7280;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: color 0.1s, background 0.1s;
+      user-select: none;
+    }
+    .nav-group-header:hover { color: #111827; background: #f3f4f6; }
+    .nav-group-header.open { color: #111827; }
+    .nav-caret {
+      font-size: 9px;
+      color: #9ca3af;
+      transition: transform 0.2s;
+    }
+    .nav-group-header.open .nav-caret { transform: rotate(90deg); }
+    .nav-children { display: none; }
+    .nav-children.open { display: block; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      background: #fff;
+    }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 6px; }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── Hero ── */
+    .hero {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 64px 64px 56px;
+    }
+
+    .hero-badge {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      font-size: 40px;
+      font-weight: 800;
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      color: #111827;
+      margin-bottom: 16px;
+      max-width: 560px;
+    }
+
+    .hero h1 span { color: #111827; }
+
+    .hero-desc {
+      font-size: 16px;
+      color: #6b7280;
+      line-height: 1.75;
+      max-width: 500px;
+      margin-bottom: 48px;
+    }
+
+    /* ── Section layout ── */
+    .section-wrap {
+      padding: 52px 56px 80px;
+    }
+
+    .section-eyebrow {
+      display: inline-block;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: 30px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+      line-height: 1.25;
+    }
+
+    .section-lead {
+      font-size: 16px;
+      color: #64748b;
+      line-height: 1.75;
+      max-width: 620px;
+      margin-bottom: 48px;
+    }
+
+    /* ── Feature blocks ── */
+    .feature { margin-bottom: 60px; }
+
+    .feature-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      font-size: 15px;
+      color: #475569;
+      line-height: 1.75;
+      max-width: 680px;
+      margin-bottom: 22px;
+    }
+
+    /* ── Screenshots ── */
+    .shot {
+      display: block;
+      max-width: 70%;
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03);
+    }
+
+    .shot-caption {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #94a3b8;
+      padding-left: 4px;
+    }
+
+    .shot-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .shot-row .shot { flex: 1; }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 44px; }
+
+    .step { display: flex; gap: 20px; }
+
+    .step-num {
+      width: 30px; height: 30px;
+      min-width: 30px;
+      border-radius: 50%;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+
+    .step-body { flex: 1; min-width: 0; }
+
+    .step-body h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+
+    .step-body p {
+      font-size: 14.5px;
+      color: #475569;
+      line-height: 1.7;
+      margin-bottom: 16px;
+      max-width: 660px;
+    }
+
+    /* ── Callout ── */
+    .callout {
+      display: flex;
+      gap: 14px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin: 28px 0;
+    }
+
+    .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+    .callout p {
+      font-size: 14px;
+      color: #0369a1;
+      line-height: 1.65;
+    }
+
+    /* ── Divider ── */
+    hr.divider {
+      border: none;
+      border-top: 1px solid #f1f5f9;
+      margin: 52px 0;
+      max-width: 820px;
+    }
+
+    /* ── Inline badges (for description text) ── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+    .chip-orange { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .chip-green  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .chip-red    { background: #fff1f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .chip-yellow { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+
+    /* ── Hamburger ── */
+    .hamburger {
+      display: none;
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 200;
+      width: 38px;
+      height: 38px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .hamburger span {
+      display: block;
+      width: 18px;
+      height: 2px;
+      background: #374151;
+      border-radius: 2px;
+      position: relative;
+    }
+    .hamburger span::before,
+    .hamburger span::after {
+      content: '';
+      display: block;
+      width: 18px;
+      height: 2px;
+      background: #374151;
+      border-radius: 2px;
+      position: absolute;
+      left: 0;
+    }
+    .hamburger span::before { top: -5px; }
+    .hamburger span::after  { top: 5px; }
+
+    /* ── Overlay ── */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 150;
+    }
+    .overlay.open { display: block; }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      body { overflow: hidden; }
+
+      .hamburger { display: flex; }
+
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: -240px;
+        height: 100%;
+        z-index: 160;
+        transition: left 0.22s ease;
+        box-shadow: none;
+      }
+      .sidebar.open {
+        left: 0;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+      }
+
+      .content { width: 100%; }
+
+      .section-wrap { padding: 28px 18px 60px; }
+
+      .hero { padding: 52px 18px 36px; }
+      .hero h1 { font-size: 28px; }
+      .hero-desc { font-size: 14px; margin-bottom: 32px; }
+      .hero-stats { max-width: 100%; }
+
+      .section-title { font-size: 22px; }
+      .section-lead  { font-size: 14px; margin-bottom: 32px; }
+
+      .feature-title { font-size: 16px; }
+      .feature-desc  { font-size: 14px; }
+
+      .step { flex-direction: column; gap: 10px; }
+      .step-body p { font-size: 14px; }
+
+      .shot { border-radius: 8px; }
+
+      hr.divider { margin: 36px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<button class="hamburger" id="hamburger" aria-label="Open menu"><span></span></button>
+<div class="overlay" id="overlay"></div>
+
+<!-- ════════════════════ SIDEBAR ════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <img src="./screenshots/vendlogo.png" alt="vend88 logo" style="height:28px;margin-bottom:14px;display:block;">
+    <div class="sidebar-eyebrow">Product Overview</div>
+    <div class="sidebar-title">Kitchen Display System</div>
+    <div class="sidebar-sub">v1.4.2 · Kitchen Hub</div>
+  </div>
+
+  <nav class="nav">
+
+    <div class="nav-label">Introduction</div>
+    <div class="nav-item active" data-target="overview">Overview</div>
+
+    <div class="nav-label">Order Management</div>
+    <div class="nav-item" data-target="receiving">Receiving Orders</div>
+    <div class="nav-item" data-target="updates">Real-time Updates</div>
+    <div class="nav-item" data-target="completion">Completing Orders</div>
+    <div class="nav-item" data-target="cancellation">Cancellations</div>
+    <div class="nav-item" data-target="recall">Recall Orders</div>
+
+    <div class="nav-label">History & Navigation</div>
+    <div class="nav-item" data-target="sidemenu">Side Menu</div>
+    <div class="nav-item" data-target="completed">Completed Orders</div>
+
+    <div class="nav-label">Settings</div>
+    <div class="nav-item" data-target="settings-overview">Overview</div>
+    <div class="nav-item" data-target="settings-device">Device Info</div>
+    <div class="nav-item" data-target="settings-pos">POS Connection</div>
+    <div class="nav-item" data-target="settings-category">Category Colors</div>
+    <div class="nav-item" data-target="settings-orientation">Screen Orientation</div>
+    <div class="nav-item" data-target="settings-clickmode">Item Click Mode</div>
+    <div class="nav-item" data-target="settings-language">Language</div>
+    <div class="nav-item" data-target="settings-cardsize">Card Size & Font</div>
+    <div class="nav-item" data-target="settings-print">Print Settings</div>
+    <div class="nav-item" data-target="settings-timer">Order Timer</div>
+    <div class="nav-item" data-target="settings-system">Auto Start & Updates</div>
+    <div class="nav-item" data-target="settings-calling">Calling Screen</div>
+
+  </nav>
+</aside>
+
+<!-- ════════════════════ CONTENT ════════════════════ -->
+<main class="content">
+
+  <!-- ── OVERVIEW ── -->
+  <section id="overview" class="section active">
+    <div class="hero">
+      <div class="hero-badge">vend88 · Kitchen Display System</div>
+      <h1>Kitchen Display System</h1>
+      <p class="hero-desc">KDS is a kitchen display application developed by vend88. It works alongside VendPOS — when a cashier places an order at the counter, it appears on the KDS screen in the kitchen immediately, without any paper tickets or verbal relay. KDS can also pair with a Calling Screen to notify customers when their order is ready.</p>
+    </div>
+    <div class="section-wrap">
+      <div class="section-eyebrow">What is KDS?</div>
+      <h2 class="section-title">The kitchen screen that connects to VendPOS</h2>
+      <p class="section-lead">KDS runs on an Android tablet mounted in the kitchen. It connects to VendPOS over the local network and receives orders in real time — showing each ticket on screen the moment it is placed, keeping every station informed without paper or phone calls. It can also link to a Calling Screen device, automatically pushing active orders to the customer-facing display and letting staff call individual orders to ready with a single tap.</p>
+    </div>
+  </section>
+
+  <!-- ── RECEIVING ORDERS ── -->
+  <section id="receiving" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Receiving Orders</div>
+      <h2 class="section-title">From idle to in-progress — instantly</h2>
+      <p class="section-lead">The moment a customer places an order, it appears on screen. No refresh needed. Orders flow in from POS terminals and online platforms, merged into one live view.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>System is online and waiting</h4>
+            <p>When no orders are active, the screen shows a clean idle state. Staff can confirm at a glance that the system is connected and ready. The header always shows the live order count and current time.</p>
+            <img class="shot" src="./screenshots/home-01-empty.png" alt="Empty state">
+            <div class="shot-caption">New Orders (0) — live clock in the top right, Recall Order button always accessible</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>First order arrives</h4>
+            <p>A new order card appears the instant it's placed — showing the order type (Dine-In / Take-Away), table or order number, and the items to prepare. The header count updates immediately.</p>
+            <img class="shot" src="./screenshots/home-02-first-order.png" alt="First order">
+            <div class="shot-caption">Dine-In #12 — order type, table, item list, and an All Done button all on one card</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── REAL-TIME UPDATES ── -->
+  <section id="updates" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Real-time Updates</div>
+      <h2 class="section-title">Order changes reach the kitchen immediately</h2>
+      <p class="section-lead">If a customer modifies their order after placing it — adding an item, swapping a customization — the kitchen card updates instantly with a clear visual alert. No verbal relay, no re-printing.</p>
+
+      <div class="feature">
+        <div class="feature-title">The "Updated" badge</div>
+        <div class="feature-desc">
+          When an order is modified, an orange <span class="chip chip-orange">↻ Updated</span> badge appears at the top of the card. New items are added directly below the existing ones. Staff can spot the change at a glance without re-reading the entire order.
+        </div>
+        <img class="shot" src="./screenshots/home-03-updated.png" alt="Updated badge">
+        <div class="shot-caption">Mocha with customizations added to Dine-In #12 — the Updated badge makes the change unmissable</div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">💡</div>
+        <p>Updates are pushed in real time via the same TCP and API connection that delivers new orders. There is no polling delay — the badge appears the moment the POS sends the change.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── COMPLETING ORDERS ── -->
+  <section id="completion" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Completing Orders</div>
+      <h2 class="section-title">Mark progress item by item, or all at once</h2>
+      <p class="section-lead">KDS supports both item-level and order-level completion. Stations can tick off individual items as they finish, or mark the whole order done in one tap when everything is ready.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Item-level completion</h4>
+            <p>Tap any item to mark it done — it highlights green with a <span class="chip chip-green">✓</span> checkmark and stays visible. This lets different stations tick off their own items independently: the coffee bar marks the Latte done while the kitchen is still working on the main course.</p>
+            <img class="shot" src="./screenshots/home-04-item-complete.png" alt="Item completion with green checkmarks">
+            <div class="shot-caption">Latte done ✓ — Mocha's customizations being ticked off one by one as each station finishes</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>More orders arrive — each managed independently</h4>
+            <p>As new orders come in, they stack into the grid. Each card is fully independent: completing one order has no effect on others. The screen stays organized no matter how many tickets are open.</p>
+            <img class="shot" src="./screenshots/home-05-two-orders.png" alt="Two orders">
+            <div class="shot-caption">Two orders in progress</div>
+            <img class="shot" src="./screenshots/home-06-three-orders.png" alt="Three orders" style="margin-top:20px">
+            <div class="shot-caption">Three orders — each with its own All Done button</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CANCELLATIONS ── -->
+  <section id="cancellation" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Cancellations</div>
+      <h2 class="section-title">Know immediately what not to make</h2>
+      <p class="section-lead">When a customer cancels items — through the POS or online — those items are marked on the kitchen card in real time. Staff can stop preparation without any verbal communication from front-of-house.</p>
+
+      <div class="feature">
+        <div class="feature-title">Cancelled items stay visible</div>
+        <div class="feature-desc">
+          Cancelled items appear with a strikethrough and a <span class="chip chip-red">Cancelled</span> label rather than disappearing. This matters: if a station has already started on an item, they need to see it was cancelled — not just notice it's gone.
+        </div>
+        <img class="shot" src="./screenshots/home-07-cancelled.png" alt="Cancelled items">
+        <div class="shot-caption">Tuna Avocado Roll and Sushi Makizushi cancelled — shown clearly so no wasted prep work</div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">⚡</div>
+        <p><strong>Why not just remove them?</strong> In a busy kitchen, items disappearing silently from a card causes confusion — staff won't know whether the card was updated or if they missed something. Keeping cancelled items visible with a clear label means every station always knows the full, current state of every order.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── RECALL ORDERS ── -->
+  <section id="recall" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Recall Orders</div>
+      <h2 class="section-title">Undo a completion in seconds</h2>
+      <p class="section-lead">Mistakes happen — a staff member marks an order done too early, or a customer changes their mind after it's been cleared. KDS makes it easy to bring any completed order back to the active screen.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Online takeaway order arrives</h4>
+            <p>Alongside dine-in tables, KDS receives orders from online platforms. Takeaway orders appear as their own card — same layout, same All Done button — so the kitchen handles them exactly the same way regardless of source.</p>
+            <img class="shot" src="./screenshots/home-08-four-orders.png" alt="Four orders including online takeaway">
+            <div class="shot-caption">Four concurrent orders — the rightmost is an online takeaway, treated identically to dine-in tickets</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Instant recall after completion</h4>
+            <p>When an order is marked All Done, a confirmation card appears in the corner showing the order number and a one-tap <strong>Recall Order</strong> button. This gives staff an immediate undo window without having to navigate anywhere.</p>
+            <img class="shot" src="./screenshots/recall-01-toast.png" alt="Order completed toast with recall button">
+            <div class="shot-caption">Order completed — the recall shortcut is right there if it was a mistake</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Recall Order panel — full history</h4>
+            <p>The <strong>Recall Order</strong> button in the header opens a panel listing all recently completed orders. Each entry shows the order number, table, item count, and a summary of items. Any order can be recalled back to the active display with one tap.</p>
+            <img class="shot" src="./screenshots/recall-02-modal.png" alt="Recall Order modal showing completed order history">
+            <div class="shot-caption">Completed orders listed most-recent first — recall any of them back to the active screen instantly</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">💡</div>
+        <p>Recalled orders reappear on the main display exactly as they were — including all items, customizations, and order notes. No data is lost when an order is completed.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SIDE MENU ── -->
+  <section id="sidemenu" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Side Menu</div>
+      <h2 class="section-title">Quick access to everything, without leaving the screen</h2>
+      <p class="section-lead">A slide-out menu gives staff access to navigation, connection status, and settings — all without interrupting the live order view. It's designed to be fast and out of the way.</p>
+
+      <div class="feature">
+        <div class="feature-title">What's in the menu</div>
+        <div class="feature-desc">
+          The menu shows the active shop name, live internet connection status, and quick links to navigate between New Orders and Completed Orders. Settings and logout are also accessible from here.
+        </div>
+        <img class="shot" src="./screenshots/nav-01-sidemenu.png" alt="Side menu open showing shop name, connection status, and navigation">
+        <div class="shot-caption">Shop: vendposdemo · Internet: Connected · Navigation and settings all in one panel</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── COMPLETED ORDERS ── -->
+  <section id="completed" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Completed Orders</div>
+      <h2 class="section-title">A full record of today's orders</h2>
+      <p class="section-lead">The Completed Orders view shows every order finished during the current day — including start and end times, preparation duration, item details, and any cancellations. It's a live record the whole team can reference.</p>
+
+      <div class="feature">
+        <div class="feature-title">Order history at a glance</div>
+        <div class="feature-desc">
+          Each completed order card shows the table name, a green start time and red end time, and the total preparation time for each item. Orders with special notes, cancelled items, or multiple courses are all displayed in full.
+        </div>
+        <img class="shot" src="./screenshots/completed-01-list.png" alt="Completed Orders view showing today's history">
+        <div class="shot-caption">Today's Completed Orders (6) — full item details, prep times, cancellations, and order notes all preserved</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Recall directly from history</div>
+        <div class="feature-desc">
+          Any completed order can be selected and recalled back to the live display. Selecting a card highlights it in blue and reveals Recall and Cancel buttons in the header — keeping the interaction deliberate and reversible.
+        </div>
+        <img class="shot" src="./screenshots/completed-02-recall.png" alt="Recall mode with order selected in completed view">
+        <div class="shot-caption">Table 5 selected — one tap on Recall brings it back to the active order screen</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: DEVICE INFO ── -->
+  <section id="settings-device" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Device Info</div>
+      <h2 class="section-title">Know exactly where your KDS is on the network</h2>
+      <p class="section-lead">The Device Info panel shows the network identity of the KDS device at a glance — the information POS terminals and other devices need to connect to it. No network scanning or manual lookup required.</p>
+
+      <div class="feature">
+        <div class="feature-title">Local IP Address</div>
+        <div class="feature-desc">
+          Displays the device's current IP address on the local network. This is the address POS terminals are configured to send orders to. Staff or administrators can read it directly from the screen without accessing router settings.
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">TCP Port</div>
+        <div class="feature-desc">
+          KDS listens for POS order traffic on port <strong>8080</strong>. The port is shown here so it's easy to reference when configuring a new POS terminal or troubleshooting a dropped connection.
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Device Name</div>
+        <div class="feature-desc">
+          A unique identifier for this KDS unit on the network (e.g. <strong>KDS:edd2</strong>). Useful when multiple KDS devices are deployed across a larger kitchen or multi-station setup.
+        </div>
+      </div>
+
+      <img class="shot" src="./screenshots/settings-device-info.png" alt="Settings Device Info panel showing IP, port, and device name">
+      <div class="shot-caption">IP address, TCP port, and device name — everything needed to connect a POS terminal, visible at a glance</div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: POS CONNECTION ── -->
+  <section id="settings-pos" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · POS Connection</div>
+      <h2 class="section-title">Track every POS terminal from one screen</h2>
+      <p class="section-lead">KDS remembers every POS terminal that has ever connected over TCP. The POS Connection panel shows their current status in real time, so kitchen staff and managers can see at a glance which terminals are active and which have dropped off the network.</p>
+
+      <div class="feature">
+        <div class="feature-title">Live connection status per terminal</div>
+        <div class="feature-desc">
+          Each POS system is listed by its IP address with a live status indicator: <span class="chip chip-green">Connected</span> means the terminal is actively sending orders, <span class="chip chip-red">Disconnected</span> means it has gone offline or was powered down. The list updates automatically — no manual refresh needed.
+        </div>
+        <img class="shot" src="./screenshots/settings-pos-connection.png" alt="POS Connection panel showing three terminals with connected and disconnected states">
+        <div class="shot-caption">Three POS terminals tracked simultaneously — 192.168.0.140 is active, the other two are offline</div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">Reset Connection</div>
+        <div class="feature-desc">
+          Each terminal has a Reset Connection button that clears its session and forces a fresh TCP handshake. This is useful when a POS terminal reconnects from a different IP after a restart, or when a connection has stalled without fully dropping.
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">💡</div>
+        <p>KDS supports multiple simultaneous POS connections. Orders from all connected terminals are merged into a single live view — staff see everything in one place regardless of which terminal the order came from.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: CATEGORY COLORS ── -->
+  <section id="settings-category" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Category Colors</div>
+      <h2 class="section-title">Color-code your menu categories for instant recognition</h2>
+      <p class="section-lead">In a busy kitchen, every second spent reading an order card is time lost. Category Colors lets staff identify order types — coffee, sushi, ramen, beverages — at a glance through color, before reading a single word.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Open the Category Colors panel</h4>
+            <p>All product categories from the connected store are loaded automatically. Without any colors assigned, each category shows a neutral grey circle — a blank slate ready to be configured.</p>
+            <img class="shot" src="./screenshots/category-01-empty.png" alt="Category Colors panel with no colors assigned">
+            <div class="shot-caption">13 product categories loaded — Snacks, Food, Drinks, Ramen, Sushi, Coffee, and more</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Tap a category to pick its color</h4>
+            <p>Tapping any category tile opens a color picker with 21 options across three brightness levels — from deep saturated tones to lighter pastels. One tap assigns the color immediately.</p>
+            <img class="shot" src="./screenshots/category-02-picker.png" alt="Color picker open for Snacks category">
+            <div class="shot-caption">21 color options per category — pick a tone that's easy to spot in peripheral vision during a busy service</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Assign colors across all categories</h4>
+            <p>Once every category has a color, the panel gives a full visual overview of the kitchen's color system. A Reset button at the top clears all assignments if a reconfiguration is needed.</p>
+            <img class="shot" src="./screenshots/category-03-assigned.png" alt="All categories with distinct colors assigned">
+            <div class="shot-caption">Each category gets a unique color — Snacks red, Food orange, Ramen green, Beverage blue, Sushi purple, and so on</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Colors appear on every order card</h4>
+            <p>Back on the main display, each order card shows a colored left border reflecting the category of its items. When multiple categories are present in one order, multiple color bars stack on the left edge — staff can see the mix of dishes without reading the list.</p>
+            <img class="shot" src="./screenshots/category-04-applied.png" alt="Order cards with category color borders applied">
+            <div class="shot-caption">Orange, dark, purple, and yellow borders — each card's category visible before reading a single item name</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: SCREEN ORIENTATION ── -->
+  <section id="settings-orientation" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Screen Orientation</div>
+      <h2 class="section-title">Landscape or portrait — switch without restarting</h2>
+      <p class="section-lead">KDS adapts to the physical setup of the kitchen. Tablets mounted horizontally show more order cards side by side in landscape; tablets mounted vertically stack cards in a portrait grid. The layout reflows instantly when the setting is toggled.</p>
+
+      <div class="feature">
+        <div class="feature-title">Portrait mode — full settings page</div>
+        <div class="feature-desc">
+          In portrait orientation, the settings page reflows to a single-column layout optimised for vertical screens. All options remain accessible — nothing is hidden or truncated. Staff can configure the device regardless of how it's mounted.
+        </div>
+        <img class="shot" src="./screenshots/orient-01-portrait-settings.png" alt="Settings page in portrait orientation">
+        <div class="shot-caption">Every setting accessible in portrait — same content, single-column layout</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Portrait mode — order card grid</div>
+        <div class="feature-desc">
+          In portrait mode, order cards stack in a narrower grid suited to vertically mounted displays. Cards wrap to the next row as orders accumulate, keeping every order visible and legible without horizontal scrolling.
+        </div>
+        <img class="shot" src="./screenshots/orient-02-portrait-orders.png" alt="Order cards arranged in portrait grid layout">
+        <div class="shot-caption">Four orders displayed in portrait — three across the top row, one wrapping to the second</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: ITEM CLICK MODE ── -->
+  <section id="settings-clickmode" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Item Click Mode</div>
+      <h2 class="section-title">Two ways to mark items done — choose what fits your workflow</h2>
+      <p class="section-lead">Different kitchens work differently. Some prefer tapping once to mark an item in progress; others prefer items to disappear completely when double-tapped. KDS supports both modes, switchable in Settings with no restart needed.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Switch to "Double Click to Remove" mode</h4>
+            <p>In Settings, switching the Item Click Mode to <strong>Double Click to Remove</strong> changes how item completion works across the entire display. The setting takes effect immediately.</p>
+            <img class="shot" src="./screenshots/clickmode-01-setting.png" alt="Settings showing Double Click to Remove selected">
+            <div class="shot-caption">Double Click to Remove selected — items will disappear from the card when double-tapped rather than turning green</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Orders adapt: "Done" button + item-level Recall</h4>
+            <p>In this mode the completion button changes from "All Done" to <strong>Done</strong>, and the header gains a <strong>Recall Item</strong> button alongside the existing Recall Order button — because removing individual items now requires a separate undo path.</p>
+            <img class="shot" src="./screenshots/clickmode-02-orders.png" alt="Order display in Double Click to Remove mode with Done button and Recall Item">
+            <div class="shot-caption">Done button, Recall Order, and Recall Item — the interface adapts to the mode automatically</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Item removed — instant confirmation with Undo</h4>
+            <p>Double-tapping an item removes it from the card and shows an <strong>ITEM COMPLETED</strong> toast in the corner naming the item. An <strong>Undo</strong> button is available for a few seconds in case it was a mistake.</p>
+            <img class="shot" src="./screenshots/clickmode-03-toast.png" alt="ITEM COMPLETED toast with Undo button after double-tapping an item">
+            <div class="shot-caption">"Tonkotsu Ramen 豚骨ラーメン" removed — Undo available immediately before the toast disappears</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Recall Item — bring back any removed item</h4>
+            <p>Tapping <strong>Recall Item</strong> in the header opens a panel listing all recently removed items. Each entry shows the order it came from, the item name, and its preparation time. Any item can be restored to its original order card.</p>
+            <img class="shot" src="./screenshots/clickmode-04-recall-modal.png" alt="Recall Item panel showing individual removed items">
+            <div class="shot-caption">Item-level recall history — each item shown with its order number, name, and how long it took to prepare</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h4>Item restored to the active order</h4>
+            <p>After recalling, the item reappears on its original order card exactly as before. The order continues as if the item was never removed — no need to re-enter anything.</p>
+            <img class="shot" src="./screenshots/clickmode-05-recalled.png" alt="Order card after item has been recalled back">
+            <div class="shot-caption">Tonkotsu Ramen 豚骨ラーメン back on Table 1 — the order is complete again</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: LANGUAGE ── -->
+  <section id="settings-language" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Language</div>
+      <h2 class="section-title">Switch between English and Chinese — instantly</h2>
+      <p class="section-lead">KDS supports English and Chinese (Simplified) out of the box. Switching language updates every label, button, status text, and notification across the entire interface — no restart, no re-login required.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Select language in Display Settings</h4>
+            <p>The Language dropdown sits in the Display Settings section. Choosing a new language applies immediately — the page itself redraws in the selected language as soon as the selection is made.</p>
+            <img class="shot" src="./screenshots/lang-01-setting.png" alt="Language dropdown set to English in Settings">
+            <div class="shot-caption">Language dropdown — English selected. One tap switches to Chinese.</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Settings page in Chinese</h4>
+            <p>After switching to Chinese, every settings label — screen orientation, item click mode, card dimensions, print options, timer settings — is displayed in Chinese. The layout and functionality remain identical; only the language changes.</p>
+            <img class="shot" src="./screenshots/lang-02-chinese-settings.png" alt="Settings page fully displayed in Chinese">
+            <div class="shot-caption">显示设置 — every label translated: 屏幕方向, 项目点击模式, 卡片宽度, 打印模式, 显示计时器</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Order display in Chinese</h4>
+            <p>The main order screen also reflects the language change. Header labels, order type names (堂食 / 外带 / 桌号), status badges, and action buttons (全部完毕, 召回订单) all switch to Chinese, making the system fully usable for Chinese-speaking kitchen staff.</p>
+            <img class="shot" src="./screenshots/lang-03-chinese-orders.png" alt="Main KDS order display in Chinese">
+            <div class="shot-caption">新订单 (4) — Dine-In becomes 堂食, Take-Away becomes 外带, All Done becomes 全部完毕</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: CARD SIZE & FONT ── -->
+  <section id="settings-cardsize" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Card Size & Font</div>
+      <h2 class="section-title">Fit more orders on screen, or make them easier to read</h2>
+      <p class="section-lead">Cards Width and Cards Height control how much space each order card takes up. Font size is a separate control that can be combined freely — shrink cards to show more orders, or bump the font for stations that need to read from a distance.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Default — Medium card size</h4>
+            <p>Out of the box, both Cards Width and Cards Height are set to Medium. This gives each order card a balanced amount of space — clear item names, readable quantities, and enough room for the All Done button — while still fitting several orders on screen at once.</p>
+            <img class="shot" src="./screenshots/cardsize-01-medium-setting.png" alt="Cards Width and Height set to Medium">
+            <div class="shot-caption">Cards Width: Medium · Cards Height: Medium — the default starting point</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Large cards — easier to read at a distance</h4>
+            <p>Increasing card size makes each ticket larger and more legible — useful on screens mounted further from the prep station, or where item names are long and need more room to display cleanly.</p>
+            <img class="shot" src="./screenshots/cardsize-02-medium-result.png" alt="Order cards in large size">
+            <div class="shot-caption">Large card size — each order takes up more space, text is easier to read from across the station</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Small cards — more orders visible at once</h4>
+            <p>Reducing card size lets the screen fit more concurrent orders without scrolling. Useful during peak service when many tickets are open and the team needs a full overview at a glance.</p>
+            <img class="shot" src="./screenshots/cardsize-03-small-result.png" alt="Order cards in small size">
+            <div class="shot-caption">Small card size — more orders visible on screen simultaneously</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Font size is adjustable independently</h4>
+            <p>Title Font Size and Item Font Size can be set separately from card dimensions. Here, both are set to Small alongside Small card Width and Height — combining compact cards with a tighter font to maximize the number of orders on screen.</p>
+            <img class="shot" src="./screenshots/cardsize-04-small-setting.png" alt="Font size settings with Small font and Small card size">
+            <div class="shot-caption">Cards Width: Small · Cards Height: Small · Title Font: Small · Item Font: Small</div>
+            <img class="shot" src="./screenshots/cardsize-05-small-result.png" alt="Home screen with small font and small card size" style="margin-top:20px">
+            <div class="shot-caption">Small font + small cards — maximum order density, minimal screen space per ticket</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">💡</div>
+        <p>All size and font changes take effect immediately — no restart needed. Card size and font size are independent controls, so any combination is valid.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: PRINT ── -->
+  <section id="settings-print" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Print</div>
+      <h2 class="section-title">Print tickets your way — manually or automatically</h2>
+      <p class="section-lead">KDS integrates with a thermal printer to produce kitchen tickets. Three settings control how and when printing happens: whether the print button is visible on each card, whether new orders print automatically on arrival, and how many tickets are cut per job.</p>
+
+      <div class="feature">
+        <div class="feature-title">Three print settings, one group</div>
+        <div class="feature-desc">
+          All print configuration is grouped together in Display Settings. <strong>Show Print Button</strong> toggles a manual print button on every order card. <strong>Auto-Print New Orders</strong> triggers a print job the moment an order arrives — no staff action needed. <strong>Print Mode</strong> controls whether the printer cuts once per item or once per complete order.
+        </div>
+        <img class="shot" src="./screenshots/print-01-settings.png" alt="Print settings group: Show Print Button, Auto-Print, Print Mode">
+        <div class="shot-caption">Show Print Button · Auto-Print New Orders · Print Mode — all three in one section</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Auto-Print New Orders</div>
+        <div class="feature-desc">
+          When enabled, a ticket prints automatically every time a new order arrives — including orders from both POS terminals and online platforms. Staff receive a physical ticket without touching the screen, useful in kitchens where the display is shared but each station needs its own paper copy.
+        </div>
+        <img class="shot" src="./screenshots/print-02-autoprint.png" alt="Auto-Print New Orders toggle enabled">
+        <div class="shot-caption">Auto-Print On — every incoming order triggers an immediate print job</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Print Mode: Cut per Item or Cut per Order</div>
+        <div class="feature-desc">
+          <strong>Cut per Item</strong> prints one ticket per menu item — each item gets its own slip, useful when different stations handle different dishes and each needs its own paper. <strong>Cut per Order</strong> prints all items on one continuous ticket per order, better suited for kitchens where one station handles the full order.
+        </div>
+        <img class="shot" src="./screenshots/print-03-mode.png" alt="Print Mode selection: Cut per Item vs Cut per Order">
+        <div class="shot-caption">Cut per Item selected — each dish gets its own ticket rather than grouping the entire order</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Show Print Button — manual trigger on every card</div>
+        <div class="feature-desc">
+          Enabling Show Print Button adds a <strong>Print</strong> button to the header of every order card. Staff can reprint any order at any time — useful if a ticket is lost or a station didn't receive the auto-print. The button appears and disappears without any restart.
+        </div>
+        <img class="shot" src="./screenshots/print-04-button.png" alt="Order cards each showing a Print button in the top-right corner">
+        <div class="shot-caption">Every active order card has a Print button — reprint any ticket on demand, at any point during service</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: TIMER ── -->
+  <section id="settings-timer" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Order Timer</div>
+      <h2 class="section-title">See at a glance how long every order has been waiting</h2>
+      <p class="section-lead">The order timer adds an elapsed time counter to every card, updated live in minutes. Combined with timer highlighting, it gives the kitchen an instant visual signal of which orders are overdue — without anyone having to check a clock.</p>
+
+      <div class="feature">
+        <div class="feature-title">Three timer settings</div>
+        <div class="feature-desc">
+          <strong>Show Order Timer</strong> toggles the elapsed time display on each card. <strong>Show Timer Highlight</strong> changes the card border color as wait time grows — green for fresh orders, yellow for medium waits, red for orders that have been waiting too long. <strong>Auto Clean Completed Orders After 24h</strong> automatically purges completed order history that is older than one day.
+        </div>
+        <img class="shot" src="./screenshots/timer-01-settings.png" alt="Timer settings group: Show Order Timer, Timer Highlight, Auto Clean">
+        <div class="shot-caption">Show Order Timer · Show Timer Highlight · Auto Clean After 24h — all three in one group</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Live elapsed time on every card</div>
+        <div class="feature-desc">
+          With Show Order Timer enabled, each card shows how many minutes have passed since the order arrived — displayed in the top-right corner. Orders waiting over 30 minutes appear in red; newer orders appear in green. Staff can prioritise without reading timestamps.
+        </div>
+        <img class="shot" src="./screenshots/timer-02-active.png" alt="Order cards each showing elapsed time — red for old orders, green for recent">
+        <div class="shot-caption">43m, 40m, 39m, 36m in red — all overdue. 05m in green — just arrived. No guesswork needed.</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Timer Highlight — color-coded card borders</div>
+        <div class="feature-desc">
+          When Show Timer Highlight is on, the border of each card changes color based on how long the order has been waiting: green borders for recent orders, yellow for medium waits, and a warm red-orange for orders that need immediate attention. The highlight is visible from across the kitchen without reading a number.
+        </div>
+        <div class="shot-row">
+          <div>
+            <img class="shot" src="./screenshots/timer-03-highlight.png" alt="Orders with yellow timer highlight borders on older orders">
+            <div class="shot-caption">Yellow borders signal orders approaching the limit</div>
+          </div>
+          <div>
+            <img class="shot" src="./screenshots/timer-04-colors.png" alt="Five orders showing red, yellow, and green timer borders">
+            <div class="shot-caption">Red (49m, 46m) · Yellow (14m, 13m) · Green (02m) — urgency visible at a glance</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: AUTO START & SYSTEM ── -->
+  <section id="settings-system" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Auto Start & Updates</div>
+      <h2 class="section-title">Always ready — even after a reboot</h2>
+      <p class="section-lead">In a restaurant environment, devices get power-cycled frequently. KDS is designed to come back online without any manual intervention — and to keep itself up to date with a single tap.</p>
+
+      <div class="feature">
+        <div class="feature-title">Auto Start on Boot</div>
+        <div class="feature-desc">
+          Enabling Auto Start on Boot launches KDS automatically when the Android device powers on. Tapping the toggle opens a system check dialog that reports the current permission status — auto-start permission and battery optimisation — and provides direct links to the relevant Android system settings to grant them.
+        </div>
+        <img class="shot" src="./screenshots/system-01-autostart.png" alt="Boot Auto-start Check dialog showing permission status">
+        <div class="shot-caption">Auto-start permission: Enabled · Battery permission: Disabled — links to system settings let staff fix it without navigating Android menus manually</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Check for Updates</div>
+        <div class="feature-desc">
+          The System Information section shows the current app version and a <strong>Check for Updates</strong> button. Tapping it queries the update server and reports back immediately — either confirming the current version is up to date, or initiating an APK download and install flow directly within the app.
+        </div>
+        <img class="shot" src="./screenshots/system-02-update.png" alt="System Information dialog confirming current version is up to date">
+        <div class="shot-caption">System Version: 1.4.2 · "Current version is up to date" — one tap to check, no app store required</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS: CALLING SCREEN ── -->
+  <section id="settings-calling" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings · Calling Screen</div>
+      <h2 class="section-title">Connect a customer-facing Calling Screen</h2>
+      <p class="section-lead">KDS can pair with a Calling Screen device over the local network. Once connected, it automatically pushes all active orders to the Calling Screen's "Preparing" section — and staff can move any order to "Ready" with a single tap.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Open device discovery</h4>
+            <p>In Settings, tap the Calling Screen row to open the discovery panel. KDS scans the local network via mDNS and lists every Calling Screen device it finds — showing the device name, IP address, and port.</p>
+            <img class="shot" src="./screenshots/calling-02-discovery.png" alt="Calling Screen discovery panel">
+            <div class="shot-caption">CS:edd2 found at 192.168.0.56:9090 — tap Connect to pair</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Confirm the connection</h4>
+            <p>After tapping Connect, a success dialog confirms the pairing with the device name and address. The connection is established over the local network with no manual IP entry required.</p>
+            <img class="shot" src="./screenshots/calling-03-connected.png" alt="Connection success dialog">
+            <div class="shot-caption">Connected to CS:edd2 · 192.168.0.56:9090 — confirmed and ready</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Paired device shown in Settings</h4>
+            <p>The connected Calling Screen appears as a <span class="chip chip-green">Connected</span> row in Settings. The <strong>Show Calling Button</strong> toggle enables a dedicated Call button on every order card. As soon as the device connects, KDS automatically pushes all orders currently on screen to the Calling Screen's Preparing section — no manual sync needed.</p>
+            <img class="shot" src="./screenshots/calling-04-settings-connected.png" alt="Settings showing connected Calling Screen">
+            <div class="shot-caption">CS:edd2 connected · Show Calling Button toggled ON · existing orders auto-pushed to Preparing on connect</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Call button moves order to Ready</h4>
+            <p>With the Calling Button enabled, each order card shows both an <span class="chip chip-green">All Done</span> button and a <span class="chip chip-orange">Call</span> button. Tapping Call sends a signal to the Calling Screen, moving that specific order from Preparing to Ready — notifying the customer that their order is available.</p>
+            <img class="shot" src="./screenshots/calling-05-call-button.png" alt="Order cards with Call buttons">
+            <div class="shot-caption">Each card has a Call button — one tap updates the order status on the Calling Screen in real time</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">📡</div>
+        <p>Calling Screen discovery uses <strong>mDNS (Bonjour)</strong> — no IP configuration or QR scanning. KDS finds compatible devices automatically as long as both devices are on the same Wi-Fi network.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SETTINGS OVERVIEW ── -->
+  <section id="settings-overview" class="section">
+    <div class="section-wrap">
+      <div class="section-eyebrow">Settings</div>
+      <h2 class="section-title">Everything configurable, all in one place</h2>
+      <p class="section-lead">KDS is built to adapt to different kitchen setups. From connection management and display layout to print behaviour and system automation — every aspect can be configured without touching the code or restarting the app.</p>
+
+      <div class="feature">
+        <div class="feature-title">Device info, POS connections & Calling Screen</div>
+        <div class="feature-desc">
+          The top of Settings shows the device's local IP address, TCP port, and device name — the information POS terminals need to connect. Below that, every POS system that has ever connected appears in a list with its current status (<span class="chip chip-green">Connected</span> or <span class="chip chip-red">Disconnected</span>) and a reset button. The Calling Screen section lets staff discover and link a customer-facing display over the local network.
+        </div>
+        <img class="shot" src="./screenshots/settings-01-connections.png" alt="Settings: Device Info, POS Connection, Calling Screen">
+        <div class="shot-caption">Three POS systems tracked simultaneously — one connected, two disconnected. Calling Screen discovery is one tap away.</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Display, layout & print settings</div>
+        <div class="feature-desc">
+          The Display Settings section controls how orders appear on screen. Staff can switch between landscape and portrait orientation, choose how items are marked done (tap once to mark, or double-tap to remove), set the language, and adjust card dimensions. Print settings include auto-printing new orders on arrival and choosing between printing one ticket per item or one ticket per order.
+        </div>
+        <img class="shot" src="./screenshots/settings-02-display.png" alt="Settings: Display and print options">
+        <div class="shot-caption">Screen orientation, item click mode, language, card size, and print mode — all adjustable without restarting</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="feature">
+        <div class="feature-title">Timer, font size, automation & system info</div>
+        <div class="feature-desc">
+          The lower section covers order timer visibility, timer highlight effects for overdue orders, automatic 24-hour cleanup of completed orders, title and item font sizes, and auto-start on device boot. The System Information panel shows the current app version and a one-tap update check that downloads and installs new APK versions directly.
+        </div>
+        <img class="shot" src="./screenshots/settings-03-system.png" alt="Settings: Timer, font, auto-clean, system info">
+        <div class="shot-caption">Auto Clean after 24h, Timer Highlight, Auto Start on Boot — all toggled live. System version v1.4.2 with built-in update check.</div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const navItems = document.querySelectorAll('.nav-item[data-target]');
+  const sections = document.querySelectorAll('.section');
+  const contentEl = document.querySelector('.content');
+  const sidebar   = document.getElementById('sidebar');
+  const overlay   = document.getElementById('overlay');
+  const hamburger = document.getElementById('hamburger');
+
+  function openSidebar()  { sidebar.classList.add('open');    overlay.classList.add('open'); }
+  function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+
+  hamburger.addEventListener('click', openSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const target = item.getAttribute('data-target');
+
+      navItems.forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+
+      sections.forEach(s => s.classList.remove('active'));
+      const el = document.getElementById(target);
+      if (el) {
+        el.classList.add('active');
+        contentEl.scrollTo({ top: 0, behavior: 'instant' });
+      }
+
+      closeSidebar();
+    });
+  });
+
+  // Nav group disclosure
+  document.querySelectorAll('.nav-group-header').forEach(header => {
+    header.addEventListener('click', () => {
+      header.classList.toggle('open');
+      const children = header.nextElementSibling;
+      if (children) children.classList.toggle('open');
+    });
+  });
+</script>
+
+</body>
+</html>
