@@ -226,6 +226,8 @@
       box-shadow: 0 2px 16px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03);
     }
 
+    .shot-portrait { max-width: 38%; }
+
     .shot-caption {
       margin-top: 10px;
       font-size: 13px;
@@ -369,6 +371,79 @@
     }
     .overlay.open { display: block; }
 
+    /* ── Print ── */
+    .print-logo, .print-toc { display: none; }
+
+    @media print {
+      @page { margin: 1.8cm 1.5cm; }
+
+      body { display: block; height: auto; overflow: visible; }
+      .sidebar, .hamburger, .overlay { display: none; }
+      .content { overflow: visible; height: auto; }
+      .section { display: block !important; }
+      .section-wrap { padding: 28px 40px 40px; }
+      .hero { padding: 36px 40px 32px; }
+      .shot { box-shadow: none; max-width: 100%; }
+
+      .feature,
+      .step,
+      .callout,
+      .steps { page-break-inside: avoid; }
+
+      h2, h4 { page-break-after: avoid; }
+      img {
+        page-break-inside: avoid;
+        max-height: 80vh;
+        object-fit: contain;
+      }
+
+      /* ── TOC page ── */
+      .print-toc {
+        display: flex;
+        flex-direction: column;
+        padding: 32px 56px 28px;
+        page-break-after: always;
+      }
+      .print-toc-logo { margin-bottom: 24px; }
+      .print-toc-logo img { height: 26px; }
+      .print-toc h1 {
+        font-size: 28px;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+        margin-bottom: 4px;
+      }
+      .print-toc-sub {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-bottom: 24px;
+      }
+      .print-toc-group { margin-bottom: 14px; }
+      .print-toc-label {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        margin-bottom: 4px;
+      }
+      .print-toc-item {
+        display: flex;
+        align-items: baseline;
+        padding: 2px 0;
+        font-size: 12px;
+        color: #374151;
+      }
+      .print-toc-item span { flex-shrink: 0; }
+      .print-toc-dots {
+        flex: 1;
+        border-bottom: 1px dotted #d1d5db;
+        margin: 0 8px;
+        height: 1px;
+        align-self: center;
+      }
+    }
+
     /* ── Mobile ── */
     @media (max-width: 768px) {
       body { overflow: hidden; }
@@ -462,6 +537,50 @@
 
 <!-- ════════════════════ CONTENT ════════════════════ -->
 <main class="content">
+
+  <div class="print-toc">
+    <div class="print-toc-logo">
+      <img src="./screenshots/vendlogo.png" alt="vend88">
+    </div>
+    <h1>Kitchen Display System</h1>
+    <div class="print-toc-sub">v1.4.2 · Kitchen Hub · Product Overview</div>
+
+    <div class="print-toc-group">
+      <div class="print-toc-label">Introduction</div>
+      <div class="print-toc-item"><span>Overview</span><div class="print-toc-dots"></div></div>
+    </div>
+
+    <div class="print-toc-group">
+      <div class="print-toc-label">Order Management</div>
+      <div class="print-toc-item"><span>Receiving Orders</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Real-time Updates</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Completing Orders</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Cancellations</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Recall Orders</span><div class="print-toc-dots"></div></div>
+    </div>
+
+    <div class="print-toc-group">
+      <div class="print-toc-label">History & Navigation</div>
+      <div class="print-toc-item"><span>Side Menu</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Completed Orders</span><div class="print-toc-dots"></div></div>
+    </div>
+
+    <div class="print-toc-group">
+      <div class="print-toc-label">Settings</div>
+      <div class="print-toc-item"><span>Overview</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Device Info</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>POS Connection</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Category Colors</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Screen Orientation</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Item Click Mode</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Language</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Card Size & Font</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Print Settings</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Order Timer</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Auto Start & Updates</span><div class="print-toc-dots"></div></div>
+      <div class="print-toc-item"><span>Calling Screen</span><div class="print-toc-dots"></div></div>
+    </div>
+  </div>
 
   <!-- ── OVERVIEW ── -->
   <section id="overview" class="section active">
@@ -822,7 +941,7 @@
         <div class="feature-desc">
           In portrait orientation, the settings page reflows to a single-column layout optimised for vertical screens. All options remain accessible — nothing is hidden or truncated. Staff can configure the device regardless of how it's mounted.
         </div>
-        <img class="shot" src="./screenshots/orient-01-portrait-settings.png" alt="Settings page in portrait orientation">
+        <img class="shot shot-portrait" src="./screenshots/orient-01-portrait-settings.png" alt="Settings page in portrait orientation">
         <div class="shot-caption">Every setting accessible in portrait — same content, single-column layout</div>
       </div>
 
@@ -833,7 +952,7 @@
         <div class="feature-desc">
           In portrait mode, order cards stack in a narrower grid suited to vertically mounted displays. Cards wrap to the next row as orders accumulate, keeping every order visible and legible without horizontal scrolling.
         </div>
-        <img class="shot" src="./screenshots/orient-02-portrait-orders.png" alt="Order cards arranged in portrait grid layout">
+        <img class="shot shot-portrait" src="./screenshots/orient-02-portrait-orders.png" alt="Order cards arranged in portrait grid layout">
         <div class="shot-caption">Four orders displayed in portrait — three across the top row, one wrapping to the second</div>
       </div>
 
