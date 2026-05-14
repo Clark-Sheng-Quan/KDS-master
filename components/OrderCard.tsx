@@ -593,6 +593,29 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           )}
         </TouchableOpacity>
 
+        {item.notes && (
+          <View style={[
+            styles.itemNotesContainer,
+            isVoided && styles.voidedItemNotes,
+            {
+              borderLeftWidth: 8,
+              borderLeftColor: itemBorderColor,
+            }
+          ]}>
+            <View style={styles.itemNotesContent}>
+              <Ionicons name="document-text-outline" size={14} color="#999999" style={styles.itemNotesIcon} />
+              <Text style={[
+                styles.itemNotes,
+                { fontSize: ITEM_OPTION_FONT_SIZES[itemOptionFontSize].optionName },
+                isVoided && styles.voidedText
+              ]}>
+                <Text style={[styles.notesLabel, { fontSize: 14 }]}>Note: </Text>
+                {item.notes}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {item.options?.length > 0 && (
           <View style={styles.optionsContainer}>
             {item.options.map((option: any, optIndex: number) => {
@@ -842,10 +865,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             
             {orderNotes ? (
               <View style={styles.notesSection}>
-                <Text style={styles.notesText}>
-                  <Text style={styles.notesTitle}>{t("orderNotes")}: </Text>
-                  {orderNotes}
-                </Text>
+                <View style={styles.orderNotesContent}>
+                  <Ionicons name="alert-circle-outline" size={16} color="#999999" style={styles.orderNotesIcon} />
+                  <Text style={styles.notesText}>
+                    <Text style={styles.notesTitle}>Order Remarks: </Text>
+                    {orderNotes}
+                  </Text>
+                </View>
               </View>
             ) : null}
 
@@ -1060,9 +1086,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#F0F0F0",
     borderLeftWidth: 4,
-    borderLeftColor: "#CCCCCC",
+    borderLeftColor: "#999999",
+  },
+  orderNotesContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  orderNotesIcon: {
+    marginRight: 8,
+    marginTop: 2,
   },
   notesTitle: {
     fontSize: 14,
@@ -1070,10 +1104,12 @@ const styles = StyleSheet.create({
     color: "#666666",
   },
   notesText: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "600",
-    color: "#555555",
+    color: "#666666",
     lineHeight: 20,
+    flex: 1,
+    fontStyle: "italic",
   },
   itemRow: {
     flexDirection: "row",
@@ -1114,6 +1150,36 @@ const styles = StyleSheet.create({
   optionsContainer: {
     marginTop: 0,
     marginLeft: 0,
+  },
+  itemNotesContainer: {
+    paddingVertical: 6,
+    paddingLeft: 14,
+    paddingRight: 6,
+    backgroundColor: "#F0F0F0",
+    marginBottom: 0,
+  },
+  itemNotesContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  itemNotesIcon: {
+    marginRight: 6,
+  },
+  itemNotes: {
+    fontSize: 14,
+    color: "#666666",
+    fontWeight: "500",
+    fontStyle: "italic",
+    flex: 1,
+  },
+  notesLabel: {
+    fontSize: 14,
+    color: "#666666",
+    fontWeight: "700",
+  },
+  voidedItemNotes: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.7,
   },
   optionRow: {
     flexDirection: "row",
