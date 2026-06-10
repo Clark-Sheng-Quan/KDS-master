@@ -25,6 +25,12 @@ export default function TabLayout() {
             title: "Home",
           }}
         />
+        <Tabs.Screen
+          name="eod"
+          options={{
+            title: "EOD",
+          }}
+        />
         {/* <Tabs.Screen
           name="recall"
           options={{

@@ -20,6 +20,7 @@ interface OrderContextType {
   loading: boolean;
   error: string | null;
   removeOrder: (orderId: string, source?: "network" | "tcp" | "all") => void;
+  removeOrders: (orderIds: string[]) => void;
   refreshOrders: () => Promise<void>;
   isKDSMaster: boolean;
   networkStatus: "connected" | "disconnected" | "unknown";
@@ -235,6 +236,14 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // 批量移除订单（合并桌完成时使用，只触发一次 emitOrderUpdate）
+  const removeOrders = useCallback((orderIds: string[]) => {
+    setNetworkOrders((prev) => prev.filter((order) => !orderIds.includes(order.id)));
+    setTcpOrders((prev) => prev.filter((order) => !orderIds.includes(order.id)));
+    setOrders((prev) => prev.filter((order) => !orderIds.includes(order.id)));
+    OrderService.removeOrders(orderIds);
+  }, []);
+
   // 刷新订单列表
   const refreshOrders = useCallback(async () => {
     try {
@@ -283,6 +292,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       loading,
       error,
       removeOrder,
+      removeOrders,
       refreshOrders,
       isKDSMaster,
       networkStatus,
@@ -294,6 +304,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       loading,
       error,
       removeOrder,
+      removeOrders,
       refreshOrders,
       isKDSMaster,
       networkStatus,

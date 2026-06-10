@@ -705,21 +705,40 @@ export class OrderService {
    */
   static async removeOrder(orderId: string) {
     try {
-      // 尝试从两种类型的订单中删除
       const networkIndex = this.networkOrders.findIndex(order => order.id === orderId);
       if (networkIndex !== -1) {
         this.networkOrders = await StorageService.removeNetworkOrder(orderId, this.networkOrders);
       }
-      
+
       const tcpIndex = this.tcpOrders.findIndex(order => order.id === orderId);
       if (tcpIndex !== -1) {
         this.tcpOrders = await StorageService.removeTCPOrder(orderId, this.tcpOrders);
       }
-      
-      // 触发更新回调（直接传递已过滤的订单）
+
       this.emitOrderUpdate();
     } catch (error) {
       console.error('删除订单失败:', error);
+    }
+  }
+
+  /**
+   * 批量删除订单，只触发一次 emitOrderUpdate（避免合并订单完成时分裂闪烁）
+   */
+  static async removeOrders(orderIds: string[]) {
+    try {
+      for (const orderId of orderIds) {
+        const networkIndex = this.networkOrders.findIndex(order => order.id === orderId);
+        if (networkIndex !== -1) {
+          this.networkOrders = await StorageService.removeNetworkOrder(orderId, this.networkOrders);
+        }
+        const tcpIndex = this.tcpOrders.findIndex(order => order.id === orderId);
+        if (tcpIndex !== -1) {
+          this.tcpOrders = await StorageService.removeTCPOrder(orderId, this.tcpOrders);
+        }
+      }
+      this.emitOrderUpdate();
+    } catch (error) {
+      console.error('批量删除订单失败:', error);
     }
   }
 

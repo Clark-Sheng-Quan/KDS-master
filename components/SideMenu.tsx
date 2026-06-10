@@ -265,6 +265,15 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
             <View style={[styles.settingsSection, isPortraitMode && styles.settingsSectionPortrait]}>
               <Text style={[styles.sectionTitle, isPortraitMode && styles.sectionTitlePortrait]}>{t("status")}</Text>
 
+              {/* EOD 按钮 */}
+              <TouchableOpacity
+                style={[styles.menuItem, styles.eodButton, isPortraitMode && styles.menuItemPortrait]}
+                onPress={() => navigateTo("/(tabs)/eod")}
+              >
+                <Ionicons name="bar-chart" size={navIconSize} color="white" />
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>EOD</Text>
+              </TouchableOpacity>
+
               {/* 设置页面 */}
               <TouchableOpacity
                 style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
@@ -451,6 +460,9 @@ const styles = StyleSheet.create({
   menuItemTextPortrait: {
     fontSize: 18,
     marginLeft: 14,
+  },
+  eodButton: {
+    backgroundColor: "#e67e22",
   },
   logoutButton: {
     flexDirection: "row",

@@ -46,7 +46,6 @@ const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 const STORAGE_KEY_AUTO_START = "auto_start_enabled";
 const STORAGE_KEY_MERGE_TABLE_ORDERS = "merge_table_orders";
-const STORAGE_KEY_SHOW_ITEM_ORDER_TIME = "show_item_order_time";
 
 // Font size constants
 const STORAGE_KEY_CARD_TITLE_FONT_SIZE = "card_title_font_size";
@@ -90,7 +89,6 @@ export default function SettingsScreen() {
 
   // 合并同桌订单
   const [mergeTableOrders, setMergeTableOrders] = useState<boolean>(false);
-  const [showItemOrderTime, setShowItemOrderTime] = useState<boolean>(false);
 
   // TCP 连接状态管理
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
@@ -258,12 +256,8 @@ export default function SettingsScreen() {
 
         // 加载合并同桌订单设置
         const savedMergeTableOrders = await AsyncStorage.getItem(STORAGE_KEY_MERGE_TABLE_ORDERS);
-        const savedShowItemOrderTime = await AsyncStorage.getItem(STORAGE_KEY_SHOW_ITEM_ORDER_TIME);
         if (savedMergeTableOrders !== null) {
           setMergeTableOrders(savedMergeTableOrders === "true");
-        }
-        if (savedShowItemOrderTime !== null) {
-          setShowItemOrderTime(savedShowItemOrderTime === "true");
         }
 
         // 获取初始连接状态
@@ -539,13 +533,6 @@ export default function SettingsScreen() {
     setMergeTableOrders(value);
     await AsyncStorage.setItem(STORAGE_KEY_MERGE_TABLE_ORDERS, value.toString());
     settingsListener.emitSettingChange('merge_table_orders', value);
-  }, []);
-
-  // 处理显示订单项时间开关
-  const handleShowItemOrderTimeChange = useCallback(async (value: boolean) => {
-    setShowItemOrderTime(value);
-    await AsyncStorage.setItem(STORAGE_KEY_SHOW_ITEM_ORDER_TIME, value.toString());
-    settingsListener.emitSettingChange('show_item_order_time', value);
   }, []);
 
   // 处理 Calling Button 开关
@@ -1092,16 +1079,6 @@ export default function SettingsScreen() {
               onPress={() => handleMergeTableOrdersChange(!mergeTableOrders)}
             >
               <View style={[styles.switchThumb, mergeTableOrders && styles.switchThumbActive]} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("showItemOrderTime")}</Text>
-            <TouchableOpacity
-              style={[styles.switchButton, showItemOrderTime && styles.switchButtonActive]}
-              onPress={() => handleShowItemOrderTimeChange(!showItemOrderTime)}
-            >
-              <View style={[styles.switchThumb, showItemOrderTime && styles.switchThumbActive]} />
             </TouchableOpacity>
           </View>
 

@@ -79,7 +79,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     cardTitleFontSize,
     itemOptionFontSize,
     categoryColorsMapping: colorMapping,
-    showItemOrderTime,
   } = useSettings();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
@@ -428,25 +427,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [completedTime]);
 
-  // 合并模式：找到最新子订单的接收时间，用于高亮最新 item
-  const latestSourceTime = useMemo(() => {
-    if (!showItemOrderTime || !order._subOrderIds || order._subOrderIds.length < 2) return null;
-    return order.products.reduce<string | null>((max, p) => {
-      const t = p._sourceTime;
-      if (!t) return max;
-      return !max || new Date(t) > new Date(max) ? t : max;
-    }, null);
-  }, [showItemOrderTime, order._subOrderIds, order.products]);
 
-  // 格式化 item 来源时间为 HH:mm
-  const formatSourceTime = (iso: string): string => {
-    try {
-      const d = new Date(iso);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    } catch {
-      return '';
-    }
-  };
 
   // 获取 order card title - 根据是否有 table 号显示不同格式
   const getOrderTitle = () => {
@@ -594,19 +575,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           ) : !enableItemLevelCompletion && completedItemsRef.current[itemKey] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
-            <View style={styles.itemQtyTimeColumn}>
-              <Text style={styles.itemQuantity}>x{item.quantity}</Text>
-              {showItemOrderTime && item._sourceTime && (
-                <Text style={[
-                  styles.itemSourceTime,
-                  latestSourceTime && item._sourceTime === latestSourceTime
-                    ? styles.itemSourceTimeNew
-                    : styles.itemSourceTimeOld,
-                ]}>
-                  {formatSourceTime(item._sourceTime)}
-                </Text>
-              )}
-            </View>
+            <Text style={styles.itemQuantity}>x{item.quantity}</Text>
           )}
         </TouchableOpacity>
 
@@ -730,7 +699,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                       {shouldShowQuantity(option.value) && (
                         <Text style={[
                           styles.optionValue,
-                          { fontSize: ITEM_OPTION_FONT_SIZES[itemOptionFontSize].optionName },
                           isVoided && styles.voidedText
                         ]}>
                           {'  '}x{option.value}
@@ -755,59 +723,91 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const renderedProductsList = useMemo(() => {
     if (!order.products || !Array.isArray(order.products)) return null;
 
-    // 1. Map to preserve the original index so checkbox logic remains intact
-    const productsWithOriginalIndex = order.products.map((item, index) => ({
-      item,
-      originalIndex: index,
-    }));
+    const fmtTime = (iso: string): string => {
+      try {
+        const d = new Date(iso);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } catch { return ''; }
+    };
 
-    // 2. Group items by their category
-    const groupedProducts = productsWithOriginalIndex.reduce((acc, curr) => {
-      const category = curr.item.category && curr.item.category.trim() !== '' 
-        ? curr.item.category 
-        : 'Other'; 
+    const renderCategoryGroup = (
+      items: { item: any; originalIndex: number }[],
+      keyPrefix: string,
+    ): JSX.Element[] => {
+      const grouped = items.reduce((acc, curr) => {
+        const cat = curr.item.category?.trim() || 'Other';
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(curr);
+        return acc;
+      }, {} as Record<string, typeof items>);
 
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(curr);
-      return acc;
-    }, {} as Record<string, typeof productsWithOriginalIndex>);
+      const els: JSX.Element[] = [];
+      Object.keys(grouped).sort().forEach((category) => {
+        const categoryColor = getCategoryBorderColor(category);
+        const headerBorderColor = categoryColor !== "#FFFFFF" ? categoryColor : "#CBD5E1";
+        const headerTextColor = categoryColor !== "#FFFFFF" ? categoryColor : "#475569";
 
-    // 3. Sort the categories alphabetically to maintain UI consistency
-    const sortedCategories = Object.keys(groupedProducts).sort();
+        els.push(
+          <View key={`${keyPrefix}-cat-${category}`} style={[styles.categoryHeader, { borderBottomColor: headerBorderColor }]}>
+            <Text style={[styles.categoryHeaderText, { color: headerTextColor }]}>{category}</Text>
+          </View>
+        );
 
-    const elements: JSX.Element[] = [];
+        const sorted = [...grouped[category]].sort((a, b) => {
+          const av = a.item.itemState === 'VOIDED';
+          const bv = b.item.itemState === 'VOIDED';
+          return av === bv ? 0 : av ? 1 : -1;
+        });
+        sorted.forEach(({ item, originalIndex }) => els.push(renderProductItem(item, originalIndex)));
+      });
+      return els;
+    };
 
-    sortedCategories.forEach((category) => {
-      const categoryColor = getCategoryBorderColor(category);
-      const headerBorderColor = categoryColor !== "#FFFFFF" ? categoryColor : "#CBD5E1";
-      const headerTextColor = categoryColor !== "#FFFFFF" ? categoryColor : "#475569";
-      
-      // 4. Render Category Header
-      elements.push(
-        <View key={`category-header-${category}`} style={[styles.categoryHeader, { borderBottomColor: headerBorderColor }]}>
-          <Text style={[styles.categoryHeaderText, { color: headerTextColor }]}>
-            {category}
-          </Text>
-        </View>
-      );
+    const productsWithOriginalIndex = order.products.map((item, index) => ({ item, originalIndex: index }));
+    const isMerged = !!(order._subOrderIds && order._subOrderIds.length > 1);
 
-      // 5. Sort items inside the category (Push VOIDED items to the bottom)
-      const itemsInCategory = groupedProducts[category];
-      itemsInCategory.sort((a, b) => {
-        const aIsVoided = a.item.itemState === 'VOIDED';
-        const bIsVoided = b.item.itemState === 'VOIDED';
-        if (aIsVoided === bIsVoided) return 0;
-        return aIsVoided ? 1 : -1;
+    if (isMerged) {
+      // Group by _sourceTime — each unique value is one sub-order
+      const subOrderMap = new Map<string, typeof productsWithOriginalIndex>();
+      productsWithOriginalIndex.forEach((entry) => {
+        const key = entry.item._sourceTime || '__unknown__';
+        if (!subOrderMap.has(key)) subOrderMap.set(key, []);
+        subOrderMap.get(key)!.push(entry);
       });
 
-      // 6. Render individual items using the original mapped indices
-      itemsInCategory.forEach(({ item, originalIndex }) => {
-        elements.push(renderProductItem(item, originalIndex));
+      // Sort sub-orders oldest → newest
+      const sorted = Array.from(subOrderMap.entries()).sort(([a], [b]) => {
+        if (a === '__unknown__') return -1;
+        if (b === '__unknown__') return 1;
+        return new Date(a).getTime() - new Date(b).getTime();
       });
-    });
 
-    return elements;
-  }, [order.products, renderProductItem, getCategoryBorderColor]);
+      const lastIdx = sorted.length - 1;
+      const elements: JSX.Element[] = [];
+      sorted.forEach(([sourceTime, items], idx) => {
+        if (idx > 0) {
+          const isNewest = idx === lastIdx;
+          const timeLabel = sourceTime !== '__unknown__' ? fmtTime(sourceTime) : '';
+          const lineColor = isNewest ? '#22c55e' : '#CBD5E1';
+          const textColor = isNewest ? '#22c55e' : '#94A3B8';
+          elements.push(
+            <View key={`sub-divider-${sourceTime}`} style={styles.subOrderDivider}>
+              <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
+              <Text style={[styles.subOrderDividerText, { color: textColor }]}>
+                {`New Order${timeLabel ? `  ${timeLabel}` : ''}`}
+              </Text>
+              <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
+            </View>
+          );
+        }
+        elements.push(...renderCategoryGroup(items, `so${idx}`));
+      });
+      return elements;
+    }
+
+    // Non-merged: original category-only grouping
+    return renderCategoryGroup(productsWithOriginalIndex, 'root');
+  }, [order.products, order._subOrderIds, renderProductItem, getCategoryBorderColor]);
 
   const orderNotes = useMemo(() => {
     if (typeof order.notes !== "string") return "";
@@ -994,6 +994,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textTransform: 'uppercase',
   },
+  subOrderDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 6,
+    marginTop: 10,
+    marginBottom: 2,
+    gap: 6,
+  },
+  subOrderDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#CBD5E1',
+  },
+  subOrderDividerText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
   updateBadge: {
     backgroundColor: "#FF9B2F",
     paddingVertical: 1,
@@ -1061,17 +1079,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#007AFF",
-  },
-  itemSourceTime: {
-    fontSize: 10,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  itemSourceTimeNew: {
-    color: "#22c55e",
-  },
-  itemSourceTimeOld: {
-    color: "#bbb",
   },
   itemCompletedTime: {
     fontSize: 10,
@@ -1229,6 +1236,7 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
     flex: 1,
+    alignItems: "center",
   },
 });
 

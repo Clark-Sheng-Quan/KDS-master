@@ -417,7 +417,10 @@ export class TCPSocketService {
 
   private static handleHttpRequest(jsonData: any, socket: any, clientKey: string, queueResponse: (response: string) => void): void {
     const messageType = jsonData.type || jsonData.orderType || 'unknown';
-    console.log(`[TCP] ${this.getSocketIP(socket)} - Message: ${messageType}`);
+    const suppressedTypes = ['status', 'product_stock_update'];
+    if (!suppressedTypes.includes(messageType.toLowerCase())) {
+      console.log(`[TCP] ${this.getSocketIP(socket)} - Message: ${messageType}`);
+    }
     
     // Prepare response data
     const responseData = {

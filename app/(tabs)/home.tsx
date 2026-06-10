@@ -49,7 +49,7 @@ const ClockDisplay = React.memo(() => {
 });
 
 export default function HomeScreen() {
-  const { orders, loading, error, removeOrder, refreshOrders } = useOrders();
+  const { orders, loading, error, removeOrder, removeOrders, refreshOrders } = useOrders();
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
   const {
     cardsPerRow,
@@ -242,13 +242,11 @@ export default function HomeScreen() {
   // 添加这个适配器函数
   const handleOrderRemove = useCallback((order: FormattedOrder) => {
     if (order._subOrderIds && order._subOrderIds.length > 0) {
-      // 虚拟合并订单：逐一移除所有子订单
-      order._subOrderIds.forEach(subId => {
-        setFilteredOrders(prev => prev.filter(o => o.id !== subId));
-        setLocalOrders(prev => prev.filter(o => o.id !== subId));
-        removeOrder(subId);
-      });
-      // 合并订单完成后不显示 undo toast（子订单各自独立，无法简单还原）
+      // 虚拟合并订单：批量移除所有子订单，只触发一次 emitOrderUpdate 避免分裂闪烁
+      const ids = order._subOrderIds;
+      setFilteredOrders(prev => prev.filter(o => !ids.includes(o.id)));
+      setLocalOrders(prev => prev.filter(o => !ids.includes(o.id)));
+      removeOrders(ids);
       return;
     }
 
@@ -263,7 +261,7 @@ export default function HomeScreen() {
       setLastCompletedOrderData({ order });
       setOrderToastVisible(true);
     }
-  }, [removeOrder, enableItemLevelCompletion]);
+  }, [removeOrder, removeOrders, enableItemLevelCompletion]);
 
   // 处理项目移除 - 更新本地订单中的产品列表
   const handleItemRemoved = useCallback((itemId: string, itemName: string, updatedOrder: FormattedOrder) => {

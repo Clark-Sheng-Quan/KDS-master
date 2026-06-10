@@ -22,7 +22,6 @@ interface SettingsState {
   showOrderTimer: boolean;
   showTimerHighlight: boolean;
   mergeTableOrders: boolean;
-  showItemOrderTime: boolean;
   loading: boolean;
 }
 
@@ -41,7 +40,6 @@ const defaultSettings: SettingsState = {
   showOrderTimer: true,
   showTimerHighlight: true,
   mergeTableOrders: false,
-  showItemOrderTime: false,
   loading: true,
 };
 
@@ -70,7 +68,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         savedCategoryColors,
         savedMergeTableOrders,
         savedCategoryActive,
-        savedShowItemOrderTime,
       ] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_ROW),
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_COLUMN),
@@ -86,7 +83,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         CategoryColorService.loadCategoryColorMapping(),
         AsyncStorage.getItem('merge_table_orders'),
         CategoryColorService.loadCategoryActiveMapping(),
-        AsyncStorage.getItem('show_item_order_time'),
       ]);
 
       setSettings({
@@ -104,7 +100,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         categoryColorsMapping: savedCategoryColors || {},
         mergeTableOrders: savedMergeTableOrders === 'true',
         categoryActiveMapping: savedCategoryActive || {},
-        showItemOrderTime: savedShowItemOrderTime === 'true',
         loading: false,
       });
     } catch (error) {
@@ -130,7 +125,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleCategoryColorsMappingChange = (val: any) => setSettings(s => ({ ...s, categoryColorsMapping: val }));
     const handleMergeTableOrdersChange = (val: boolean) => setSettings(s => ({ ...s, mergeTableOrders: val }));
     const handleCategoryActiveMappingChange = (val: CategoryActiveMapping) => setSettings(s => ({ ...s, categoryActiveMapping: val }));
-    const handleShowItemOrderTimeChange = (val: boolean) => setSettings(s => ({ ...s, showItemOrderTime: val }));
 
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
     settingsListener.onSettingChange('cards_per_row', handleCardsPerRowChange);
@@ -146,8 +140,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     settingsListener.onSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
     settingsListener.onSettingChange('merge_table_orders', handleMergeTableOrdersChange);
     settingsListener.onSettingChange('category_active_mapping', handleCategoryActiveMappingChange);
-    settingsListener.onSettingChange('show_item_order_time', handleShowItemOrderTimeChange);
-
     return () => {
       settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
       settingsListener.offSettingChange('cards_per_row', handleCardsPerRowChange);
@@ -163,7 +155,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       settingsListener.offSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
       settingsListener.offSettingChange('merge_table_orders', handleMergeTableOrdersChange);
       settingsListener.offSettingChange('category_active_mapping', handleCategoryActiveMappingChange);
-      settingsListener.offSettingChange('show_item_order_time', handleShowItemOrderTimeChange);
     };
   }, [loadSettings]);
 
