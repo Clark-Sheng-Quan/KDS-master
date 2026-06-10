@@ -935,13 +935,13 @@ const styles = StyleSheet.create({
     position: "relative"
   },
   urgentCardGlow: {
-    borderWidth: 1.5,
+    borderWidth: 3,
     borderColor: "#D5C425",
     shadowColor: "#D5C425",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+    elevation: 10,
   },
   delayedCardGlow: {
     borderWidth: 3, 
@@ -1000,7 +1000,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     backgroundColor: "#fcfcfc",
-    padding: 6
+    padding: 6,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
   },
   rightColumn: {
     flex: 1,
