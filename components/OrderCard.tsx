@@ -850,11 +850,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 }
               ]}>
                 {/* 订单更新指示器 */}
-                {!hideBadges && order.updateCount && order.updateCount >= 1 && (
+                {!hideBadges && (order.updateCount ?? 0) >= 1 && (
                   <View style={styles.updateBadge}>
                     <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
                     <Text style={styles.updateBadgeText}>
-                      {t("updated")}{order.updateCount > 1 ? ` ${order.updateCount}` : ''}
+                      {t("updated")}{(order.updateCount ?? 0) > 1 ? ` ${order.updateCount}` : ''}
                     </Text>
                   </View>
                 )}
@@ -1090,6 +1090,103 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 4,
     padding: 1,
+  },
+  selectIndicatorRightTop: {
+    right: 8,
+  },
+  selectIndicatorLeftTop: {
+    left: 8,
+  },
+  selectedCard: {
+    borderWidth: 2,
+    borderColor: theme.colors.primaryColor,
+  },
+  leftColumn: {
+    justifyContent: "flex-start" as const,
+  },
+  rightColumnCompact: {
+    marginTop: 25,
+  },
+  itemContainer: {
+    marginBottom: 2,
+  },
+  itemNameContainer: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    flex: 1,
+  },
+  voidedItem: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.7,
+  },
+  voidedText: {
+    textDecorationLine: "line-through" as const,
+    color: "#999",
+  },
+  voidedItemNotes: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.7,
+  },
+  voidedOption: {
+    opacity: 0.6,
+  },
+  itemNotesContainer: {
+    paddingVertical: 4,
+    paddingLeft: 10,
+    paddingRight: 6,
+    backgroundColor: "#F7F7F7",
+    marginBottom: 0,
+  },
+  itemNotesContent: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+  },
+  itemNotesIcon: {
+    marginRight: 4,
+  },
+  itemNotes: {
+    fontSize: 11,
+    color: "#666666",
+    fontWeight: "500" as const,
+    fontStyle: "italic" as const,
+    flex: 1,
+  },
+  notesLabel: {
+    fontSize: 11,
+    color: "#666666",
+    fontWeight: "700" as const,
+  },
+  notesTitle: {
+    fontWeight: "700" as const,
+    color: "#666666",
+  },
+  orderNotesContent: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+  },
+  orderNotesIcon: {
+    marginRight: 6,
+    marginTop: 1,
+  },
+  startLabel: {
+    color: "#4CAF50",
+    fontWeight: "600" as const,
+  },
+  endLabel: {
+    color: "#FF5252",
+    fontWeight: "600" as const,
+  },
+  itemsContainer: {
+    marginTop: 0,
+    marginBottom: 4,
+  },
+  optionsContainer: {
+    marginTop: 0,
+  },
+  optionContent: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    flex: 1,
   },
 });
 

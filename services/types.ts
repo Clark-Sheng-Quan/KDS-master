@@ -90,6 +90,7 @@ export interface FormattedOrder {
   updatedAt?: number;                    // 更新时间戳
   updateCount?: number;                  // 全局更新次数 (所有分类)
   completedItemIds?: string[];           // 整单模式下，记录已点完成的 item（用于撤回后恢复勾选状态）
+  _subOrderIds?: string[];               // 虚拟合并订单：包含的原始订单 ID 列表（仅用于同桌合并显示）
 }
 
 export interface CompletedOrderItem extends OrderItem {

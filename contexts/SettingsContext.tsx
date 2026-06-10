@@ -20,6 +20,7 @@ interface SettingsState {
   printMode: PrintMode;
   showOrderTimer: boolean;
   showTimerHighlight: boolean;
+  mergeTableOrders: boolean;
   loading: boolean;
 }
 
@@ -36,6 +37,7 @@ const defaultSettings: SettingsState = {
   printMode: 'single_item',
   showOrderTimer: true,
   showTimerHighlight: true,
+  mergeTableOrders: false,
   loading: true,
 };
 
@@ -61,7 +63,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         savedPrintMode,
         savedShowOrderTimer,
         savedShowTimerHighlight,
-        savedCategoryColors
+        savedCategoryColors,
+        savedMergeTableOrders,
       ] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_ROW),
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_COLUMN),
@@ -74,7 +77,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         AsyncStorage.getItem('print_mode'),
         AsyncStorage.getItem('show_order_timer'),
         AsyncStorage.getItem('show_timer_highlight'),
-        CategoryColorService.loadCategoryColorMapping()
+        CategoryColorService.loadCategoryColorMapping(),
+        AsyncStorage.getItem('merge_table_orders'),
       ]);
 
       setSettings({
@@ -90,6 +94,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         showOrderTimer: savedShowOrderTimer !== 'false',
         showTimerHighlight: savedShowTimerHighlight !== 'false',
         categoryColorsMapping: savedCategoryColors || {},
+        mergeTableOrders: savedMergeTableOrders === 'true',
         loading: false,
       });
     } catch (error) {
@@ -113,6 +118,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleShowOrderTimerChange = (val: boolean) => setSettings(s => ({ ...s, showOrderTimer: val }));
     const handleShowTimerHighlightChange = (val: boolean) => setSettings(s => ({ ...s, showTimerHighlight: val }));
     const handleCategoryColorsMappingChange = (val: any) => setSettings(s => ({ ...s, categoryColorsMapping: val }));
+    const handleMergeTableOrdersChange = (val: boolean) => setSettings(s => ({ ...s, mergeTableOrders: val }));
 
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
     settingsListener.onSettingChange('cards_per_row', handleCardsPerRowChange);
@@ -126,6 +132,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     settingsListener.onSettingChange('show_order_timer', handleShowOrderTimerChange);
     settingsListener.onSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
     settingsListener.onSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
+    settingsListener.onSettingChange('merge_table_orders', handleMergeTableOrdersChange);
 
     return () => {
       settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
@@ -140,6 +147,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       settingsListener.offSettingChange('show_order_timer', handleShowOrderTimerChange);
       settingsListener.offSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
       settingsListener.offSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
+      settingsListener.offSettingChange('merge_table_orders', handleMergeTableOrdersChange);
     };
   }, [loadSettings]);
 

@@ -56,6 +56,7 @@ export default function HomeScreen() {
     cardsPerColumn,
     itemLevelCompletion: enableItemLevelCompletion,
     showTimerHighlight,
+    mergeTableOrders,
   } = useSettings();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
@@ -70,6 +71,7 @@ export default function HomeScreen() {
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
   const [showRecentOrdersMenu, setShowRecentOrdersMenu] = useState(false);
   const localOrdersRef = useRef<FormattedOrder[]>([]);
+  const displayOrdersRef = useRef<FormattedOrder[]>([]);
   const recallingItemsRef = useRef<Set<string>>(new Set());
   const recallingOrdersRef = useRef<Set<string>>(new Set());
   const recentMenuAnimValue = useMemo(() => new Animated.Value(0), []);
@@ -116,14 +118,61 @@ export default function HomeScreen() {
     [cardWidth, cardHeight, cardsPerRow]
   );
 
+  // 当 mergeTableOrders 开启时，将同桌订单虚拟合并为一张 card（存储层不变）
+  const displayOrders = useMemo(() => {
+    if (!mergeTableOrders) return filteredOrders;
+
+    const tableGroups = new Map<string, FormattedOrder[]>();
+    const noTableOrders: FormattedOrder[] = [];
+
+    for (const order of filteredOrders) {
+      const tbl = order.tableNumber?.trim();
+      if (tbl) {
+        if (!tableGroups.has(tbl)) tableGroups.set(tbl, []);
+        tableGroups.get(tbl)!.push(order);
+      } else {
+        noTableOrders.push(order);
+      }
+    }
+
+    const mergedTableOrders: FormattedOrder[] = [];
+    tableGroups.forEach((orders, tableNumber) => {
+      if (orders.length === 1) {
+        mergedTableOrders.push(orders[0]);
+        return;
+      }
+      // 取最早收到的订单作为基础
+      const base = orders.reduce((min, o) =>
+        new Date(o.kdsReceiveTime) < new Date(min.kdsReceiveTime) ? o : min
+      );
+      const allProducts = orders.flatMap(o => o.products);
+      const hasUpdates = orders.some(o => (o.updateCount || 0) > 0);
+      mergedTableOrders.push({
+        ...base,
+        id: `table-group-${tableNumber}`,
+        products: allProducts,
+        updateCount: hasUpdates ? 1 : undefined,
+        _subOrderIds: orders.map(o => o.id),
+        source: 'merged',
+      });
+    });
+
+    return [...mergedTableOrders, ...noTableOrders];
+  }, [filteredOrders, mergeTableOrders]);
+
+  // 保持 displayOrdersRef 同步，供回调查找合并虚拟订单
+  useEffect(() => {
+    displayOrdersRef.current = displayOrders;
+  }, [displayOrders]);
+
   // Group orders into rows for FlatList virtualisation
   const rows = useMemo(() => {
     const result: FormattedOrder[][] = [];
-    for (let i = 0; i < filteredOrders.length; i += cardsPerRow) {
-      result.push(filteredOrders.slice(i, i + cardsPerRow));
+    for (let i = 0; i < displayOrders.length; i += cardsPerRow) {
+      result.push(displayOrders.slice(i, i + cardsPerRow));
     }
     return result;
-  }, [filteredOrders, cardsPerRow]);
+  }, [displayOrders, cardsPerRow]);
 
   // 监听屏幕尺寸变化以更新 dimensions
   useEffect(() => {
@@ -176,6 +225,17 @@ export default function HomeScreen() {
 
   // 添加这个适配器函数
   const handleOrderRemove = useCallback((order: FormattedOrder) => {
+    if (order._subOrderIds && order._subOrderIds.length > 0) {
+      // 虚拟合并订单：逐一移除所有子订单
+      order._subOrderIds.forEach(subId => {
+        setFilteredOrders(prev => prev.filter(o => o.id !== subId));
+        setLocalOrders(prev => prev.filter(o => o.id !== subId));
+        removeOrder(subId);
+      });
+      // 合并订单完成后不显示 undo toast（子订单各自独立，无法简单还原）
+      return;
+    }
+
     // Optimistic: remove from display state immediately, before OrderContext propagates
     setFilteredOrders(prev => prev.filter(o => o.id !== order.id));
     setLocalOrders(prev => prev.filter(o => o.id !== order.id));
@@ -191,6 +251,23 @@ export default function HomeScreen() {
 
   // 处理项目移除 - 更新本地订单中的产品列表
   const handleItemRemoved = useCallback((itemId: string, itemName: string, updatedOrder: FormattedOrder) => {
+    if (updatedOrder._subOrderIds && updatedOrder._subOrderIds.length > 0) {
+      // 虚拟合并订单：把剩余产品集合回写到每个子订单
+      const remainingProductIds = new Set(updatedOrder.products.map(p => p.id));
+      updatedOrder._subOrderIds.forEach(subId => {
+        setLocalOrders(prev => prev.map(o => {
+          if (o.id !== subId) return o;
+          return { ...o, products: o.products.filter(p => remainingProductIds.has(p.id)) };
+        }));
+        setFilteredOrders(prev => prev.map(o => {
+          if (o.id !== subId) return o;
+          return { ...o, products: o.products.filter(p => remainingProductIds.has(p.id)) };
+        }));
+      });
+      console.log(`[Home] 项目已移除(合并桌): ${itemName} (${itemId})`);
+      return;
+    }
+
     // 更新 localOrders 中的订单
     setLocalOrders((prev) =>
       prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
@@ -204,7 +281,8 @@ export default function HomeScreen() {
 
   // 处理项目完成 - 显示 Toast
   const handleItemCompleted = useCallback((itemName: string, itemId: string, orderId: string) => {
-    const order = localOrdersRef.current.find(o => o.id === orderId);
+    const order = localOrdersRef.current.find(o => o.id === orderId)
+      || displayOrdersRef.current.find(o => o.id === orderId);
     if (order) {
       setToastItemName(itemName);
       setLastCompletedItemData({itemId, itemName, orderId, order});
@@ -503,7 +581,7 @@ export default function HomeScreen() {
       <View style={styles.headerContainer}>
         <View style={[styles.titleSection, { flex: 1 }]}>
           <Text style={styles.title}>
-            {t("newOrders")} ({filteredOrders.length})
+            {t("newOrders")} ({displayOrders.length})
           </Text>
         </View>
 
@@ -548,7 +626,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {orders.length === 0 ? (
+      {displayOrders.length === 0 ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
           <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
         </View>

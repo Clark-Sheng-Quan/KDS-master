@@ -45,6 +45,7 @@ const STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS = "auto_clean_expired_orders";
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 const STORAGE_KEY_AUTO_START = "auto_start_enabled";
+const STORAGE_KEY_MERGE_TABLE_ORDERS = "merge_table_orders";
 
 // Font size constants
 const STORAGE_KEY_CARD_TITLE_FONT_SIZE = "card_title_font_size";
@@ -85,6 +86,9 @@ export default function SettingsScreen() {
 
   // 添加项目级完成模式状态
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
+
+  // 合并同桌订单
+  const [mergeTableOrders, setMergeTableOrders] = useState<boolean>(false);
 
   // TCP 连接状态管理
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
@@ -248,6 +252,12 @@ export default function SettingsScreen() {
         );
         if (savedItemOptionFontSize) {
           setItemOptionFontSize(savedItemOptionFontSize as "small" | "medium" | "large");
+        }
+
+        // 加载合并同桌订单设置
+        const savedMergeTableOrders = await AsyncStorage.getItem(STORAGE_KEY_MERGE_TABLE_ORDERS);
+        if (savedMergeTableOrders !== null) {
+          setMergeTableOrders(savedMergeTableOrders === "true");
         }
 
         // 获取初始连接状态
@@ -516,6 +526,13 @@ export default function SettingsScreen() {
     // 发出设置变化事件
     settingsListener.emitSettingChange('item_level_completion', value);
     console.log('[Settings] 发出 item_level_completion 设置变化事件，值:', value);
+  }, []);
+
+  // 处理合并同桌订单开关
+  const handleMergeTableOrdersChange = useCallback(async (value: boolean) => {
+    setMergeTableOrders(value);
+    await AsyncStorage.setItem(STORAGE_KEY_MERGE_TABLE_ORDERS, value.toString());
+    settingsListener.emitSettingChange('merge_table_orders', value);
   }, []);
 
   // 处理 Calling Button 开关
@@ -1053,6 +1070,16 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t("mergeTableOrders")}</Text>
+            <TouchableOpacity
+              style={[styles.switchButton, mergeTableOrders && styles.switchButtonActive]}
+              onPress={() => handleMergeTableOrdersChange(!mergeTableOrders)}
+            >
+              <View style={[styles.switchThumb, mergeTableOrders && styles.switchThumbActive]} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.infoRow}>
