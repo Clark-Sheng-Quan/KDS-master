@@ -794,7 +794,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             <View key={`sub-divider-${sourceTime}`} style={styles.subOrderDivider}>
               <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
               <Text style={[styles.subOrderDividerText, { color: textColor }]}>
-                {`New Order${timeLabel ? `  ${timeLabel}` : ''}`}
+                {`${t('newOrderAdded')}${timeLabel ? `  ${timeLabel}` : ''}`}
               </Text>
               <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
             </View>
@@ -1008,8 +1008,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#CBD5E1',
   },
   subOrderDividerText: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#94A3B8',
   },
   updateBadge: {

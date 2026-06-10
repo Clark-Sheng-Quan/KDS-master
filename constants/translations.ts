@@ -74,6 +74,7 @@ export const translations = {
     
     // 设置界面
     mergeTableOrders: "合并同桌订单",
+    newOrderAdded: "新加订单",
     language: "语言",
     chinese: "中文",
     english: "English",
@@ -461,6 +462,7 @@ export const translations = {
     dineIn: "Dine-In",    duration: "Duration",    
     // Settings screen
     mergeTableOrders: "Combine Same-Table Orders",
+    newOrderAdded: "New Order",
     language: "Language",
     chinese: "中文",
     english: "English",
