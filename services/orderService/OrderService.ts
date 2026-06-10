@@ -16,6 +16,7 @@ import { API_BASE_URL } from './constants';
 import { callingScreenService } from '../CallingScreenService';
 import { callingScreenDiscovery } from '../CallingScreenDiscovery';
 import { settingsListener } from '../settingsListener';
+import { CategoryColorService, CategoryActiveMapping } from '../categoryColorService';
 import { NativeEventEmitter, Platform } from 'react-native';
 import { printSingleItem, printFormattedOrder } from '../orderPrinter';
 
@@ -46,6 +47,9 @@ export class OrderService {
   
   // 打印模式设置 (single_item 或 single_order)
   private static printMode: 'single_item' | 'single_order' = 'single_order';
+
+  // 分类激活状态缓存（false = 不接收该分类的订单项）
+  private static categoryActiveMapping: CategoryActiveMapping = {};
   
   // 回调函数存储
   private static networkOrderUpdateCallback: ((orders: FormattedOrder[]) => void) | null = null;
@@ -253,10 +257,11 @@ export class OrderService {
    * 获取订单的过滤后产品列表
    */
   private static getFilteredProducts(order: FormattedOrder): any[] {
-    // 总是要排除 isValidKds === false 的产品
     return order.products.filter((product) => {
-      // 检查 isValidKds 参数 - 这个条件对所有 KDS 都适用
       if (product.isValidKds === false) {
+        return false;
+      }
+      if (product.category && this.categoryActiveMapping[product.category] === false) {
         return false;
       }
       return true;
@@ -264,7 +269,7 @@ export class OrderService {
   }
 
   /**
-   * 函数1：过滤订单产品（基于 isValidKds）直接修改 order.products
+   * 函数1：过滤订单产品（基于 isValidKds 和分类激活状态）直接修改 order.products
    */
   private static filterOrderProducts(order: FormattedOrder): any[] {
     const filteredProducts = this.getFilteredProducts(order);
@@ -376,6 +381,16 @@ export class OrderService {
         return;
       }
 
+      // Filter products first — skip everything else if nothing is relevant to this KDS
+      let filteredProducts = order.products;
+      if (!isRecalledOrder) {
+        filteredProducts = this.filterOrderProducts(order);
+        if (filteredProducts.length === 0) {
+          console.log(`[addNetworkOrder] Order ${order.id} has no products after filtering, not storing`);
+          return;
+        }
+      }
+
       // Add to processed cache (recalled orders are not added to cache to allow product re-merging)
       if (!isRecalledOrder) {
         this.addToProcessedCache(order.id);
@@ -388,7 +403,6 @@ export class OrderService {
           if (!token) {
             console.warn('[addNetworkOrder] No token available, skip status update');
           } else {
-
             const updateResponse = await fetch(`${API_BASE_URL}/order/update_order_status`, {
               method: "POST",
               headers: {
@@ -400,26 +414,12 @@ export class OrderService {
                 source: "network",
               }),
             });
-            
             if (!updateResponse.ok) {
               console.warn(`Failed to update order ${order.id} status to processing`);
             }
           }
         } catch (error) {
           console.error('[addNetworkOrder] Error updating order status:', error);
-        }
-      }
-
-      // For recalled orders, do not filter products, keep all products
-      let filteredProducts = order.products;
-      if (!isRecalledOrder) {
-        // Function: filter products (directly modify order.products)
-        filteredProducts = this.filterOrderProducts(order);
-        
-        // If no products after filtering, do not store this order (not relevant to current KDS)
-        if (filteredProducts.length === 0) {
-          console.log(`[addNetworkOrder] Order ${order.id} has no products after filtering, not storing`);
-          return;
         }
       }
       
@@ -819,6 +819,15 @@ export class OrderService {
     }
     
     try {
+      // 加载分类激活状态
+      this.categoryActiveMapping = await CategoryColorService.loadCategoryActiveMapping();
+
+      // 监听分类激活状态变化
+      const categoryActiveListener = (value: CategoryActiveMapping) => {
+        this.categoryActiveMapping = value;
+      };
+      settingsListener.onSettingChange('category_active_mapping', categoryActiveListener);
+
       // 从 AsyncStorage 加载初始值
       const savedValue = await AsyncStorage.getItem('auto_clean_expired_orders');
       this.autoCleanExpiredOrdersEnabled = savedValue === 'true';
@@ -841,6 +850,7 @@ export class OrderService {
       // 保存注销函数供后续使用
       this.settingsListenerUnsubscribe = () => {
         settingsListener.offSettingChange('auto_clean_expired_orders', listener);
+        settingsListener.offSettingChange('category_active_mapping', categoryActiveListener);
       };
     } catch (error) {
       console.error('[OrderService] 初始化设置监听器失败:', error);

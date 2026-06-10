@@ -57,6 +57,7 @@ export default function HomeScreen() {
     itemLevelCompletion: enableItemLevelCompletion,
     showTimerHighlight,
     mergeTableOrders,
+    categoryActiveMapping,
   } = useSettings();
   const { t } = useLanguage();
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
@@ -118,14 +119,28 @@ export default function HomeScreen() {
     [cardWidth, cardHeight, cardsPerRow]
   );
 
+  // 过滤掉已禁用分类的订单项（display 层，不影响存储）
+  const activeFilteredOrders = useMemo(() => {
+    const hasInactive = Object.values(categoryActiveMapping).some(v => v === false);
+    if (!hasInactive) return filteredOrders;
+    return filteredOrders
+      .map(order => ({
+        ...order,
+        products: order.products.filter(p =>
+          !p.category || categoryActiveMapping[p.category] !== false
+        ),
+      }))
+      .filter(order => order.products.length > 0);
+  }, [filteredOrders, categoryActiveMapping]);
+
   // 当 mergeTableOrders 开启时，将同桌订单虚拟合并为一张 card（存储层不变）
   const displayOrders = useMemo(() => {
-    if (!mergeTableOrders) return filteredOrders;
+    if (!mergeTableOrders) return activeFilteredOrders;
 
     const tableGroups = new Map<string, FormattedOrder[]>();
     const noTableOrders: FormattedOrder[] = [];
 
-    for (const order of filteredOrders) {
+    for (const order of activeFilteredOrders) {
       const tbl = order.tableNumber?.trim();
       if (tbl) {
         if (!tableGroups.has(tbl)) tableGroups.set(tbl, []);
@@ -141,7 +156,6 @@ export default function HomeScreen() {
         mergedTableOrders.push(orders[0]);
         return;
       }
-      // 取最早收到的订单作为基础
       const base = orders.reduce((min, o) =>
         new Date(o.kdsReceiveTime) < new Date(min.kdsReceiveTime) ? o : min
       );
@@ -158,7 +172,7 @@ export default function HomeScreen() {
     });
 
     return [...mergedTableOrders, ...noTableOrders];
-  }, [filteredOrders, mergeTableOrders]);
+  }, [activeFilteredOrders, mergeTableOrders]);
 
   // 保持 displayOrdersRef 同步，供回调查找合并虚拟订单
   useEffect(() => {
@@ -281,6 +295,26 @@ export default function HomeScreen() {
 
   // 处理项目完成 - 显示 Toast
   const handleItemCompleted = useCallback((itemName: string, itemId: string, orderId: string) => {
+    // 检查是否是虚拟合并订单（此回调早于 onItemRemoved，localOrdersRef 还保有旧值）
+    const displayOrder = displayOrdersRef.current.find(o => o.id === orderId);
+    if (displayOrder?._subOrderIds && displayOrder._subOrderIds.length > 0) {
+      // 找到真正持有该 item 的子订单
+      let realOrderId = orderId;
+      let realOrder: FormattedOrder = displayOrder;
+      for (const subId of displayOrder._subOrderIds) {
+        const subOrder = localOrdersRef.current.find(o => o.id === subId);
+        if (subOrder?.products.some(p => p.id === itemId)) {
+          realOrderId = subId;
+          realOrder = subOrder;
+          break;
+        }
+      }
+      setToastItemName(itemName);
+      setLastCompletedItemData({ itemId, itemName, orderId: realOrderId, order: realOrder });
+      setToastVisible(true);
+      return;
+    }
+
     const order = localOrdersRef.current.find(o => o.id === orderId)
       || displayOrdersRef.current.find(o => o.id === orderId);
     if (order) {

@@ -965,9 +965,9 @@ export default function SettingsScreen() {
 
         {/* 分类颜色管理卡片 */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>{t("productCategoryColors")}</Text>
+          <Text style={styles.sectionTitle}>{t("productCategory")}</Text>
 
-          {/* 分类颜色管理按钮 */}
+          {/* 分类管理按钮 */}
           <TouchableOpacity
             style={styles.deviceDiscoveryButton}
             onPress={() => {
@@ -975,7 +975,7 @@ export default function SettingsScreen() {
               setHasOpenModal(true);
             }}
           >
-            <Text style={styles.deviceDiscoveryButtonText}>🎨 {t("manageCategoryColors")}</Text>
+            <Text style={styles.deviceDiscoveryButtonText}>{t("manageCategory")}</Text>
           </TouchableOpacity>
         </View>
 

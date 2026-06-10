@@ -19,8 +19,13 @@ export interface CategoryColorMapping {
   [category_id: string]: keyof typeof categoryColors;
 }
 
+export interface CategoryActiveMapping {
+  [categoryName: string]: boolean;
+}
+
 export class CategoryColorService {
   private static readonly STORAGE_KEY = 'category_colors_mapping';
+  private static readonly ACTIVE_STORAGE_KEY = 'category_active_mapping';
   private static readonly SHOP_ID_KEY = 'selectedShopId';
 
   // 获取当前商店的所有分类
@@ -116,6 +121,43 @@ export class CategoryColorService {
       console.log('[CategoryColorService] 重置所有分类颜色成功');
     } catch (error) {
       console.error('[CategoryColorService] 重置分类颜色失败:', error);
+      throw error;
+    }
+  }
+
+  // 加载分类激活状态映射（true = 接收订单项，false = 不接收）
+  static async loadCategoryActiveMapping(): Promise<CategoryActiveMapping> {
+    try {
+      const saved = await AsyncStorage.getItem(this.ACTIVE_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+      return {};
+    } catch (error) {
+      console.error('[CategoryColorService] 加载分类激活状态失败:', error);
+      return {};
+    }
+  }
+
+  // 保存分类激活状态映射
+  static async saveCategoryActiveMapping(mapping: CategoryActiveMapping): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.ACTIVE_STORAGE_KEY, JSON.stringify(mapping));
+      settingsListener.emitSettingChange('category_active_mapping', mapping);
+    } catch (error) {
+      console.error('[CategoryColorService] 保存分类激活状态失败:', error);
+      throw error;
+    }
+  }
+
+  // 设置单个分类的激活状态
+  static async setCategoryActive(categoryName: string, active: boolean): Promise<void> {
+    try {
+      const mapping = await this.loadCategoryActiveMapping();
+      mapping[categoryName] = active;
+      await this.saveCategoryActiveMapping(mapping);
+    } catch (error) {
+      console.error('[CategoryColorService] 设置分类激活状态失败:', error);
       throw error;
     }
   }

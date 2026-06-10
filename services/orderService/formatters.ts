@@ -103,6 +103,7 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
         category: productCategory,
         prepare_time: product.prepare_time || 0,
         itemState,
+        isValidKds: item.isValidKds,
         notes: item.Notes || '',  // Item-level notes from POS
         suffix: product.suffix || [],  // Suffix array from product
       };

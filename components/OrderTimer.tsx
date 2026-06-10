@@ -116,7 +116,7 @@ export const OrderTimer: React.FC<OrderTimerProps> = ({ order, onTimeUpdate, hid
     if (hours > 0) {
       return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
     } else {
-      return `${mins.toString().padStart(2, "0")}m`;
+      return `${mins.toString().padStart(2, "0")} min`;
     }
   };
 

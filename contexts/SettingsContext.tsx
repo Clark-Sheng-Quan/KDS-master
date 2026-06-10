@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { settingsListener } from '../services/settingsListener';
 import { DEFAULT_CARDS_PER_ROW, DEFAULT_CARDS_PER_COLUMN, STORAGE_KEY_CARDS_PER_ROW, STORAGE_KEY_CARDS_PER_COLUMN } from '../constants/cardConfig';
-import { CategoryColorService } from '../services/categoryColorService';
+import { CategoryColorService, CategoryActiveMapping } from '../services/categoryColorService';
 
 type FontSize = 'small' | 'medium' | 'large';
 type PrintMode = 'single_item' | 'single_order';
@@ -15,6 +15,7 @@ interface SettingsState {
   cardTitleFontSize: FontSize;
   itemOptionFontSize: FontSize;
   categoryColorsMapping: { [categoryName: string]: string };
+  categoryActiveMapping: CategoryActiveMapping;
   showPrintButton: boolean;
   autoPrintNewOrders: boolean;
   printMode: PrintMode;
@@ -32,6 +33,7 @@ const defaultSettings: SettingsState = {
   cardTitleFontSize: 'medium',
   itemOptionFontSize: 'small',
   categoryColorsMapping: {},
+  categoryActiveMapping: {},
   showPrintButton: true,
   autoPrintNewOrders: false,
   printMode: 'single_item',
@@ -65,6 +67,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         savedShowTimerHighlight,
         savedCategoryColors,
         savedMergeTableOrders,
+        savedCategoryActive,
       ] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_ROW),
         AsyncStorage.getItem(STORAGE_KEY_CARDS_PER_COLUMN),
@@ -79,6 +82,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         AsyncStorage.getItem('show_timer_highlight'),
         CategoryColorService.loadCategoryColorMapping(),
         AsyncStorage.getItem('merge_table_orders'),
+        CategoryColorService.loadCategoryActiveMapping(),
       ]);
 
       setSettings({
@@ -95,6 +99,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         showTimerHighlight: savedShowTimerHighlight !== 'false',
         categoryColorsMapping: savedCategoryColors || {},
         mergeTableOrders: savedMergeTableOrders === 'true',
+        categoryActiveMapping: savedCategoryActive || {},
         loading: false,
       });
     } catch (error) {
@@ -119,6 +124,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleShowTimerHighlightChange = (val: boolean) => setSettings(s => ({ ...s, showTimerHighlight: val }));
     const handleCategoryColorsMappingChange = (val: any) => setSettings(s => ({ ...s, categoryColorsMapping: val }));
     const handleMergeTableOrdersChange = (val: boolean) => setSettings(s => ({ ...s, mergeTableOrders: val }));
+    const handleCategoryActiveMappingChange = (val: CategoryActiveMapping) => setSettings(s => ({ ...s, categoryActiveMapping: val }));
 
     settingsListener.onSettingChange('item_level_completion', handleItemLevelCompletionChange);
     settingsListener.onSettingChange('cards_per_row', handleCardsPerRowChange);
@@ -133,6 +139,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     settingsListener.onSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
     settingsListener.onSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
     settingsListener.onSettingChange('merge_table_orders', handleMergeTableOrdersChange);
+    settingsListener.onSettingChange('category_active_mapping', handleCategoryActiveMappingChange);
 
     return () => {
       settingsListener.offSettingChange('item_level_completion', handleItemLevelCompletionChange);
@@ -148,6 +155,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       settingsListener.offSettingChange('show_timer_highlight', handleShowTimerHighlightChange);
       settingsListener.offSettingChange('category_colors_mapping', handleCategoryColorsMappingChange);
       settingsListener.offSettingChange('merge_table_orders', handleMergeTableOrdersChange);
+      settingsListener.offSettingChange('category_active_mapping', handleCategoryActiveMappingChange);
     };
   }, [loadSettings]);
 

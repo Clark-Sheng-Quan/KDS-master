@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { theme, categoryColors } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CategoryColorService, Category, CategoryColorMapping } from '../services/categoryColorService';
+import { CategoryColorService, Category, CategoryColorMapping, CategoryActiveMapping } from '../services/categoryColorService';
 
 interface CategoryWithColor extends Category {
   color?: string;
@@ -35,6 +35,7 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [colorMapping, setColorMapping] = useState<CategoryColorMapping>({});
+  const [activeMapping, setActiveMapping] = useState<CategoryActiveMapping>({});
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   
@@ -79,9 +80,13 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
       const categoryList = await CategoryColorService.getStoreCategories(shopId);
       console.log('[CategoryColorPanel] 获取到分类数:', categoryList.length);
 
-      // 加载颜色映射
-      const mapping = await CategoryColorService.loadCategoryColorMapping();
+      // 加载颜色映射和激活状态
+      const [mapping, activeMap] = await Promise.all([
+        CategoryColorService.loadCategoryColorMapping(),
+        CategoryColorService.loadCategoryActiveMapping(),
+      ]);
       setColorMapping(mapping);
+      setActiveMapping(activeMap);
 
       // 为每个分类添加颜色信息
       const categoriesWithColor: CategoryWithColor[] = categoryList.map(cat => ({
@@ -102,28 +107,34 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
     if (!selectedCategory) return;
 
     try {
-      // 保存颜色映射（使用分类名字作为 key）
       await CategoryColorService.setCategoryColor(selectedCategory.name, colorKey);
 
-      // 更新状态
       const newMapping = { ...colorMapping, [selectedCategory.name]: colorKey };
       setColorMapping(newMapping);
 
-      // 更新分类列表
       const updatedCategories = categories.map(cat =>
         cat.name === selectedCategory.name
           ? { ...cat, color: categoryColors[colorKey] }
           : cat
       );
       setCategories(updatedCategories);
-
-      setShowColorPicker(false);
-      setSelectedCategory(null);
     } catch (err) {
       console.error('[CategoryColorPanel] 设置颜色失败:', err);
       Alert.alert(t('error'), t('setColorFailed'));
     }
   };
+
+  const handleToggleActive = async (categoryName: string, value: boolean) => {
+    try {
+      await CategoryColorService.setCategoryActive(categoryName, value);
+      setActiveMapping(prev => ({ ...prev, [categoryName]: value }));
+    } catch (err) {
+      console.error('[CategoryColorPanel] 设置激活状态失败:', err);
+    }
+  };
+
+  const isCategoryActive = (categoryName: string) =>
+    activeMapping[categoryName] !== false;
 
   const handleResetColors = () => {
     Alert.alert(
@@ -157,26 +168,32 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
 
 
 
-  const renderCategoryItem = ({ item }: { item: CategoryWithColor }) => (
-    <TouchableOpacity
-      style={styles.categoryCard}
-      onPress={() => {
-        setSelectedCategory(item);
-        setShowColorPicker(true);
-      }}
-      activeOpacity={0.7}
-    >
-      <View
-        style={[
-          styles.categoryColorDot,
-          { backgroundColor: item.color || categoryColors.default },
-        ]}
-      />
-      <Text style={styles.categoryCardName} numberOfLines={1}>
-        {item.name}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderCategoryItem = ({ item }: { item: CategoryWithColor }) => {
+    const active = isCategoryActive(item.name);
+    return (
+      <TouchableOpacity
+        style={[styles.categoryCard, !active && styles.categoryCardInactive]}
+        onPress={() => {
+          setSelectedCategory(item);
+          setShowColorPicker(true);
+        }}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[
+            styles.categoryColorDot,
+            { backgroundColor: active ? (item.color || categoryColors.default) : '#ccc' },
+          ]}
+        />
+        <Text style={[styles.categoryCardName, !active && styles.categoryCardNameInactive]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        {!active && (
+          <Text style={styles.categoryInactiveLabel}>OFF</Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   const colors = Object.keys(categoryColors) as Array<keyof typeof categoryColors>;
   const COLOR_PICKER_ROWS = 3;
@@ -226,7 +243,7 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
             >
               <Text style={styles.resetButtonText}>Reset</Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('productCategoryColors')}</Text>
+            <Text style={styles.headerTitle}>{t('productCategory')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={32} color={theme.colors.primaryColor} />
             </TouchableOpacity>
@@ -282,12 +299,12 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
         />
       </Animated.View>
 
-      {/* 颜色选择器中心对话框 */}
+      {/* 分类详情对话框 */}
       {selectedCategory && (
         <Animated.View
           style={[
             styles.colorPickerLayout,
-            { 
+            {
               opacity: colorPickerFadeAnim,
               transform: [{ scale: colorPickerFadeAnim.interpolate({
                 inputRange: [0, 1],
@@ -297,18 +314,41 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
           ]}
           pointerEvents={showColorPicker ? 'auto' : 'none'}>
           <View style={styles.colorPickerDialog}>
+            {/* 标题栏 */}
             <View style={styles.colorPickerHeader}>
               <Text style={styles.colorPickerTitle} numberOfLines={1}>
                 {selectedCategory.name}
               </Text>
-              <TouchableOpacity 
-                onPress={() => setShowColorPicker(false)}
+              <TouchableOpacity
+                onPress={() => { setShowColorPicker(false); setSelectedCategory(null); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="close-circle" size={24} color="#999" />
               </TouchableOpacity>
             </View>
 
+            {/* 激活开关区域 */}
+            <View style={styles.activeSection}>
+              <View style={styles.activeSectionTop}>
+                <View style={styles.activeLabelGroup}>
+                  <Text style={styles.activeSectionLabel}>{t('categoryReceiveOrders')}</Text>
+                  <Text style={styles.activeSectionHint}>{t('categoryReceiveOrdersHint')}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.activeSwitch, isCategoryActive(selectedCategory.name) && styles.activeSwitchOn]}
+                  onPress={() => handleToggleActive(selectedCategory.name, !isCategoryActive(selectedCategory.name))}
+                >
+                  <View style={[styles.activeSwitchThumb, isCategoryActive(selectedCategory.name) && styles.activeSwitchThumbOn]} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 分隔线 + 颜色标签 */}
+            <View style={styles.colorSectionHeader}>
+              <Text style={styles.colorSectionLabel}>{t('categoryColorLabel')}</Text>
+            </View>
+
+            {/* 颜色网格 */}
             <ScrollView
               style={styles.colorScrollView}
               contentContainerStyle={styles.colorGridContainer}
@@ -324,10 +364,10 @@ export const CategoryColorPanel: React.FC<CategoryColorPanelProps> = ({
                     style={[
                       styles.colorDotLarge,
                       { backgroundColor: categoryColors[colorKey] },
-                      colorMapping[selectedCategory._id] === colorKey && styles.colorDotSelected,
+                      colorMapping[selectedCategory.name] === colorKey && styles.colorDotSelected,
                     ]}
                   >
-                    {colorMapping[selectedCategory._id] === colorKey && (
+                    {colorMapping[selectedCategory.name] === colorKey && (
                       <Ionicons name="checkmark-sharp" size={24} color="white" />
                     )}
                   </View>
@@ -474,15 +514,15 @@ const styles = StyleSheet.create({
   },
   colorPickerLayout: {
     position: 'absolute',
-    top: '40%',
+    top: '50%',
     left: '50%',
     marginLeft: -350,
-    marginTop: -160,
+    marginTop: -260,
     zIndex: 200,
   },
   colorPickerDialog: {
     width: 700,
-    height: 400,
+    height: 520,
     backgroundColor: 'white',
     borderRadius: 14,
     paddingHorizontal: 24,
@@ -493,6 +533,78 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 12,
+  },
+  activeSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  activeSectionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  activeLabelGroup: {
+    flex: 1,
+    marginRight: 16,
+  },
+  activeSectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+  },
+  activeSectionHint: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 3,
+    lineHeight: 17,
+  },
+  activeSwitch: {
+    width: 52,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    padding: 3,
+  },
+  activeSwitchOn: {
+    backgroundColor: '#22c55e',
+  },
+  activeSwitchThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  activeSwitchThumbOn: {
+    transform: [{ translateX: 22 }],
+  },
+  colorSectionHeader: {
+    marginBottom: 12,
+  },
+  colorSectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+  },
+  categoryCardInactive: {
+    opacity: 0.5,
+  },
+  categoryCardNameInactive: {
+    color: '#aaa',
+  },
+  categoryInactiveLabel: {
+    fontSize: 11,
+    color: '#bbb',
+    fontWeight: '700',
+    marginTop: 4,
+    letterSpacing: 0.5,
   },
   colorPickerHeader: {
     flexDirection: 'row',
