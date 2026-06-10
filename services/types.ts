@@ -67,6 +67,7 @@ export interface OrderItem {
   isValidKds?: boolean;                // POS标记：此item是否对当前KDS有效 (true才处理，false或无值则跳过)
   notes?: string;                      // Item-level notes (from TCP/POS)
   suffix?: Array<{name: string; is_visible: boolean}>; // Suffix information
+  _sourceTime?: string;                // 合并模式：此 item 来自哪个子订单的 kdsReceiveTime
 }
 
 export interface FormattedOrder {

@@ -74,6 +74,7 @@ export const translations = {
     
     // 设置界面
     mergeTableOrders: "合并同桌订单",
+    showItemOrderTime: "显示订单项时间",
     language: "语言",
     chinese: "中文",
     english: "English",
@@ -461,6 +462,7 @@ export const translations = {
     dineIn: "Dine-In",    duration: "Duration",    
     // Settings screen
     mergeTableOrders: "Merge Same-Table Orders",
+    showItemOrderTime: "Show Item Order Time",
     language: "Language",
     chinese: "中文",
     english: "English",

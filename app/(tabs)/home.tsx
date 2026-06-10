@@ -159,7 +159,9 @@ export default function HomeScreen() {
       const base = orders.reduce((min, o) =>
         new Date(o.kdsReceiveTime) < new Date(min.kdsReceiveTime) ? o : min
       );
-      const allProducts = orders.flatMap(o => o.products);
+      const allProducts = orders.flatMap(o =>
+        o.products.map(p => ({ ...p, _sourceTime: o.kdsReceiveTime }))
+      );
       const hasUpdates = orders.some(o => (o.updateCount || 0) > 0);
       mergedTableOrders.push({
         ...base,

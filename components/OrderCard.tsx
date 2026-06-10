@@ -75,10 +75,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   const { addCompletedOrder, removeCompletedOrder } = useCompletedOrders();
   const { 
     itemLevelCompletion: enableItemLevelCompletion, 
-    callingButton: enableCallingButton, 
-    cardTitleFontSize, 
-    itemOptionFontSize, 
-    categoryColorsMapping: colorMapping 
+    callingButton: enableCallingButton,
+    cardTitleFontSize,
+    itemOptionFontSize,
+    categoryColorsMapping: colorMapping,
+    showItemOrderTime,
   } = useSettings();
 
   const completedItemsRef = useRef<{ [key: string]: boolean }>({});  // 用 ref 替代 state，避免频繁重新渲染
@@ -427,6 +428,26 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [completedTime]);
 
+  // 合并模式：找到最新子订单的接收时间，用于高亮最新 item
+  const latestSourceTime = useMemo(() => {
+    if (!showItemOrderTime || !order._subOrderIds || order._subOrderIds.length < 2) return null;
+    return order.products.reduce<string | null>((max, p) => {
+      const t = p._sourceTime;
+      if (!t) return max;
+      return !max || new Date(t) > new Date(max) ? t : max;
+    }, null);
+  }, [showItemOrderTime, order._subOrderIds, order.products]);
+
+  // 格式化 item 来源时间为 HH:mm
+  const formatSourceTime = (iso: string): string => {
+    try {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
+
   // 获取 order card title - 根据是否有 table 号显示不同格式
   const getOrderTitle = () => {
     if (order.tableNumber && order.tableNumber !== 'N/A') {
@@ -573,7 +594,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           ) : !enableItemLevelCompletion && completedItemsRef.current[itemKey] ? (
             <Ionicons name="checkmark-circle" size={24} color={colors.checkColor} />
           ) : (
-            <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+            <View style={styles.itemQtyTimeColumn}>
+              <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+              {showItemOrderTime && item._sourceTime && (
+                <Text style={[
+                  styles.itemSourceTime,
+                  latestSourceTime && item._sourceTime === latestSourceTime
+                    ? styles.itemSourceTimeNew
+                    : styles.itemSourceTimeOld,
+                ]}>
+                  {formatSourceTime(item._sourceTime)}
+                </Text>
+              )}
+            </View>
           )}
         </TouchableOpacity>
 
@@ -850,14 +883,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 }
               ]}>
                 {/* 订单更新指示器 */}
-                {!hideBadges && (order.updateCount ?? 0) >= 1 && (
-                  <View style={styles.updateBadge}>
-                    <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
-                    <Text style={styles.updateBadgeText}>
-                      {t("updated")}{(order.updateCount ?? 0) > 1 ? ` ${order.updateCount}` : ''}
-                    </Text>
-                  </View>
-                )}
+                {/* update badge hidden */}
                 
                 <Text style={[
                   styles.orderTitle,
@@ -1027,11 +1053,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#222",
   },
+  itemQtyTimeColumn: {
+    alignItems: "flex-end",
+    marginLeft: 6,
+  },
   itemQuantity: {
     fontSize: 12,
     fontWeight: "700",
     color: "#007AFF",
-    marginLeft: 6,
+  },
+  itemSourceTime: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  itemSourceTimeNew: {
+    color: "#22c55e",
+  },
+  itemSourceTimeOld: {
+    color: "#bbb",
   },
   itemCompletedTime: {
     fontSize: 10,
