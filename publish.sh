@@ -10,10 +10,10 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.4.6"
+VERSION="1.4.8"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.4.6
+## Version 1.4.8
 
 ### Major Improvements
 - Print per item, beeping, and quick order to kds
