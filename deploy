@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# --- Configuration ---
+PACKAGE_NAME="com.anonymous.KDS"
+APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+
+echo "=========================================="
+echo "🚀 Starting Build, Install, and Launch"
+echo "=========================================="
+
+# 1. Compile the APK
+echo "Step 1: Compiling APK..."
+cd android || exit
+./gradlew assembleRelease
+BUILD_RESULT=$?
+cd ..
+
+if [ $BUILD_RESULT -ne 0 ]; then
+    echo "❌ Build failed!"
+    exit 1
+fi
+
+# 2. Install the APK
+echo "Step 2: Installing to device..."
+# Try standard install, if it fails due to downgrade, retry with -d
+adb install -r $APK_PATH
+if [ $? -ne 0 ]; then
+    echo "⚠️  Standard install failed. Trying downgrade (-d) install..."
+    adb install -d -r $APK_PATH
+fi
+
+# 3. Launch the App
+echo "Step 3: Launching $PACKAGE_NAME..."
+adb shell am start -n $PACKAGE_NAME/.MainActivity
+
+echo "=========================================="
+echo "✅ Done! App should be opening now."
+echo "=========================================="

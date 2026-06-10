@@ -238,12 +238,9 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
   }, [order]);
 
-
-
   const updateOrderStatusToReady = (orderId: string, source: string) => {
     try {
       const normalizedSource = source.toLowerCase();
-      
       
       // Network orders: also send backend request to update status
       if (normalizedSource === "network") {
@@ -439,19 +436,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     const pickupMethod = order.pickupMethod?.toLowerCase() || '';
     const methodLabel = (pickupMethod === 'take-away') ? t("takeAway") : t("dineIn");
     return `${methodLabel} - #${getOrderDisplayNumber()}`;
-  };
-
-  const getPickupMethodDisplay = (method?: string) => {
-    const lower = method?.toLowerCase() || '';
-    if (lower === 'take-away') return { text: t("takeAway"), color: '#FF9B2F' };
-    if (lower === 'dine_in' || lower === 'dinein') return { text: t("dineIn"), color: '#0096FF' };
-    return { text: method || t("dineIn"), color: '#0096FF' };
-  };
-
-  const getSourceDisplay = (source?: string) => {
-    const lower = source?.toLowerCase() || '';
-    if (lower === 'network') return { text: 'QR', color: '#7C3AED' }; // Purple
-    return { text: 'POS', color: '#10B981' }; // Green
   };
 
   const getOrderStartTimeMs = useCallback(() => {
@@ -734,19 +718,63 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     );
   }, [disabled, disableItems, handleItemLongPress, shouldShowQuantity, enableItemLevelCompletion, completeItemOnly, order.id, forceUpdateTrigger, getCategoryBorderColor, itemOptionFontSize, t, getItemCompletionDurationText]);
 
-  // 用 useMemo 缓存渲染出的商品列表。这样只要订单的 products 不变，就不会因为组件的无关重绘而反复调用 renderProductItem 和 log
+  // CATEGORY GROUPING AND UI SORTING logic applied here
   const renderedProductsList = useMemo(() => {
     if (!order.products || !Array.isArray(order.products)) return null;
-    return [...order.products] // 浅拷贝一份用来 sort，避免直接修改原数组
-      .sort((a, b) => {
-        // VOIDED 的排在最后，非 VOIDED 的排在前面
-        const aIsVoided = a.itemState === 'VOIDED';
-        const bIsVoided = b.itemState === 'VOIDED';
-        if (aIsVoided === bIsVoided) return 0; // 状态相同，保持原有顺序
-        return aIsVoided ? 1 : -1; // VOIDED 排后面
-      })
-      .map((item, index) => renderProductItem(item, index));
-  }, [order.products, renderProductItem]);
+
+    // 1. Map to preserve the original index so checkbox logic remains intact
+    const productsWithOriginalIndex = order.products.map((item, index) => ({
+      item,
+      originalIndex: index,
+    }));
+
+    // 2. Group items by their category
+    const groupedProducts = productsWithOriginalIndex.reduce((acc, curr) => {
+      const category = curr.item.category && curr.item.category.trim() !== '' 
+        ? curr.item.category 
+        : 'Other'; 
+
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(curr);
+      return acc;
+    }, {} as Record<string, typeof productsWithOriginalIndex>);
+
+    // 3. Sort the categories alphabetically to maintain UI consistency
+    const sortedCategories = Object.keys(groupedProducts).sort();
+
+    const elements: JSX.Element[] = [];
+
+    sortedCategories.forEach((category) => {
+      const categoryColor = getCategoryBorderColor(category);
+      const headerBorderColor = categoryColor !== "#FFFFFF" ? categoryColor : "#CBD5E1";
+      const headerTextColor = categoryColor !== "#FFFFFF" ? categoryColor : "#475569";
+      
+      // 4. Render Category Header
+      elements.push(
+        <View key={`category-header-${category}`} style={[styles.categoryHeader, { borderBottomColor: headerBorderColor }]}>
+          <Text style={[styles.categoryHeaderText, { color: headerTextColor }]}>
+            {category}
+          </Text>
+        </View>
+      );
+
+      // 5. Sort items inside the category (Push VOIDED items to the bottom)
+      const itemsInCategory = groupedProducts[category];
+      itemsInCategory.sort((a, b) => {
+        const aIsVoided = a.item.itemState === 'VOIDED';
+        const bIsVoided = b.item.itemState === 'VOIDED';
+        if (aIsVoided === bIsVoided) return 0;
+        return aIsVoided ? 1 : -1;
+      });
+
+      // 6. Render individual items using the original mapped indices
+      itemsInCategory.forEach(({ item, originalIndex }) => {
+        elements.push(renderProductItem(item, originalIndex));
+      });
+    });
+
+    return elements;
+  }, [order.products, renderProductItem, getCategoryBorderColor]);
 
   const orderNotes = useMemo(() => {
     if (typeof order.notes !== "string") return "";
@@ -834,19 +862,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                 <Text style={[
                   styles.orderTitle,
                   { fontSize: CARD_TITLE_FONT_SIZES[cardTitleFontSize] }
-                ]}>{getOrderTitle()}</Text>
-                {/* <Text style={[styles.sourceText, { color: getSourceDisplay(order.source).color }]}>
-                  {getSourceDisplay(order.source).text}
-                </Text> */}
-                {/* <Text style={[styles.pickupMethodText, { color: getPickupMethodDisplay(order.pickupMethod).color }]}>
-                  {getPickupMethodDisplay(order.pickupMethod).text}
-                </Text> */}
-                {/* {typeof order.total_prepare_time === 'number' && order.total_prepare_time > 0 && (
-                  <Text style={styles.prepareTime}>
-                    {t("prepare")}: <Text style={styles.prepareTimeValue}>{order.total_prepare_time}</Text> min
-                  </Text>
-                )} */}
-
+                ]}>{getOrderTitle() }</Text>
               </View>
               {/* 右列 */}
               <View style={[styles.rightColumn, rightCompact && styles.rightColumnCompact]}>
@@ -909,348 +925,526 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
 export default OrderCard;
 
+
 const styles = StyleSheet.create({
   orderCard: {
     backgroundColor: "white",
-    borderRadius: 8,
-    // paddingBottom: 0,
-    // paddingLeft: 0,
-    // paddingRight: 0,
-    // height: 600,
-    // width: 360,
+    borderRadius: 6,
     display: "flex",
     flexDirection: "column",
     position: "relative"
   },
   urgentCardGlow: {
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#D5C425",
     shadowColor: "#D5C425",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.45,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   delayedCardGlow: {
-    borderWidth: 3,
-    borderColor: "#CD5E5E",
-    shadowColor: "#CD5E5E",
+    borderWidth: 3, 
+    borderColor: "#FF3B30", 
+    shadowColor: "#FF3B30",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 14,
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  categoryHeader: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginTop: 6,
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    backgroundColor: "#F9FAFB",
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 6,
+  },
+  categoryHeaderText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   updateBadge: {
     backgroundColor: "#FF9B2F",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    paddingVertical: 1,
+    paddingHorizontal: 4,
+    borderRadius: 3,
     flexDirection: "row",
     alignItems: "center",
-    // marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
     alignSelf: "flex-start",
   },
   updateBadgeText: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  recallBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "#FF6B35",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    zIndex: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  recallBadgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  recallBadgeWithUpdate: {
-    left: 118, // updateBadge宽度约110px，所以放在右边
   },
   scrollViewContainer: {
     flex: 1,
     minHeight: 0,
-    borderRightWidth: 3,
-    borderRightColor: "#e0e0e0",
+    borderRightWidth: 1.5,
+    borderRightColor: "#e5e5e5",
   },
   textContainer: {
     flex: 1,
-    // paddingLeft: 10,
-    // paddingRight: 10,
-    display: "flex",
-    flexDirection: "column",
   },
   orderTitle: {
-    fontSize: 28, 
+    fontSize: 18, 
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: "#111",
   },
   headerLayout: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 0,
-    marginBottom: 0,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 8,
-    padding: 10
-  },
-  leftColumn: {
-    justifyContent: "flex-start",
+    backgroundColor: "#fcfcfc",
+    padding: 6
   },
   rightColumn: {
     flex: 1,
     alignItems: "flex-end",
-    justifyContent: "flex-start",
-  },
-  rightColumnCompact: {
-    marginTop: 25,
-  },
-  sourceText: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  pickupMethodText: {
-    fontSize: 18,
-    fontWeight: "600",
   },
   orderTimeText: {
-    fontSize: 15,
-    color: "#555",
-    marginBottom: 6,
+    fontSize: 11,
+    color: "#777",
+    marginBottom: 2,
     textAlign: "right" as const,
   },
-  startLabel: {
-    color: "#4CAF50",
-    fontWeight: "600",
-  },
-  endLabel: {
-    color: "#FF5252",
-    fontWeight: "600",
-  },
-  prepareTime: {
-    fontSize: 18,
-    color: "#666",
-    marginTop: 12,
-    flexWrap: "nowrap",
-  },
-  prepareTimeValue: {
-    fontSize: 18,
-    color: "#333",
-    fontWeight: "bold",
-  },
-  tableNumberText: {
-    fontSize: 20,
-    color: "#333",
-    fontWeight: "600",
-    // marginTop: 8,
-    marginLeft: 0,
-    flexWrap: "nowrap",
-  },
-  completedTimeDisplay: {
-    fontSize: 13,
-    color: "#999",
-    fontWeight: "500",
-    marginTop: 8,
-    marginBottom: 8,
-    textAlign: "right" as const,
-  },
-  itemsContainer: {
-    marginTop: 0, 
-    marginBottom: 8,
-  },
-  notesSection: {
-    marginTop: 4,
-    marginBottom: 10,
-    marginHorizontal: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#F0F0F0",
-    borderLeftWidth: 4,
-    borderLeftColor: "#999999",
-  },
-  orderNotesContent: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  orderNotesIcon: {
-    marginRight: 8,
-    marginTop: 2,
-  },
-  notesTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#666666",
-  },
-  notesText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#666666",
-    lineHeight: 20,
-    flex: 1,
-    fontStyle: "italic",
-  },
+  // Item Row Ultra-Compact
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    opacity: 1,
-    paddingLeft: 6,
-    paddingRight: 6,
-  },
-  itemNameContainer: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    flex: 1,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
   },
   itemName: {
-    fontSize: 20,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#333",
+    color: "#222",
   },
   itemQuantity: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: "700",
     color: "#007AFF",
-    marginLeft: 12,
+    marginLeft: 6,
   },
   itemCompletedTime: {
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: "700",
-    color: "#666",
-    marginLeft: 12,
-    minWidth: 68,
-    textAlign: "right",
+    color: "#888",
+    marginLeft: 6,
   },
-  optionsContainer: {
-    marginTop: 0,
-    marginLeft: 0,
+  // Notes Scaling
+  notesSection: {
+    marginTop: 2,
+    marginBottom: 4,
+    marginHorizontal: 4,
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: "#F4F4F4",
+    borderLeftWidth: 2,
   },
-  itemNotesContainer: {
-    paddingVertical: 6,
-    paddingLeft: 14,
-    paddingRight: 6,
-    backgroundColor: "#F0F0F0",
-    marginBottom: 0,
-  },
-  itemNotesContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  itemNotesIcon: {
-    marginRight: 6,
-  },
-  itemNotes: {
-    fontSize: 14,
-    color: "#666666",
-    fontWeight: "500",
+  notesText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#777",
     fontStyle: "italic",
-    flex: 1,
   },
-  notesLabel: {
-    fontSize: 14,
-    color: "#666666",
-    fontWeight: "700",
-  },
-  voidedItemNotes: {
-    backgroundColor: "#f5f5f5",
-    opacity: 0.7,
-  },
+  // Options Scaling
   optionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
-    paddingLeft: 14,
-    paddingRight: 6,
-    marginBottom: 0,
-  },
-  optionContent: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    flex: 1,
+    paddingVertical: 1,
+    paddingLeft: 10,
+    paddingRight: 4,
   },
   optionName: {
-    fontSize: 16,
-    color: "#555",
-    fontWeight: "500",
+    fontSize: 11,
+    color: "#666",
   },
   optionValue: {
-    fontSize: 16,
+    fontSize: 11,
     color: "#333",
     fontWeight: "bold",
   },
   itemDivider: {
-    height: 1,
-    backgroundColor: "#e0e0e0",
-    marginVertical: 2,
-  },
-  itemContainer: {
-    marginBottom: 4,
+    height: 0.5,
+    backgroundColor: "#eee",
   },
   completedItem: {
-    opacity: 0.8,
     backgroundColor: "#f0fdf4",
-    borderWidth: 2,
-    borderColor: "#22c55e",
-  },
-  voidedItem: {
-    backgroundColor: "#f5f5f5",
-    opacity: 0.7,
-  },
-  voidedText: {
-    textDecorationLine: "line-through",
-    color: "#999",
-  },
-  voidedOption: {
-    backgroundColor: "#f8f8f8",
-    opacity: 0.7,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
   },
   cancelledText: {
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#ff4444",
-    marginLeft: 12,
-  },
-  selectedCard: {
-    borderWidth: 2,
-    borderColor: theme.colors.primaryColor,
+    color: "#ef4444",
+    marginLeft: 6,
   },
   selectIndicator: {
     position: "absolute",
-    top: 8,
-    borderRadius: 12,
-    padding: 2,
-  },
-  selectIndicatorRightTop: {
-    right: 8,
-  },
-  selectIndicatorLeftTop: {
-    left: 8,
+    top: 4,
+    padding: 1,
   },
 });
+
+// const styles = StyleSheet.create({
+//   orderCard: {
+//     backgroundColor: "white",
+//     borderRadius: 8,
+//     display: "flex",
+//     flexDirection: "column",
+//     position: "relative"
+//   },
+//   urgentCardGlow: {
+//     borderWidth: 2,
+//     borderColor: "#D5C425",
+//     shadowColor: "#D5C425",
+//     shadowOffset: { width: 0, height: 0 },
+//     shadowOpacity: 0.45,
+//     shadowRadius: 6,
+//     elevation: 8,
+//   },
+//   delayedCardGlow: {
+//     // Made the delayed indicator noticeably stronger and brighter red
+//     borderWidth: 4, 
+//     borderColor: "#FF3B30", 
+//     shadowColor: "#FF3B30",
+//     shadowOffset: { width: 0, height: 0 },
+//     shadowOpacity: 0.8,
+//     shadowRadius: 20,
+//     elevation: 20,
+//   },
+//   categoryHeader: {
+//     paddingVertical: 6,
+//     paddingHorizontal: 10,
+//     marginTop: 12,
+//     marginBottom: 4,
+//     borderBottomWidth: 2,
+//     backgroundColor: "#F8F9FA",
+//     borderRadius: 4,
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     marginHorizontal: 8,
+//   },
+//   categoryHeaderText: {
+//     fontSize: 14,
+//     fontWeight: 'bold',
+//     textTransform: 'uppercase',
+//     letterSpacing: 0.8,
+//   },
+//   updateBadge: {
+//     backgroundColor: "#FF9B2F",
+//     paddingVertical: 4,
+//     paddingHorizontal: 8,
+//     borderRadius: 6,
+//     flexDirection: "row",
+//     alignItems: "center",
+//     shadowColor: "#000",
+//     shadowOffset: { width: 0, height: 2 },
+//     shadowOpacity: 0.25,
+//     shadowRadius: 3.84,
+//     elevation: 5,
+//     alignSelf: "flex-start",
+//   },
+//   updateBadgeText: {
+//     color: "#fff",
+//     fontSize: 12,
+//     fontWeight: "bold",
+//     letterSpacing: 0.5,
+//   },
+//   recallBadge: {
+//     position: "absolute",
+//     top: 8,
+//     left: 8,
+//     backgroundColor: "#FF6B35",
+//     paddingVertical: 4,
+//     paddingHorizontal: 8,
+//     borderRadius: 6,
+//     flexDirection: "row",
+//     alignItems: "center",
+//     zIndex: 10,
+//     shadowColor: "#000",
+//     shadowOffset: { width: 0, height: 2 },
+//     shadowOpacity: 0.25,
+//     shadowRadius: 3.84,
+//     elevation: 5,
+//   },
+//   recallBadgeText: {
+//     color: "#fff",
+//     fontSize: 12,
+//     fontWeight: "bold",
+//     letterSpacing: 0.5,
+//   },
+//   recallBadgeWithUpdate: {
+//     left: 118, // updateBadge宽度约110px，所以放在右边
+//   },
+//   scrollViewContainer: {
+//     flex: 1,
+//     minHeight: 0,
+//     borderRightWidth: 3,
+//     borderRightColor: "#e0e0e0",
+//   },
+//   textContainer: {
+//     flex: 1,
+//     display: "flex",
+//     flexDirection: "column",
+//   },
+//   orderTitle: {
+//     fontSize: 28, 
+//     fontWeight: "700",
+//     color: "#1a1a1a",
+//   },
+//   headerLayout: {
+//     flexDirection: "row",
+//     justifyContent: "space-between",
+//     marginTop: 0,
+//     marginBottom: 0,
+//     backgroundColor: "#f9f9f9",
+//     borderRadius: 8,
+//     padding: 10
+//   },
+//   leftColumn: {
+//     justifyContent: "flex-start",
+//   },
+//   rightColumn: {
+//     flex: 1,
+//     alignItems: "flex-end",
+//     justifyContent: "flex-start",
+//   },
+//   rightColumnCompact: {
+//     marginTop: 25,
+//   },
+//   sourceText: {
+//     fontSize: 18,
+//     fontWeight: "600",
+//     marginBottom: 4,
+//   },
+//   pickupMethodText: {
+//     fontSize: 18,
+//     fontWeight: "600",
+//   },
+//   orderTimeText: {
+//     fontSize: 15,
+//     color: "#555",
+//     marginBottom: 6,
+//     textAlign: "right" as const,
+//   },
+//   startLabel: {
+//     color: "#4CAF50",
+//     fontWeight: "600",
+//   },
+//   endLabel: {
+//     color: "#FF5252",
+//     fontWeight: "600",
+//   },
+//   prepareTime: {
+//     fontSize: 18,
+//     color: "#666",
+//     marginTop: 12,
+//     flexWrap: "nowrap",
+//   },
+//   prepareTimeValue: {
+//     fontSize: 18,
+//     color: "#333",
+//     fontWeight: "bold",
+//   },
+//   tableNumberText: {
+//     fontSize: 20,
+//     color: "#333",
+//     fontWeight: "600",
+//     marginLeft: 0,
+//     flexWrap: "nowrap",
+//   },
+//   completedTimeDisplay: {
+//     fontSize: 13,
+//     color: "#999",
+//     fontWeight: "500",
+//     marginTop: 8,
+//     marginBottom: 8,
+//     textAlign: "right" as const,
+//   },
+//   itemsContainer: {
+//     marginTop: 0, 
+//     marginBottom: 8,
+//   },
+//   notesSection: {
+//     marginTop: 4,
+//     marginBottom: 10,
+//     marginHorizontal: 6,
+//     paddingHorizontal: 8,
+//     paddingVertical: 8,
+//     borderRadius: 8,
+//     backgroundColor: "#F0F0F0",
+//     borderLeftWidth: 4,
+//     borderLeftColor: "#999999",
+//   },
+//   orderNotesContent: {
+//     flexDirection: "row",
+//     alignItems: "flex-start",
+//   },
+//   orderNotesIcon: {
+//     marginRight: 8,
+//     marginTop: 2,
+//   },
+//   notesTitle: {
+//     fontSize: 14,
+//     fontWeight: "700",
+//     color: "#666666",
+//   },
+//   notesText: {
+//     fontSize: 18,
+//     fontWeight: "600",
+//     color: "#666666",
+//     lineHeight: 20,
+//     flex: 1,
+//     fontStyle: "italic",
+//   },
+//   itemRow: {
+//     flexDirection: "row",
+//     justifyContent: "space-between",
+//     alignItems: "center",
+//     paddingVertical: 6,
+//     paddingHorizontal: 8,
+//     borderTopLeftRadius: 4,
+//     borderTopRightRadius: 4,
+//     opacity: 1,
+//     paddingLeft: 6,
+//     paddingRight: 6,
+//   },
+//   itemNameContainer: {
+//     flexDirection: "column",
+//     alignItems: "flex-start",
+//     flex: 1,
+//   },
+//   itemName: {
+//     fontSize: 20,
+//     fontWeight: "600",
+//     color: "#333",
+//   },
+//   itemQuantity: {
+//     fontSize: 18,
+//     fontWeight: "700",
+//     color: "#007AFF",
+//     marginLeft: 12,
+//   },
+//   itemCompletedTime: {
+//     fontSize: 13,
+//     fontWeight: "700",
+//     color: "#666",
+//     marginLeft: 12,
+//     minWidth: 68,
+//     textAlign: "right",
+//   },
+//   optionsContainer: {
+//     marginTop: 0,
+//     marginLeft: 0,
+//   },
+//   itemNotesContainer: {
+//     paddingVertical: 6,
+//     paddingLeft: 14,
+//     paddingRight: 6,
+//     backgroundColor: "#F0F0F0",
+//     marginBottom: 0,
+//   },
+//   itemNotesContent: {
+//     flexDirection: "row",
+//     alignItems: "center",
+//   },
+//   itemNotesIcon: {
+//     marginRight: 6,
+//   },
+//   itemNotes: {
+//     fontSize: 14,
+//     color: "#666666",
+//     fontWeight: "500",
+//     fontStyle: "italic",
+//     flex: 1,
+//   },
+//   notesLabel: {
+//     fontSize: 14,
+//     color: "#666666",
+//     fontWeight: "700",
+//   },
+//   voidedItemNotes: {
+//     backgroundColor: "#f5f5f5",
+//     opacity: 0.7,
+//   },
+//   optionRow: {
+//     flexDirection: "row",
+//     justifyContent: "space-between",
+//     alignItems: "center",
+//     paddingVertical: 4,
+//     paddingLeft: 14,
+//     paddingRight: 6,
+//     marginBottom: 0,
+//   },
+//   optionContent: {
+//     flexDirection: "row",
+//     flexWrap: "wrap",
+//     flex: 1,
+//   },
+//   optionName: {
+//     fontSize: 16,
+//     color: "#555",
+//     fontWeight: "500",
+//   },
+//   optionValue: {
+//     fontSize: 16,
+//     color: "#333",
+//     fontWeight: "bold",
+//   },
+//   itemDivider: {
+//     height: 1,
+//     backgroundColor: "#e0e0e0",
+//     marginVertical: 2,
+//   },
+//   itemContainer: {
+//     marginBottom: 4,
+//   },
+//   completedItem: {
+//     opacity: 0.8,
+//     backgroundColor: "#f0fdf4",
+//     borderWidth: 2,
+//     borderColor: "#22c55e",
+//   },
+//   voidedItem: {
+//     backgroundColor: "#f5f5f5",
+//     opacity: 0.7,
+//   },
+//   voidedText: {
+//     textDecorationLine: "line-through",
+//     color: "#999",
+//   },
+//   voidedOption: {
+//     backgroundColor: "#f8f8f8",
+//     opacity: 0.7,
+//   },
+//   cancelledText: {
+//     fontSize: 16,
+//     fontWeight: "600",
+//     color: "#ff4444",
+//     marginLeft: 12,
+//   },
+//   selectedCard: {
+//     borderWidth: 2,
+//     borderColor: theme.colors.primaryColor,
+//   },
+//   selectIndicator: {
+//     position: "absolute",
+//     top: 8,
+//     borderRadius: 12,
+//     padding: 2,
+//   },
+//   selectIndicatorRightTop: {
+//     right: 8,
+//   },
+//   selectIndicatorLeftTop: {
+//     left: 8,
+//   },
+// });

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# --- Configuration ---
+PACKAGE_NAME="com.anonymous.KDS"
+APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+# Add your target device serial here
+TARGET_DEVICE="192.168.0.188:38737"
+
+echo "=========================================="
+echo "🚀 Starting Build, Install, and Launch on $TARGET_DEVICE"
+echo "=========================================="
+
+# 1. Compile the APK
+# ... (Keep your existing build logic here) ...
+
+# 2. Install the APK
+echo "Step 2: Installing to $TARGET_DEVICE..."
+adb -s $TARGET_DEVICE install -r $APK_PATH
+if [ $? -ne 0 ]; then
+    echo "⚠️  Standard install failed. Trying downgrade (-d) install..."
+    adb -s $TARGET_DEVICE install -d -r $APK_PATH
+fi
+
+# 3. Launch the App
+echo "Step 3: Launching $PACKAGE_NAME..."
+adb -s $TARGET_DEVICE shell am start -n $PACKAGE_NAME/.MainActivity
+
+echo "=========================================="
+echo "✅ Done! App should be opening now."
+echo "=========================================="
