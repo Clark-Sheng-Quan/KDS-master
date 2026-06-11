@@ -41,12 +41,23 @@ const STORAGE_KEY_SHOW_PRINT_BUTTON = "show_print_button";
 const STORAGE_KEY_AUTO_PRINT_NEW_ORDERS = "auto_print_new_orders";
 const STORAGE_KEY_SHOW_ORDER_TIMER = "show_order_timer";
 const STORAGE_KEY_SHOW_TIMER_HIGHLIGHT = "show_timer_highlight";
-const STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS = "auto_clean_expired_orders";
+
 const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 const STORAGE_KEY_AUTO_START = "auto_start_enabled";
 const STORAGE_KEY_MERGE_TABLE_ORDERS = "merge_table_orders";
 const STORAGE_KEY_PENDING_APK = "pending_apk_install";
+
+// Returns > 0 if a > b, 0 if equal, < 0 if a < b  (semver-style "1.4.7")
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
 
 // Font size constants
 const STORAGE_KEY_CARD_TITLE_FONT_SIZE = "card_title_font_size";
@@ -83,7 +94,7 @@ export default function SettingsScreen() {
   // 添加显示计时器开关状态
   const [showOrderTimer, setShowOrderTimer] = useState<boolean>(true);
   const [showTimerHighlight, setShowTimerHighlight] = useState<boolean>(true);
-  const [autoCleanExpiredOrders, setAutoCleanExpiredOrders] = useState<boolean>(false);
+
 
   // 添加项目级完成模式状态
   const [enableItemLevelCompletion, setEnableItemLevelCompletion] = useState<boolean>(false);
@@ -203,16 +214,6 @@ export default function SettingsScreen() {
           setShowTimerHighlight(savedShowTimerHighlight === "true");
         }
 
-        const savedAutoCleanExpiredOrders = await AsyncStorage.getItem(
-          STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS
-        );
-        if (savedAutoCleanExpiredOrders !== null) {
-          setAutoCleanExpiredOrders(savedAutoCleanExpiredOrders === "true");
-        } else {
-          setAutoCleanExpiredOrders(false);
-          await AsyncStorage.setItem(STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS, "false");
-        }
-
         // 加载项目级完成模式设置
         const savedItemLevelCompletion = await AsyncStorage.getItem(
           STORAGE_KEY_ITEM_LEVEL_COMPLETION
@@ -300,7 +301,12 @@ export default function SettingsScreen() {
           const raw = await AsyncStorage.getItem(STORAGE_KEY_PENDING_APK);
           if (raw) {
             const saved = JSON.parse(raw);
-            setPendingApk(saved);
+            // If current version is already >= the downloaded version, it was installed — clear it
+            if (compareVersions(appVersion, saved.version) >= 0) {
+              await AsyncStorage.removeItem(STORAGE_KEY_PENDING_APK);
+            } else {
+              setPendingApk(saved);
+            }
           }
         } catch (e) {
           // ignore parse errors
@@ -505,14 +511,6 @@ export default function SettingsScreen() {
     console.log('[Settings] 发出 show_timer_highlight 设置变化事件，值:', value);
   }, []);
 
-  const handleAutoCleanExpiredOrdersChange = useCallback(async (value: boolean) => {
-    setAutoCleanExpiredOrders(value);
-    await AsyncStorage.setItem(STORAGE_KEY_AUTO_CLEAN_EXPIRED_ORDERS, value.toString());
-
-    settingsListener.emitSettingChange('auto_clean_expired_orders', value);
-    console.log('[Settings] 发出 auto_clean_expired_orders 设置变化事件，值:', value);
-  }, []);
-
   // Handle card title font size change
   const handleCardTitleFontSizeChange = useCallback(async (value: "small" | "medium" | "large") => {
     setCardTitleFontSize(value);
@@ -663,6 +661,34 @@ export default function SettingsScreen() {
             };
             setPendingApk(pending);
             await AsyncStorage.setItem(STORAGE_KEY_PENDING_APK, JSON.stringify(pending));
+
+            // Auto-prompt install
+            Alert.alert(
+              t("readyToInstall") || "Ready to Install",
+              `Version ${pendingApkVersionRef.current}\n\n${t("downloadCompletePrompt") || "Download completed. Install now?"}`,
+              [
+                { text: t("cancel") || "Later", style: "cancel" },
+                {
+                  text: t("installNow") || "Install Now",
+                  onPress: async () => {
+                    try {
+                      if (Platform.OS === "android" && apkUpdateModule?.installDownloadedApk) {
+                        await apkUpdateModule.installDownloadedApk(updateDownloadFilePath);
+                      }
+                    } catch (err: any) {
+                      const msg = String(err?.message || err || "");
+                      if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("no such file")) {
+                        setPendingApk(null);
+                        await AsyncStorage.removeItem(STORAGE_KEY_PENDING_APK);
+                        Alert.alert(t("error"), t("apkFileNotFound") || "APK file not found, please download again.");
+                      } else {
+                        Alert.alert(t("error"), t("installFailed") || "Installation failed.");
+                      }
+                    }
+                  },
+                },
+              ]
+            );
           }
         } else if (state === "failed" && updateDownloadStatus !== "failed") {
           setUpdateDownloadStatus("failed");
@@ -1296,22 +1322,6 @@ export default function SettingsScreen() {
               <View style={[
                 styles.switchThumb,
                 showTimerHighlight && styles.switchThumbActive
-              ]} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t("autoCleanExpiredOrders")}</Text>
-            <TouchableOpacity
-              style={[
-                styles.switchButton,
-                autoCleanExpiredOrders && styles.switchButtonActive
-              ]}
-              onPress={() => handleAutoCleanExpiredOrdersChange(!autoCleanExpiredOrders)}
-            >
-              <View style={[
-                styles.switchThumb,
-                autoCleanExpiredOrders && styles.switchThumbActive
               ]} />
             </TouchableOpacity>
           </View>

@@ -41,8 +41,6 @@ export class OrderService {
   private static processedOrderIds: Set<string> = new Set();
   private static processedOrderIdsArray: string[] = []; // 用于维护缓存顺序
   
-  // 自动完成设置状态
-  private static autoCleanExpiredOrdersEnabled: boolean = false;
   private static settingsListenerUnsubscribe: (() => void) | null = null;
   
   // 打印模式设置 (single_item 或 single_order)
@@ -867,33 +865,17 @@ export class OrderService {
       };
       settingsListener.onSettingChange('category_active_mapping', categoryActiveListener);
 
-      // 从 AsyncStorage 加载初始值
-      const savedValue = await AsyncStorage.getItem('auto_clean_expired_orders');
-      this.autoCleanExpiredOrdersEnabled = savedValue === 'true';
-      console.log(`[OrderService] 初始化 autoCleanExpiredOrdersEnabled = ${this.autoCleanExpiredOrdersEnabled}`);
-      
       // 监听打印模式变化
       settingsListener.onSettingChange('print_mode', (value: string) => {
         this.printMode = value as ('single_item' | 'single_order');
         console.log(`[OrderService] 打印模式已更新: ${this.printMode}`);
       });
-      
-      // 设置监听器以追踪后续更改
-      const listener = (value: any) => {
-        this.autoCleanExpiredOrdersEnabled = value === true || value === 'true';
-        console.log(`[OrderService] 设置更新: autoCleanExpiredOrdersEnabled = ${this.autoCleanExpiredOrdersEnabled}`);
-      };
-      
-      settingsListener.onSettingChange('auto_clean_expired_orders', listener);
-      
-      // 保存注销函数供后续使用
+
       this.settingsListenerUnsubscribe = () => {
-        settingsListener.offSettingChange('auto_clean_expired_orders', listener);
         settingsListener.offSettingChange('category_active_mapping', categoryActiveListener);
       };
     } catch (error) {
       console.error('[OrderService] 初始化设置监听器失败:', error);
-      this.autoCleanExpiredOrdersEnabled = false;
     }
   }
 
@@ -914,54 +896,10 @@ export class OrderService {
   }
 
   /**
-   * 自动完成超过配置时间的订单（仅在设置启用时执行）
-   */
-  private static async autoCompleteExpiredOrders() {
-    // 检查是否启用了自动清理设置
-    if (!this.autoCleanExpiredOrdersEnabled) {
-      return;
-    }
-    
-    try {
-      const now = Date.now();
-      // 24小时
-      const twoHoursInMs = 24 * 60 * 60 * 1000;
-      const expiredNetworkOrders = this.networkOrders.filter(order => {
-        const orderStartTime = new Date(order.kdsReceiveTime).getTime();
-        return (now - orderStartTime) > twoHoursInMs;
-      });
-      
-      const expiredTcpOrders = this.tcpOrders.filter(order => {
-        const orderStartTime = new Date(order.kdsReceiveTime).getTime();
-        return (now - orderStartTime) > twoHoursInMs;
-      });
-      
-      if (expiredNetworkOrders.length > 0) {
-        console.log(`[OrderService] 自动完成 ${expiredNetworkOrders.length} 个网络订单`);
-        for (const order of expiredNetworkOrders) {
-          await this.completeOrder(order.id);
-        }
-      }
-      
-      if (expiredTcpOrders.length > 0) {
-        console.log(`[OrderService] 自动完成 ${expiredTcpOrders.length} 个TCP订单`);
-        for (const order of expiredTcpOrders) {
-          await this.completeOrder(order.id);
-        }
-      }
-    } catch (error) {
-      console.error('[OrderService] 自动完成订单失败:', error);
-    }
-  }
-
-  /**
    * 从网络获取订单并处理
    */
   private static async fetchOrdersFromNetworkAndProcess() {
     try {
-      // 先执行自动清理（无论有没有新订单都要执行）
-      await this.autoCompleteExpiredOrders();
-      
       // 获取当前时间范围
       const timeRange = TimeUtils.getTimeRangeAroundNow();
       

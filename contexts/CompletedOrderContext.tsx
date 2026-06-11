@@ -1,23 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompletedOrder, CompletedOrderItem, FormattedOrder } from '../services/types';
-import { settingsListener } from '../services/settingsListener';
 
 const STORAGE_KEY = 'completed_orders';
-const AUTO_CLEAN_STORAGE_KEY = 'auto_clean_expired_orders';
-
-// 保留策略配置
-const RETENTION_CONFIG = {
-  MAX_ORDERS: 50,              // 最多保留 50 条记录
-  MAX_DAYS: 1,                  // 最多保留 1 天的记录
-};
 
 interface CompletedOrderContextType {
   completedOrders: CompletedOrder[];
   addCompletedOrder: (order: FormattedOrder, itemsToComplete: any[]) => Promise<CompletedOrderItem[]>;
   removeCompletedOrder: (orderId: string, itemId?: string, completionKey?: string) => Promise<void>;
   clearCompletedOrders: () => Promise<void>;
-  cleanExpiredOrdersNow: () => Promise<void>;
   loading: boolean;
 }
 
@@ -26,83 +17,17 @@ const CompletedOrderContext = createContext<CompletedOrderContextType | undefine
 export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [autoCleanExpiredOrders, setAutoCleanExpiredOrders] = useState(false);
 
-  const autoCleanExpiredOrdersRef = React.useRef(false);
-
-  // 初始化：从本地存储加载已完成的订单
   useEffect(() => {
     loadCompletedOrders();
   }, []);
 
-  useEffect(() => {
-    const handleAutoCleanExpiredOrdersChange = (value: boolean) => {
-      autoCleanExpiredOrdersRef.current = value;
-      setAutoCleanExpiredOrders(value);
-
-      if (value) {
-        cleanExpiredOrdersNow().catch((error) => {
-          console.error('[CompletedOrderContext] 启用自动清理后立即清理失败:', error);
-        });
-      }
-    };
-
-    settingsListener.onSettingChange('auto_clean_expired_orders', handleAutoCleanExpiredOrdersChange);
-
-    return () => {
-      settingsListener.offSettingChange('auto_clean_expired_orders', handleAutoCleanExpiredOrdersChange);
-    };
-  }, []);
-
-  const cleanExpiredOrders = (orders: CompletedOrder[]): CompletedOrder[] => {
-    try {
-      const now = new Date();
-      const maxDaysAgo = new Date(now.getTime() - RETENTION_CONFIG.MAX_DAYS * 24 * 60 * 60 * 1000);
-
-      // 1. 先过滤掉超过保留天数的订单（满足条件1就删除）
-      let filtered = orders.filter(co => {
-        const completedDate = new Date(co.completedAt);
-        const isExpired = completedDate <= maxDaysAgo;  // 修正：<= 才是过期的
-        if (isExpired) {
-          console.log(`[CompletedOrderContext] 订单 ${co.order.id} 已过期: ${co.completedAt} <= ${maxDaysAgo.toISOString()}`);
-        }
-        return !isExpired;  // 返回未过期的订单
-      });
-
-      // 2. 如果数量超过限制，只保留最新的 MAX_ORDERS 条（满足条件2就删除超出部分）
-      if (filtered.length > RETENTION_CONFIG.MAX_ORDERS) {
-        filtered = filtered.slice(0, RETENTION_CONFIG.MAX_ORDERS);
-      }
-
-      return filtered;
-    } catch (error) {
-      console.error('[CompletedOrderContext] 清理过期订单失败:', error);
-      return orders;
-    }
-  };
-
-  /**
-   * 从本地存储加载已完成的订单
-   */
   const loadCompletedOrders = async () => {
     try {
       setLoading(true);
-      const [stored, savedAutoCleanExpiredOrders] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEY),
-        AsyncStorage.getItem(AUTO_CLEAN_STORAGE_KEY),
-      ]);
-
-      const autoCleanEnabled = savedAutoCleanExpiredOrders === 'true';
-      autoCleanExpiredOrdersRef.current = autoCleanEnabled;
-      setAutoCleanExpiredOrders(autoCleanEnabled);
-
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        let orders = JSON.parse(stored) as CompletedOrder[];
-        if (autoCleanEnabled) {
-          orders = cleanExpiredOrders(orders);
-          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-        }
-        setCompletedOrders(orders);
+        setCompletedOrders(JSON.parse(stored) as CompletedOrder[]);
       }
     } catch (error) {
       console.error('[CompletedOrderContext] 加载已完成订单失败:', error);
@@ -111,14 +36,10 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   };
 
-  /**
-   * 保存已完成的订单到本地存储
-   */
   const saveCompletedOrders = useCallback(async (orders: CompletedOrder[]) => {
     try {
-      const finalOrders = autoCleanExpiredOrdersRef.current ? cleanExpiredOrders(orders) : orders;
-      setCompletedOrders(finalOrders);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(finalOrders));
+      setCompletedOrders(orders);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
     } catch (error) {
       console.error('[CompletedOrderContext] 保存已完成订单失败:', error);
     }
@@ -151,52 +72,34 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
     return entries;
   };
 
-  /**
-   * 添加已完成的订单
-   * @param order 订单信息
-   * @param itemsToComplete 要完成的产品数组（单个或多个）
-   */
   const completedOrdersRef = useRef(completedOrders);
   useEffect(() => { completedOrdersRef.current = completedOrders; }, [completedOrders]);
 
   const addCompletedOrder = useCallback(async (order: FormattedOrder, itemsToComplete: any[] = []) => {
     try {
-      // 防守：确保 itemsToComplete 是数组
       if (!Array.isArray(itemsToComplete)) {
-        console.warn('[CompletedOrderContext] itemsToComplete 不是数组，重置为空数组');
         itemsToComplete = [];
       }
 
       const normalizedItems = normalizeCompletedItems(itemsToComplete);
       let updated = [...completedOrdersRef.current];
 
-      // 订单元数据（products 为空，实际产品在 completedItems）
-      const orderMetadata: FormattedOrder = {
-        ...order,
-        products: [],
-      };
+      const orderMetadata: FormattedOrder = { ...order, products: [] };
 
-      // 获取所有完成items中最晚的完成时间作为订单的completedAt
       const getLatestCompletionTime = (items: CompletedOrderItem[]): string => {
-        if (items.length === 0) {
-          return new Date().toISOString();
-        }
-        const latestTime = items.reduce((latest, item) => {
-          const itemTime = new Date(item.completedAt).getTime();
-          const latestItemTime = new Date(latest).getTime();
-          return itemTime > latestItemTime ? item.completedAt : latest;
+        if (items.length === 0) return new Date().toISOString();
+        return items.reduce((latest, item) => {
+          return new Date(item.completedAt).getTime() > new Date(latest).getTime()
+            ? item.completedAt
+            : latest;
         }, items[0].completedAt);
-        return latestTime;
       };
 
-      // 查找已存在的记录（按 order.id）
       const existingIndex = updated.findIndex(co => co.order.id === order.id);
 
       if (existingIndex !== -1) {
-        // 合并已完成的产品（允许同名/同ID多条，按 completionKey 区分）
         const existingItems = updated[existingIndex].completedItems || [];
         const completedItems = [...existingItems, ...normalizedItems];
-
         updated[existingIndex] = {
           ...updated[existingIndex],
           order: orderMetadata,
@@ -204,7 +107,6 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
           completedAt: getLatestCompletionTime(completedItems),
         };
       } else {
-        // 创建新记录
         updated.unshift({
           order: orderMetadata,
           completedAt: getLatestCompletionTime(normalizedItems),
@@ -220,18 +122,11 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   }, [saveCompletedOrders]);
 
-  /**
-   * 删除已完成的订单（撤回时使用）
-   * 支持两种删除方式：
-   * 1. 按 orderId 删除整个订单的所有完成记录
-   * 2. 按 itemId 删除订单中的单个项目
-   */
   const removeCompletedOrder = useCallback(async (orderId: string, itemId?: string, completionKey?: string) => {
     try {
       let updated: CompletedOrder[];
 
       if (itemId) {
-        // ======= 按 itemId 删除：移除单个 item 的完成记录 =======
         const coIndex = completedOrdersRef.current.findIndex(
           co => co.order.id === orderId && co.completedItems?.length
         );
@@ -247,84 +142,52 @@ export const CompletedOrderProvider: React.FC<{ children: ReactNode }> = ({ chil
           updatedItems = updatedItems.filter(item => item.completionKey !== completionKey);
         } else {
           const removeIndex = updatedItems.findIndex(item => item.id === itemId);
-          if (removeIndex !== -1) {
-            updatedItems.splice(removeIndex, 1);
-          }
+          if (removeIndex !== -1) updatedItems.splice(removeIndex, 1);
         }
 
         if (updatedItems.length > 0) {
-          // 还有其他已完成项目，保留记录
           updated = completedOrdersRef.current.map((item, idx) =>
             idx === coIndex
               ? { ...co, completedItems: updatedItems, completedAt: new Date().toISOString() }
               : item
           );
-          console.log(`[CompletedOrderContext] ✓ 移除 item: ${itemId} (剩余${updatedItems.length}项)`);
         } else {
-          // 无剩余项目，删除整个记录
           updated = completedOrdersRef.current.filter((_, idx) => idx !== coIndex);
-          console.log(`[CompletedOrderContext] ✓ 删除完成记录: ${orderId}`);
         }
       } else {
-        // ======= 按 orderId 删除：移除整个订单的所有完成记录 =======
         updated = completedOrdersRef.current.filter(co => co.order.id !== orderId);
-        console.log(`[CompletedOrderContext] ✓ 移除订单: ${orderId}`);
       }
 
-      // 统一保存（只通过 saveCompletedOrders 更新 state，避免双重 setState）
       await saveCompletedOrders(updated);
     } catch (error) {
       console.error('[CompletedOrderContext] 移除完成订单失败:', error);
     }
   }, [saveCompletedOrders]);
 
-  /**
-   * 清空所有已完成的订单
-   */
   const clearCompletedOrders = useCallback(async () => {
     try {
       setCompletedOrders([]);
       await AsyncStorage.removeItem(STORAGE_KEY);
-      console.log('[CompletedOrderContext] 已清空所有完成订单');
     } catch (error) {
       console.error('[CompletedOrderContext] 清空完成订单失败:', error);
     }
   }, []);
-
-  const cleanExpiredOrdersNow = useCallback(async () => {
-    try {
-      const current = completedOrdersRef.current;
-      const cleaned = cleanExpiredOrders(current);
-      if (cleaned.length !== current.length) {
-        console.log(`[CompletedOrderContext] 清理过期订单: 从 ${current.length} 条减少到 ${cleaned.length} 条`);
-        await saveCompletedOrders(cleaned);
-      }
-    } catch (error) {
-      console.error('[CompletedOrderContext] 主动清理过期订单失败:', error);
-    }
-  }, [saveCompletedOrders]);
 
   const contextValue = useMemo(() => ({
     completedOrders,
     addCompletedOrder,
     removeCompletedOrder,
     clearCompletedOrders,
-    cleanExpiredOrdersNow,
     loading,
-  }), [completedOrders, addCompletedOrder, removeCompletedOrder, clearCompletedOrders, cleanExpiredOrdersNow, loading]);
+  }), [completedOrders, addCompletedOrder, removeCompletedOrder, clearCompletedOrders, loading]);
 
   return (
-    <CompletedOrderContext.Provider
-      value={contextValue}
-    >
+    <CompletedOrderContext.Provider value={contextValue}>
       {children}
     </CompletedOrderContext.Provider>
   );
 };
 
-/**
- * 使用 CompletedOrderContext 的 Hook
- */
 export const useCompletedOrders = (): CompletedOrderContextType => {
   const context = useContext(CompletedOrderContext);
   if (!context) {

@@ -61,7 +61,7 @@ const CompletedOrderCell = React.memo<{
 
 export default function CompletedScreen() {
   const { t } = useLanguage();
-  const { completedOrders, removeCompletedOrder, loading: contextLoading, cleanExpiredOrdersNow } = useCompletedOrders();
+  const { completedOrders, removeCompletedOrder, loading: contextLoading } = useCompletedOrders();
   const { cardsPerRow, cardsPerColumn } = useSettings();
   const [selectedOrder, setSelectedOrder] = useState<FormattedOrder | null>(null);
   const [isRecallMode, setIsRecallMode] = useState(false);
@@ -148,17 +148,6 @@ export default function CompletedScreen() {
   const handleCancelRecall = () => {
     setIsRecallMode(false);
     setSelectedOrder(null);
-  };
-
-  // 清理过期订单功能
-  const handleCleanExpired = async () => {
-    try {
-      await cleanExpiredOrdersNow();
-      Alert.alert(t("success") || "成功", t("cleanedExpiredOrders"));
-    } catch (error) {
-      console.error("清理过期订单失败:", error);
-      Alert.alert(t("error"), t("failedToCleanExpiredOrders"));
-    }
   };
 
   if (loading) {
