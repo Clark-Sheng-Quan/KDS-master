@@ -340,7 +340,9 @@ export class OrderService {
           const existingOrder = this.networkOrders[existingOrderIndex];
           // Merge products: keep existing products, add new products (avoid duplicates)
           const existingProductIds = new Set(existingOrder.products?.map(p => p.id) || []);
-          const newProducts = order.products?.filter(p => !existingProductIds.has(p.id)) || [];
+          const newProducts = (order.products || [])
+            .filter(p => !existingProductIds.has(p.id))
+            .filter(p => this.getFilteredProducts({ ...order, products: [p] }).length > 0);
           
           const mergedOrder = {
             ...existingOrder,
