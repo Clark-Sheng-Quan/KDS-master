@@ -21,6 +21,7 @@ export const AutoPrintInitializer: React.FC = () => {
 
     const unsubscribeNewProduct = OrderService.setNewProductCallback((order: FormattedOrder, product: any) => {
       if (!autoPrintNewOrders || printMode !== 'single_item') return;
+      if (order.isRecalled) return;
       if (!isProductActive(product)) return;
 
       console.log(`[AutoPrintInitializer] 收到新产品，订单 ${order.num}，产品 ${product.id}，准备单品打印...`);
@@ -35,6 +36,7 @@ export const AutoPrintInitializer: React.FC = () => {
 
     const unsubscribeNewOrder = OrderService.setNewOrderCallback((order: FormattedOrder) => {
       if (!autoPrintNewOrders || printMode !== 'single_order') return;
+      if (order.isRecalled) return;
 
       const printableProducts = (order.products || []).filter(isProductActive);
       if (printableProducts.length === 0) return;

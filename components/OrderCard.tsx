@@ -436,7 +436,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
     }
     
     const pickupMethod = order.pickupMethod?.toLowerCase() || '';
-    const methodLabel = (pickupMethod === 'take-away') ? t("takeAway") : t("dineIn");
+    const isTakeaway = pickupMethod.includes('take') || pickupMethod.includes('away') || pickupMethod.includes('pickup');
+    const methodLabel = isTakeaway ? t("takeAway") : t("dineIn");
     return `${methodLabel} - #${getOrderDisplayNumber()}`;
   };
 
@@ -785,21 +786,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       const lastIdx = sorted.length - 1;
       const elements: JSX.Element[] = [];
       sorted.forEach(([sourceTime, items], idx) => {
-        if (idx > 0) {
-          const isNewest = idx === lastIdx;
-          const timeLabel = sourceTime !== '__unknown__' ? fmtTime(sourceTime) : '';
-          const lineColor = isNewest ? '#22c55e' : '#CBD5E1';
-          const textColor = isNewest ? '#22c55e' : '#94A3B8';
-          elements.push(
-            <View key={`sub-divider-${sourceTime}`} style={styles.subOrderDivider}>
-              <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
-              <Text style={[styles.subOrderDividerText, { color: textColor }]}>
-                {`${t('newOrderAdded')}${timeLabel ? `  ${timeLabel}` : ''}`}
-              </Text>
-              <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
-            </View>
-          );
-        }
+        const isNewest = idx === lastIdx;
+        const timeLabel = sourceTime !== '__unknown__' ? fmtTime(sourceTime) : '';
+        const lineColor = isNewest ? '#22c55e' : '#CBD5E1';
+        const textColor = isNewest ? '#22c55e' : '#94A3B8';
+        elements.push(
+          <View key={`sub-divider-${sourceTime}`} style={styles.subOrderDivider}>
+            <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
+            <Text style={[styles.subOrderDividerText, { color: textColor }]}>
+              {`${t('newOrderAdded')}${timeLabel ? `  ${timeLabel}` : ''}`}
+            </Text>
+            <View style={[styles.subOrderDividerLine, { backgroundColor: lineColor }]} />
+          </View>
+        );
         elements.push(...renderCategoryGroup(items, `so${idx}`));
       });
       return elements;

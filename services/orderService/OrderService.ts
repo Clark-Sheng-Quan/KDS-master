@@ -346,6 +346,7 @@ export class OrderService {
           
           const mergedOrder = {
             ...existingOrder,
+            isRecalled: true,
             products: [...(existingOrder.products || []), ...newProducts],
           };
           
@@ -724,6 +725,41 @@ export class OrderService {
     } catch (error) {
       console.error('批量删除订单失败:', error);
     }
+  }
+
+  /**
+   * 从指定订单中静默移除一个产品（item-level 完成时调用）。
+   * 只更新内存 + 持久化，不触发 emitOrderUpdate，避免 home.tsx 的 useEffect 重置本地状态。
+   */
+  static async persistProductRemoval(productId: string, orderIds: string[]): Promise<void> {
+    let networkChanged = false;
+    let tcpChanged = false;
+
+    for (const orderId of orderIds) {
+      const netIdx = this.networkOrders.findIndex(o => o.id === orderId);
+      if (netIdx !== -1) {
+        const order = this.networkOrders[netIdx];
+        const filtered = order.products.filter(p => p.id !== productId);
+        if (filtered.length !== order.products.length) {
+          this.networkOrders[netIdx] = { ...order, products: filtered };
+          networkChanged = true;
+        }
+      }
+      const tcpIdx = this.tcpOrders.findIndex(o => o.id === orderId);
+      if (tcpIdx !== -1) {
+        const order = this.tcpOrders[tcpIdx];
+        const filtered = order.products.filter(p => p.id !== productId);
+        if (filtered.length !== order.products.length) {
+          this.tcpOrders[tcpIdx] = { ...order, products: filtered };
+          tcpChanged = true;
+        }
+      }
+    }
+
+    const saves: Promise<any>[] = [];
+    if (networkChanged) saves.push(StorageService.saveNetworkOrders(this.networkOrders));
+    if (tcpChanged) saves.push(StorageService.saveTCPOrders(this.tcpOrders));
+    if (saves.length) await Promise.all(saves);
   }
 
   /**

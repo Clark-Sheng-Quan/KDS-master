@@ -264,6 +264,14 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
             {/* 设置部分 */}
             <View style={[styles.settingsSection, isPortraitMode && styles.settingsSectionPortrait]}>
               <Text style={[styles.sectionTitle, isPortraitMode && styles.sectionTitlePortrait]}>{t("status")}</Text>
+              {/* 设置页面 */}
+              <TouchableOpacity
+                style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
+                onPress={() => navigateTo("/(tabs)/settings")}
+              >
+                <Ionicons name="settings" size={navIconSize} color="white" />
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("settings")}</Text>
+              </TouchableOpacity>
 
               {/* EOD 按钮 */}
               <TouchableOpacity
@@ -272,15 +280,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               >
                 <Ionicons name="bar-chart" size={navIconSize} color="white" />
                 <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>EOD</Text>
-              </TouchableOpacity>
-
-              {/* 设置页面 */}
-              <TouchableOpacity
-                style={[styles.menuItem, isPortraitMode && styles.menuItemPortrait]}
-                onPress={() => navigateTo("/(tabs)/settings")}
-              >
-                <Ionicons name="settings" size={navIconSize} color="white" />
-                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("settings")}</Text>
               </TouchableOpacity>
             </View>
 

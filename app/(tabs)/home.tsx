@@ -66,7 +66,7 @@ export default function HomeScreen() {
   const [localOrders, setLocalOrders] = useState<FormattedOrder[]>([]);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastItemName, setToastItemName] = useState("");
-  const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder} | null>(null);
+  const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder; completedOrderId: string} | null>(null);
   const [orderToastVisible, setOrderToastVisible] = useState(false);
   const [lastCompletedOrderData, setLastCompletedOrderData] = useState<{ order: FormattedOrder } | null>(null);
   const [showRecentItemsMenu, setShowRecentItemsMenu] = useState(false);
@@ -173,7 +173,11 @@ export default function HomeScreen() {
       });
     });
 
-    return [...mergedTableOrders, ...noTableOrders];
+    return [...mergedTableOrders, ...noTableOrders].sort((a, b) => {
+      const tA = new Date(a.kdsReceiveTime || a.orderTime).getTime();
+      const tB = new Date(b.kdsReceiveTime || b.orderTime).getTime();
+      return tA - tB; // oldest first
+    });
   }, [activeFilteredOrders, mergeTableOrders]);
 
   // 保持 displayOrdersRef 同步，供回调查找合并虚拟订单
@@ -278,7 +282,8 @@ export default function HomeScreen() {
           return { ...o, products: o.products.filter(p => remainingProductIds.has(p.id)) };
         }));
       });
-      console.log(`[Home] 项目已移除(合并桌): ${itemName} (${itemId})`);
+      // Persist to storage silently so emitOrderUpdate won't restore the removed item
+      OrderService.persistProductRemoval(itemId, updatedOrder._subOrderIds).catch(() => {});
       return;
     }
 
@@ -290,7 +295,8 @@ export default function HomeScreen() {
     setFilteredOrders((prev) =>
       prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
     );
-    console.log(`[Home] 项目已移除: ${itemName} (${itemId}), 订单剩余项目数: ${updatedOrder.products?.length || 0}`);
+    // Persist to storage silently so emitOrderUpdate won't restore the removed item
+    OrderService.persistProductRemoval(itemId, [updatedOrder.id]).catch(() => {});
   }, []);
 
   // 处理项目完成 - 显示 Toast
@@ -310,7 +316,8 @@ export default function HomeScreen() {
         }
       }
       setToastItemName(itemName);
-      setLastCompletedItemData({ itemId, itemName, orderId: realOrderId, order: realOrder });
+      // completedOrderId = merged virtual ID (what addCompletedOrder used); orderId = real sub-order (for recall)
+      setLastCompletedItemData({ itemId, itemName, orderId: realOrderId, order: realOrder, completedOrderId: displayOrder.id });
       setToastVisible(true);
       return;
     }
@@ -319,7 +326,7 @@ export default function HomeScreen() {
       || displayOrdersRef.current.find(o => o.id === orderId);
     if (order) {
       setToastItemName(itemName);
-      setLastCompletedItemData({itemId, itemName, orderId, order});
+      setLastCompletedItemData({ itemId, itemName, orderId, order, completedOrderId: orderId });
       setToastVisible(true);
     }
   }, []);
@@ -432,26 +439,29 @@ export default function HomeScreen() {
   const handleItemUndoCompletion = useCallback(async () => {
     if (!lastCompletedItemData) return;
 
-    const { itemId, itemName, orderId, order } = lastCompletedItemData;
-    
+    const { itemId, itemName, orderId, order, completedOrderId } = lastCompletedItemData;
+
     // 查找 item
     let item = order.products?.find(p => p.id === itemId);
     if (!item) {
-      item = order.products?.find(p => 
+      item = order.products?.find(p =>
         (p as any)._id === itemId || (p as any).itemId === itemId
       );
     }
-    
+
     if (!item) {
       console.error('[Home] Undo: 无法找到 item');
       return;
     }
 
+    // Remove the completed record so re-completion doesn't create duplicates
+    await removeCompletedOrder(completedOrderId, itemId);
+
     await recallItemToOrder(itemId, itemName, orderId, item, order, undefined, () => {
       setToastVisible(false);
       setLastCompletedItemData(null);
     });
-  }, [lastCompletedItemData, recallItemToOrder]);
+  }, [lastCompletedItemData, recallItemToOrder, removeCompletedOrder]);
 
   // 处理 Recall（从菜单）
   const handleRecallItem = useCallback(async (completedItem: any) => {
