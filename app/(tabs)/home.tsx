@@ -144,15 +144,17 @@ export default function HomeScreen() {
     for (const order of activeFilteredOrders) {
       const tbl = order.tableNumber?.trim();
       if (tbl) {
-        if (!tableGroups.has(tbl)) tableGroups.set(tbl, []);
-        tableGroups.get(tbl)!.push(order);
+        // Group key: include sessionId when available so different sessions at the same table become separate cards
+        const groupKey = order.tableSessionId ? `${tbl}:${order.tableSessionId}` : tbl;
+        if (!tableGroups.has(groupKey)) tableGroups.set(groupKey, []);
+        tableGroups.get(groupKey)!.push(order);
       } else {
         noTableOrders.push(order);
       }
     }
 
     const mergedTableOrders: FormattedOrder[] = [];
-    tableGroups.forEach((orders, tableNumber) => {
+    tableGroups.forEach((orders, groupKey) => {
       if (orders.length === 1) {
         mergedTableOrders.push(orders[0]);
         return;
@@ -166,7 +168,7 @@ export default function HomeScreen() {
       const hasUpdates = orders.some(o => (o.updateCount || 0) > 0);
       mergedTableOrders.push({
         ...base,
-        id: `table-group-${tableNumber}`,
+        id: `table-group-${groupKey}`,
         products: allProducts,
         updateCount: hasUpdates ? 1 : undefined,
         _subOrderIds: orders.map(o => o.id),

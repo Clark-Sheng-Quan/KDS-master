@@ -165,7 +165,6 @@ export class TCPSocketService {
             if (response) {
               try {
                 const canContinue = socket.write(response);
-                console.log(`[TCP] Response sent successfully (${response.length} bytes)`);
                 
                 if (!canContinue) {
                   // 缓冲区满，等待 drain 事件
@@ -259,10 +258,6 @@ export class TCPSocketService {
                   clearTimeout(incompleteDataTimeout);
                   incompleteDataTimeout = null;
                 }
-                
-                // Log complete message received
-                console.log(`[TCP] ✓ Complete message received: ${currentBodyBytes} bytes`);
-                
                 // Extract body - need to find exact byte boundary
                 // Since Content-Length is in bytes, we need to extract exactly that many bytes
                 const fullBufferBytes = new TextEncoder().encode(dataBuffer);
@@ -294,7 +289,9 @@ export class TCPSocketService {
                     const jsonData = JSON.parse(jsonBody);
                     
                     // Process HTTP request and send response (通过队列)
-                    this.handleHttpRequest(jsonData, socket, clientKey, queueResponse);
+                    this.handleHttpRequest(jsonData, socket, clientKey, queueResponse).catch((err) => {
+                      console.error('[TCP] handleHttpRequest error:', err);
+                    });
                   } else {
                     console.error(`[TCP] Empty JSON body`);
                   }
@@ -309,7 +306,6 @@ export class TCPSocketService {
                     `{"status":"error","message":"Invalid JSON: ${parseError.message}"}`;
                   queueResponse(errorResponse);
                 }
-                console.log(`[HTTP] ========== HTTP REQUEST PROCESSING COMPLETE ==========`);
                 
                 // 循环继续处理缓冲区中的下一个消息
               }
@@ -338,7 +334,7 @@ export class TCPSocketService {
           });
           
           socket.on('close', () => {
-            console.log(`[TCP] Client disconnected: ${remoteIP}`);
+      
             
             // Clear incomplete data timeout
             if (incompleteDataTimeout) {
@@ -356,13 +352,9 @@ export class TCPSocketService {
             if (!hasOtherConnections) {
               // No more connections from this IP
               this.connectionStatus.set(remoteIP, false);
-              console.log(`[TCP] All connections from ${remoteIP} closed`);
-              console.log(`[HTTP] ========== HTTP CONNECTION COMPLETE ==========`);
               if (this.connectionStatusCallback) {
                 this.connectionStatusCallback('disconnected');
               }
-            } else {
-              console.log(`[TCP] ${remoteIP} still has ${Array.from(this.clients.keys()).filter(k => k.startsWith(remoteIP + ':')).length} active connection(s)`);
             }
           });
         });
@@ -415,7 +407,7 @@ export class TCPSocketService {
     }
   }
 
-  private static handleHttpRequest(jsonData: any, socket: any, clientKey: string, queueResponse: (response: string) => void): void {
+  private static async handleHttpRequest(jsonData: any, socket: any, clientKey: string, queueResponse: (response: string) => void): Promise<void> {
     const messageType = jsonData.type || jsonData.orderType || 'unknown';
     const suppressedTypes = ['status', 'product_stock_update'];
     if (!suppressedTypes.includes(messageType.toLowerCase())) {
@@ -480,8 +472,7 @@ export class TCPSocketService {
       console.log(`[TCP] Raw order data:`, JSON.stringify(jsonData, null, 2));
       
       // Convert format and process
-      const formattedOrder = formatTCPOrder(jsonData);
-      console.log(`[TCP] Formatted order notes - ${formattedOrder.notes}`);
+      const formattedOrder = await formatTCPOrder(jsonData);
 
       // console.log(`[TCP] Formatted order:`, JSON.stringify(formattedOrder, null, 2));
       console.log(`[TCP] ================================`);
@@ -500,9 +491,6 @@ export class TCPSocketService {
       
       this.executeOrderCallbacks(formattedOrder);
       
-    } else {
-      // Other message types - log with full data
-      // console.log(`[TCP] Received non-order message type: ${messageType}`);
     }
   }
 

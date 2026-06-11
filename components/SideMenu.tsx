@@ -249,14 +249,6 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <Text style={styles.menuItemText}>{t("stockManagement")}</Text>
             </TouchableOpacity> */}
 
-            {/* dashboard 已隐藏 */}
-            {/* <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigateTo("/(tabs)/dashboard")}
-            >
-              <Ionicons name="analytics" size={20} color="white" />
-              <Text style={styles.menuItemText}>{t("dashboard")}</Text>
-            </TouchableOpacity> */}
             </View>
 
             <View style={[styles.divider, isPortraitMode && styles.dividerPortrait]} />

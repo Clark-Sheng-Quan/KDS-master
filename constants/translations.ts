@@ -328,8 +328,7 @@ export const translations = {
     notSet: "未设置",
     masterIPNotSet: "未设置POS系统IP地址",
     
-    // Dashboard相关
-    dashboard: "数据面板",
+
     startDate: "开始日期",
     endDate: "结束日期",
     orderStatus: "订单状态",
@@ -705,8 +704,7 @@ export const translations = {
     prepTime: "Prep Time",
     remaining: "Remaining Time",
     
-    // Dashboard related
-    dashboard: "Dashboard",
+
     startDate: "Start Date",
     endDate: "End Date",
     orderStatus: "Order Status",

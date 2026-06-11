@@ -18,7 +18,7 @@ export const convertToLocalTimeFormatted = (utcTimeString: string): string => {
 /**
  * Format TCP order data
  */
-export const formatTCPOrder = (orderData: any): FormattedOrder => {
+export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> => {
   try {
     const buildTCPItemName = (item: any, product: any): string => {
       const baseName = product.name || 'Unknown Item';
@@ -159,6 +159,10 @@ export const formatTCPOrder = (orderData: any): FormattedOrder => {
       tableNumber = String(orderData.tableNumber);
     }
 
+    // Session ID lookup disabled — re-enable when API is confirmed
+    // const rawTableId = orderData.tableID || orderData.table_id || orderData.tableId;
+    // if (rawTableId) tableSessionId = (await getTableSessionId(rawTableId)) ?? undefined;
+
     const formattedOrder: FormattedOrder = {
       id: orderId,
       _id: orderData.id || orderId,
@@ -250,28 +254,30 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     if (order.table_id) {
       try {
         const fetchedTableNumber = await getTableNumber(order.table_id);
-        if (fetchedTableNumber) {
-          tableNumber = fetchedTableNumber;
-        }
+        if (fetchedTableNumber) tableNumber = fetchedTableNumber;
+        // Session ID lookup disabled — re-enable when API is confirmed
+        // const fetchedSessionId = await getTableSessionId(order.table_id);
+        // if (fetchedSessionId) tableSessionId = fetchedSessionId;
       } catch (err) {
         console.error(`[Format] 获取桌号信息失败 for order ${orderNum}:`, err);
       }
     }
-    
+
     return {
       id: order._id.toString(),
       _id: order._id || order._id.toString(),
-      orderTime: localOrderTime, // Use converted local time
+      orderTime: localOrderTime,
       pickupMethod: order.pick_method,
-      pickupTime: localPickupTime, // Use converted local time
-      kdsReceiveTime: new Date().toISOString(), // 记录订单进入 KDS 的时间
-      num: orderNum,     // 订单号 (用于显示)
-      status: order.status, 
+      pickupTime: localPickupTime,
+      kdsReceiveTime: new Date().toISOString(),
+      num: orderNum,
+      status: order.status,
       products: formattedItems,
       source: order.source,
       notes: orderNotes,
-      total_prepare_time: order.total_prepare_time || 0, // Add total prepare time
-      tableNumber: tableNumber, // Add table number
+      total_prepare_time: order.total_prepare_time || 0,
+      tableNumber,
+      ...(order.table_id && { tableId: order.table_id }),
       // 保留原始的 kdsReceiveTime（如果存在），用于被召回的订单
       ...(order.originalKdsReceiveTime && { originalKdsReceiveTime: order.originalKdsReceiveTime }),
     };

@@ -3,7 +3,7 @@ import { OrderProvider, useOrders } from "../contexts/OrderContext";
 import { LanguageProvider } from "../contexts/LanguageContext";
 import { CategoryColorProvider } from "../contexts/CategoryColorContext";
 import { SettingsProvider } from "../contexts/SettingsContext";
-import { PreOrderProvider } from "../contexts/PreOrderContext";
+// import { PreOrderProvider } from "../contexts/PreOrderContext";
 import { CompletedOrderProvider } from "../contexts/CompletedOrderContext";
 import { ModalProvider } from "../contexts/ModalContext";
 import { View } from "react-native";
@@ -81,7 +81,7 @@ export default function RootLayout() {
         <SettingsProvider>
           <LanguageProvider>
             <OrderProvider>
-              <PreOrderProvider>
+              {/* <PreOrderProvider> */}
                 <CompletedOrderProvider>
                   <View style={{ flex: 1 }}>
                     <StatusBar hidden={true} />
@@ -94,7 +94,7 @@ export default function RootLayout() {
                     </Stack>
                   </View>
                 </CompletedOrderProvider>
-              </PreOrderProvider>
+              {/* </PreOrderProvider> */}
             </OrderProvider>
           </LanguageProvider>
         </SettingsProvider>

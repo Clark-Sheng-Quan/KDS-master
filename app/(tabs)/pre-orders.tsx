@@ -1,192 +1,23 @@
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  ScrollView,
-  ActivityIndicator,
-  Text,
-  Dimensions,
-  TouchableOpacity,
-} from "react-native";
-import { OrderCard } from "../../components/OrderCard";
-import { usePreOrders } from "../../contexts/PreOrderContext";
-import { theme } from "../../constants/theme";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { FormattedOrder } from "@/services/types";
-import { useSettings } from "../../contexts/SettingsContext";
-import {
-  PADDING,
-  cardStyles,
-  preCalculateCardStyles,
-  formatTime,
-} from "../../constants/cardConfig";
+// pre-orders screen — disabled, not currently in use
+// import React, { useEffect, useState, useCallback } from "react";
+// import { View, ScrollView, ActivityIndicator, Text, Dimensions, TouchableOpacity } from "react-native";
+// import { OrderCard } from "../../components/OrderCard";
+// import { usePreOrders } from "../../contexts/PreOrderContext";
+// import { theme } from "../../constants/theme";
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+// import { useLanguage } from "@/contexts/LanguageContext";
+// import { FormattedOrder } from "@/services/types";
+// import { useSettings } from "../../contexts/SettingsContext";
+// import { PADDING, cardStyles, preCalculateCardStyles, formatTime } from "../../constants/cardConfig";
+// ... (full screen implementation commented out)
+
+import React from "react";
+import { View, Text } from "react-native";
 
 export default function PreOrdersScreen() {
-  const { orders, loading, error, removeOrder } = usePreOrders();
-  const { t } = useLanguage();
-  const { cardsPerRow, cardsPerColumn } = useSettings();
-  const [selectedShopName, setSelectedShopName] = useState<string>("");
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
-  const [cardStylesMap, setCardStylesMap] = useState<any[]>([]);
-
-  // 监听屏幕尺寸变化以更新 dimensions
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
-      setDimensions(window);
-    });
-
-    return () => subscription?.remove();
-  }, []);
-
-  // 更新当前时间
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // 添加这个适配器函数
-  const handleOrderRemove = (order: FormattedOrder) => {
-    removeOrder(order.id);
-  };
-
-  const availableWidth = dimensions.width - PADDING * 2;
-  const availableHeight = dimensions.height;
-
-  // 当预订单、卡片尺寸改变时，重新计算卡片样式
-  useEffect(() => {
-    const styles = preCalculateCardStyles(
-      orders.length,
-      availableWidth,
-      availableHeight,
-      cardsPerRow,
-      cardsPerColumn
-    );
-    setCardStylesMap(styles);
-  }, [orders.length, availableWidth, availableHeight, cardsPerRow, cardsPerColumn]);
-
-  useEffect(() => {
-    const loadShopInfo = async () => {
-      try {
-        const shopName = await AsyncStorage.getItem("selectedShopName");
-        if (shopName) {
-          setSelectedShopName(shopName);
-        }
-      } catch (error) {
-        console.error("加载店铺信息失败:", error);
-      }
-    };
-
-    loadShopInfo();
-  }, []);
-
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#333" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContent}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollContainer}
-        contentContainerStyle={{ flexGrow: 1 }}
-        nestedScrollEnabled={true}
-        directionalLockEnabled={true}
-      >
-        <View style={styles.headerContainer}>
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>
-              {selectedShopName
-                ? `${selectedShopName.toUpperCase()} ${t("preOrders")}`
-                : t("preOrders")}{" "}
-              ({orders.length})
-            </Text>
-          </View>
-          <View style={styles.timeDisplayContainer}>
-            <Text style={styles.timeDisplay}>{formatTime(currentTime)}</Text>
-          </View>
-        </View>
-
-        {orders.length === 0 ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
-            <Text style={styles.noOrdersText}>{t("noOrders")}</Text>
-          </View>
-        ) : (
-          <View style={styles.cardsContainer}>
-            {cardStylesMap.length > 0 && orders.map((order, index) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                style={[styles.cardStyle, cardStylesMap[index]]}
-                onOrderComplete={handleOrderRemove}
-                onOrderCancel={handleOrderRemove}
-                showDateInDue={true}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <Text>Pre-orders disabled</Text>
     </View>
   );
 }
-
-const styles = {
-  ...cardStyles,
-  cardsContainer: {
-    ...cardStyles.cardsContainer,
-    backgroundColor: "#ccc8c8",
-  },
-  cardStyle: {
-    ...cardStyles.cardStyle,
-    borderRadius: 12,
-    backgroundColor: "white",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  container: {
-    ...cardStyles.container,
-    backgroundColor: "#ccc8c8",
-  },
-  scrollContainer: {
-    ...cardStyles.scrollContainer,
-    backgroundColor: "#ccc8c8",
-  },
-  headerContainer: {
-    ...cardStyles.headerContainer,
-    backgroundColor: "#ddd9d9",
-    paddingRight: 84,
-  },
-  title: {
-    ...cardStyles.title,
-    color: "#1a1a1a",
-  },
-  timeDisplayContainer: {
-    backgroundColor: "#007bff",
-    borderRadius: 8,
-    // paddingVertical: 8,
-    // paddingHorizontal: 12,
-  },
-  timeDisplay: {
-    ...cardStyles.timeDisplay,
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600" as const,
-  },
-};

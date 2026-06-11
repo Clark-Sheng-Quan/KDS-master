@@ -151,6 +151,29 @@ export const getTableNumber = async (tableId: string): Promise<string> => {
 };
 
 
+/**
+ * 根据 table_id 获取当前桌台 session ID（/order/get_table_order）
+ * 只查询未结账（isPaid: false）的 active session
+ */
+export const getTableSessionId = async (tableId: string): Promise<string | null> => {
+  try {
+    const response = await fetchWithRetry(`${API_BASE_URL}/order/get_table_order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table_id: tableId, isPaid: false }),
+    })
+    if (!response.ok) return null;
+    const data = await response.json();
+    const session = data?.table_order ?? data?.tableOrder ?? (Array.isArray(data?.table_orders) ? data.table_orders[0] : null) ?? data;
+    const result = session?._id ? String(session._id) : null;
+    console.log(`[getTableSessionId] resolved sessionId=${result}`);
+    return result;
+  } catch (error) {
+    console.error(`[getTableSessionId] failed for ${tableId}:`, error);
+    return null;
+  }
+};
+
 export const getTableIdByOrderId = async (orderId: string): Promise<string | null> => {
   try {
     const token = await getToken();
