@@ -130,7 +130,8 @@ export default function HomeScreen() {
           !p.category || categoryActiveMapping[p.category] !== false
         ),
       }))
-      .filter(order => order.products.length > 0);
+      // Keep zero-product table orders so the merge group in displayOrders stays intact
+      .filter(order => order.products.length > 0 || !!order.tableNumber?.trim());
   }, [filteredOrders, categoryActiveMapping]);
 
   // 当 mergeTableOrders 开启时，将同桌订单虚拟合并为一张 card（存储层不变）
