@@ -386,6 +386,8 @@ export const translations = {
     downloadingUpdateHint: "下载完成后会自动弹出安装界面，请按系统提示确认安装。",
     downloadCompletePrompt: "下载完成，是否安装？",
     installNow: "立即安装",
+    readyToInstall: "准备安装",
+    apkFileNotFound: "安装文件未找到，请重新下载",
     installFailed: "安装失败",
     downloadFailed: "下载失败",
   },
@@ -762,6 +764,8 @@ export const translations = {
     downloadingUpdateHint: "Installer will open automatically after download. Please confirm installation in system prompt.",
     downloadCompletePrompt: "Download completed. Install now?",
     installNow: "Install Now",
+    readyToInstall: "Ready to Install",
+    apkFileNotFound: "Install file not found, please download again",
     installFailed: "Installation failed",
     downloadFailed: "Download failed",
   }

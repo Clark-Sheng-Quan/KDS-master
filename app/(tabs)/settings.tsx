@@ -46,6 +46,7 @@ const STORAGE_KEY_ITEM_LEVEL_COMPLETION = "item_level_completion";
 const STORAGE_KEY_CALLING_BUTTON = "calling_button";
 const STORAGE_KEY_AUTO_START = "auto_start_enabled";
 const STORAGE_KEY_MERGE_TABLE_ORDERS = "merge_table_orders";
+const STORAGE_KEY_PENDING_APK = "pending_apk_install";
 
 // Font size constants
 const STORAGE_KEY_CARD_TITLE_FONT_SIZE = "card_title_font_size";
@@ -114,6 +115,9 @@ export default function SettingsScreen() {
   const [updateDownloadFilePath, setUpdateDownloadFilePath] = useState<string | null>(null);
   const [updateDownloadProgress, setUpdateDownloadProgress] = useState<number>(0);
   const [updateDownloadStatus, setUpdateDownloadStatus] = useState<"idle" | "downloading" | "completed" | "failed">("idle");
+  const [pendingApk, setPendingApk] = useState<{ filePath: string; version: string; downloadUrl: string } | null>(null);
+  const pendingApkVersionRef = React.useRef<string>("");
+  const pendingApkUrlRef = React.useRef<string>("");
 
   const bootPermissionModule = NativeModules.BootPermissionModule;
   const apkUpdateModule = NativeModules.ApkUpdateModule;
@@ -289,6 +293,17 @@ export default function SettingsScreen() {
           }
         } catch (error) {
           console.error("加载屏幕方向失败:", error);
+        }
+
+        // 检查是否有待安装的 APK
+        try {
+          const raw = await AsyncStorage.getItem(STORAGE_KEY_PENDING_APK);
+          if (raw) {
+            const saved = JSON.parse(raw);
+            setPendingApk(saved);
+          }
+        } catch (e) {
+          // ignore parse errors
         }
       };
 
@@ -639,26 +654,16 @@ export default function SettingsScreen() {
           setUpdateDownloadId(null);
           setUpdateDownloadProgress(1);
 
-          Alert.alert(
-            t("updateAvailable"),
-            t("downloadCompletePrompt"),
-            [
-              { text: t("cancel"), style: "cancel" },
-              {
-                text: t("installNow"),
-                onPress: async () => {
-                  if (Platform.OS === "android" && apkUpdateModule?.installDownloadedApk && updateDownloadFilePath) {
-                    try {
-                      await apkUpdateModule.installDownloadedApk(updateDownloadFilePath);
-                    } catch (installError) {
-                      console.error("APK install failed:", installError);
-                      Alert.alert(t("error"), t("installFailed"));
-                    }
-                  }
-                }
-              }
-            ]
-          );
+          // 持久化待安装信息，授权跳转后回来仍可安装
+          if (updateDownloadFilePath && pendingApkVersionRef.current) {
+            const pending = {
+              filePath: updateDownloadFilePath,
+              version: pendingApkVersionRef.current,
+              downloadUrl: pendingApkUrlRef.current || "",
+            };
+            setPendingApk(pending);
+            await AsyncStorage.setItem(STORAGE_KEY_PENDING_APK, JSON.stringify(pending));
+          }
         } else if (state === "failed" && updateDownloadStatus !== "failed") {
           setUpdateDownloadStatus("failed");
           setUpdateDownloadId(null);
@@ -702,6 +707,8 @@ export default function SettingsScreen() {
                 onPress: async () => {
                   try {
                     if (Platform.OS === "android" && apkUpdateModule?.downloadAndInstallApk) {
+                      pendingApkVersionRef.current = latestVersion;
+                      pendingApkUrlRef.current = apkDownloadUrl;
                       setUpdateDownloadStatus("downloading");
                       setUpdateDownloadProgress(0);
                       setUpdateDownloadFilePath(null);
@@ -739,6 +746,30 @@ export default function SettingsScreen() {
       setCheckingUpdate(false);
     }
   }, [appVersion, apkUpdateModule, t]);
+
+  const handleInstallPendingApk = useCallback(async () => {
+    if (!pendingApk) return;
+    try {
+      if (Platform.OS === "android" && apkUpdateModule?.installDownloadedApk) {
+        await apkUpdateModule.installDownloadedApk(pendingApk.filePath);
+      }
+    } catch (installError: any) {
+      const msg = String(installError?.message || installError || "");
+      if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("no such file")) {
+        // 文件已被清理，清除待安装状态提示重新下载
+        setPendingApk(null);
+        await AsyncStorage.removeItem(STORAGE_KEY_PENDING_APK);
+        Alert.alert(t("error"), t("apkFileNotFound") || "APK file not found, please download again.");
+      } else {
+        Alert.alert(t("error"), t("installFailed"));
+      }
+    }
+  }, [pendingApk, apkUpdateModule, t]);
+
+  const handleDismissPendingApk = useCallback(async () => {
+    setPendingApk(null);
+    await AsyncStorage.removeItem(STORAGE_KEY_PENDING_APK);
+  }, []);
 
   // 重置设置
   // const resetSettings = useCallback(() => {
@@ -1362,8 +1393,23 @@ export default function SettingsScreen() {
             </View>
           )}
           
-          <TouchableOpacity 
-            style={[styles.deviceDiscoveryButton, { marginTop: 10, minWidth: 'auto' }]} 
+          {pendingApk && (
+            <View style={styles.pendingApkBanner}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingApkTitle}>📦 {t("readyToInstall")}</Text>
+                <Text style={styles.pendingApkVersion}>Version {pendingApk.version}</Text>
+              </View>
+              <TouchableOpacity style={styles.pendingApkInstallBtn} onPress={handleInstallPendingApk}>
+                <Text style={styles.pendingApkInstallBtnText}>{t("installNow")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pendingApkDismissBtn} onPress={handleDismissPendingApk}>
+                <Ionicons name="close" size={16} color="#888" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.deviceDiscoveryButton, { marginTop: 10, minWidth: 'auto' }]}
             onPress={handleCheckUpdate}
             disabled={checkingUpdate || updateDownloadStatus === "downloading"}
           >
@@ -1910,6 +1956,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     fontStyle: "italic",
+  },
+  pendingApkBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
+    borderWidth: 1,
+    borderColor: "#22c55e",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    gap: 8,
+  },
+  pendingApkTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#15803d",
+  },
+  pendingApkVersion: {
+    fontSize: 12,
+    color: "#166534",
+    marginTop: 2,
+  },
+  pendingApkInstallBtn: {
+    backgroundColor: "#22c55e",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+  },
+  pendingApkInstallBtnText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  pendingApkDismissBtn: {
+    padding: 6,
   },
 });
 
