@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   SafeAreaView,
@@ -70,6 +71,7 @@ export default function EODScreen() {
   const { mergeTableOrders } = useSettings();
   const [outOfStockCount, setOutOfStockCount] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Saved reports
   const [savedReports, setSavedReports] = useState<EODReport[]>([]);
@@ -272,13 +274,11 @@ export default function EODScreen() {
     ]);
   };
 
-  // ── Report selector ──
   const isLive = selectedIndex === null;
-  const canGoPrev = selectedIndex !== null && selectedIndex < savedReports.length - 1;
-  const canGoNext = selectedIndex !== null && selectedIndex > 0;
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Processing overlay */}
       <Modal visible={isProcessing} transparent animationType="fade">
         <View style={styles.processingOverlay}>
           <View style={styles.processingBox}>
@@ -287,55 +287,112 @@ export default function EODScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* History picker modal */}
+      <Modal visible={showHistoryModal} transparent animationType="fade" onRequestClose={() => setShowHistoryModal(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowHistoryModal(false)}>
+          <View style={styles.historySheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Reports</Text>
+              <TouchableOpacity onPress={() => setShowHistoryModal(false)} style={styles.historyCloseBtn}>
+                <Ionicons name="close" size={22} color="#555" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Live row */}
+            <TouchableOpacity
+              style={[styles.historyRow, isLive && styles.historyRowSelected]}
+              onPress={() => { setSelectedIndex(null); setShowHistoryModal(false); }}
+            >
+              <View style={styles.historyRowLeft}>
+                <View style={[styles.liveIndicator, !isLive && { backgroundColor: "#ccc" }]} />
+                <View>
+                  <Text style={[styles.historyRowTitle, isLive && styles.historyRowTitleSelected]}>Current Session</Text>
+                  <Text style={styles.historyRowSub}>Live data</Text>
+                </View>
+              </View>
+              {isLive && <Ionicons name="checkmark" size={18} color="#1a1a1a" />}
+            </TouchableOpacity>
+
+            <View style={styles.historySeparator} />
+
+            {savedReports.length === 0 ? (
+              <View style={styles.historyEmpty}>
+                <Text style={styles.historyEmptyText}>No saved reports yet</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={savedReports}
+                keyExtractor={(r) => r.id}
+                style={styles.historyList}
+                renderItem={({ item, index }) => {
+                  const isSelected = selectedIndex === index;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.historyRow, isSelected && styles.historyRowSelected]}
+                      onPress={() => { setSelectedIndex(index); setShowHistoryModal(false); }}
+                    >
+                      <View style={styles.historyRowLeft}>
+                        <Ionicons name="document-text-outline" size={18} color={isSelected ? "#1a1a1a" : "#888"} style={{ marginRight: 10 }} />
+                        <View>
+                          <Text style={[styles.historyRowTitle, isSelected && styles.historyRowTitleSelected]}>
+                            {formatReportLabel(item.timestamp)}
+                          </Text>
+                          <Text style={styles.historyRowSub}>
+                            {item.totalDishes} dishes · {item.dineInCount} dine in · {item.takeawayCount} takeaway
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.historyRowRight}>
+                        {isSelected && <Ionicons name="checkmark" size={18} color="#1a1a1a" />}
+                        <TouchableOpacity
+                          style={styles.historyShareBtn}
+                          onPress={(e) => { e.stopPropagation(); shareReport(item); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="share-outline" size={16} color="#2196F3" />
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={26} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Report</Text>
-        <View style={{ width: 46 }} />
-      </View>
 
-      {/* Report selector bar */}
-      <View style={styles.selectorBar}>
-        <TouchableOpacity
-          style={[styles.selectorBtn, isLive && styles.selectorBtnActive]}
-          onPress={() => setSelectedIndex(null)}
-        >
-          <Ionicons name="radio-button-on" size={14} color={isLive ? "white" : "#888"} />
-          <Text style={[styles.selectorBtnText, isLive && styles.selectorBtnTextActive]}>Live</Text>
+        {/* Centre: current view badge */}
+        <TouchableOpacity style={styles.headerContextBtn} onPress={() => setShowHistoryModal(true)}>
+          {isLive ? (
+            <>
+              <View style={styles.liveDot} />
+              <Text style={styles.headerContextText}>Live</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="document-text-outline" size={14} color="#555" />
+              <Text style={styles.headerContextText} numberOfLines={1}>
+                {selectedReport ? formatReportLabel(selectedReport.timestamp) : "—"}
+              </Text>
+            </>
+          )}
+          <Ionicons name="chevron-down" size={14} color="#888" />
         </TouchableOpacity>
 
-        <View style={styles.selectorNav}>
-          <TouchableOpacity
-            style={[styles.navArrow, !canGoPrev && styles.navArrowDisabled]}
-            onPress={() => canGoPrev && setSelectedIndex(selectedIndex! + 1)}
-            disabled={!canGoPrev}
-          >
-            <Ionicons name="chevron-back" size={18} color={canGoPrev ? "#333" : "#ccc"} />
+        {/* Right: share (only when viewing a saved report) */}
+        {selectedReport ? (
+          <TouchableOpacity style={styles.backButton} onPress={() => shareReport(selectedReport)}>
+            <Ionicons name="share-outline" size={22} color="#2196F3" />
           </TouchableOpacity>
-
-          <Text style={styles.selectorLabel} numberOfLines={1}>
-            {isLive
-              ? "Current session"
-              : selectedReport
-              ? formatReportLabel(selectedReport.timestamp)
-              : "No reports"}
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.navArrow, !canGoNext && styles.navArrowDisabled]}
-            onPress={() => canGoNext && setSelectedIndex(selectedIndex! - 1)}
-            disabled={!canGoNext}
-          >
-            <Ionicons name="chevron-forward" size={18} color={canGoNext ? "#333" : "#ccc"} />
-          </TouchableOpacity>
-        </View>
-
-        {selectedReport && (
-          <TouchableOpacity style={styles.shareBtn} onPress={() => shareReport(selectedReport)}>
-            <Ionicons name="share-outline" size={18} color="#2196F3" />
-          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 46 }} />
         )}
       </View>
 
@@ -460,49 +517,66 @@ const styles = StyleSheet.create({
   backButton: { padding: 10 },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#1a1a1a", letterSpacing: 0.5 },
 
-  // Selector bar
-  selectorBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e8e8e8",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 10,
-  },
-  selectorBtn: {
+  // Header context button (centre of header)
+  headerContextBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
+    backgroundColor: "#f0f2f5",
+    borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
+    maxWidth: 240,
   },
-  selectorBtnActive: { backgroundColor: "#1a1a1a" },
-  selectorBtnText: { fontSize: 13, fontWeight: "600", color: "#888" },
-  selectorBtnTextActive: { color: "white" },
-  selectorNav: {
-    flex: 1,
+  headerContextText: { fontSize: 13, fontWeight: "600", color: "#333", flexShrink: 1 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
+
+  // History modal
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  historySheet: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: 420,
+    maxHeight: 520,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
+    overflow: "hidden",
+  },
+  historyHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "#f5f5f5",
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
   },
-  selectorLabel: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#333",
+  historyTitle: { fontSize: 17, fontWeight: "700", color: "#1a1a1a" },
+  historyCloseBtn: { padding: 4 },
+  historyList: { maxHeight: 360 },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f8f8f8",
   },
-  navArrow: { padding: 4 },
-  navArrowDisabled: { opacity: 0.3 },
-  shareBtn: { padding: 8 },
+  historyRowSelected: { backgroundColor: "#f5f7fa" },
+  historyRowLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  historyRowRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  liveIndicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e", marginRight: 10 },
+  historyRowTitle: { fontSize: 14, fontWeight: "600", color: "#444" },
+  historyRowTitleSelected: { color: "#1a1a1a" },
+  historyRowSub: { fontSize: 12, color: "#999", marginTop: 2 },
+  historyShareBtn: { padding: 4 },
+  historySeparator: { height: 1, backgroundColor: "#ebebeb", marginHorizontal: 0 },
+  historyEmpty: { padding: 32, alignItems: "center" },
+  historyEmptyText: { fontSize: 14, color: "#aaa" },
 
   scrollContent: { padding: 20, flexGrow: 1 },
   mainRow: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
