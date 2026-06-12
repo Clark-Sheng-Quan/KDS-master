@@ -63,7 +63,6 @@ export default function HomeScreen() {
   const [dimensions, setDimensions] = useState(Dimensions.get("window"));
   const [selectedShopName, setSelectedShopName] = useState<string>("");
   const [filteredOrders, setFilteredOrders] = useState<FormattedOrder[]>([]);
-  const [localOrders, setLocalOrders] = useState<FormattedOrder[]>([]);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastItemName, setToastItemName] = useState("");
   const [lastCompletedItemData, setLastCompletedItemData] = useState<{itemId: string; itemName: string; orderId: string; order: FormattedOrder; completedOrderId: string} | null>(null);
@@ -83,7 +82,7 @@ export default function HomeScreen() {
     Animated.timing(recentMenuAnimValue, {
       toValue: showRecentItemsMenu ? 1 : 0,
       duration: 300,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [showRecentItemsMenu, recentMenuAnimValue]);
 
@@ -91,7 +90,7 @@ export default function HomeScreen() {
     Animated.timing(recentOrdersMenuAnimValue, {
       toValue: showRecentOrdersMenu ? 1 : 0,
       duration: 300,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [showRecentOrdersMenu, recentOrdersMenuAnimValue]);
 
@@ -209,13 +208,12 @@ export default function HomeScreen() {
   // 直接使用来自 OrderService 的已过滤订单，无需在 home 中重复过滤
   useEffect(() => {
     setFilteredOrders(orders);
-    setLocalOrders(orders);
   }, [orders]);
 
-  // 保持 localOrdersRef 与 localOrders 同步，供 stable callbacks 读取
+  // 保持 localOrdersRef 与 filteredOrders 同步，供 stable callbacks 读取
   useEffect(() => {
-    localOrdersRef.current = localOrders;
-  }, [localOrders]);
+    localOrdersRef.current = filteredOrders;
+  }, [filteredOrders]);
 
   // 监听订单自动完成（24小时后）并记录到已完成订单列表
   useEffect(() => {
@@ -252,14 +250,12 @@ export default function HomeScreen() {
       // 虚拟合并订单：批量移除所有子订单，只触发一次 emitOrderUpdate 避免分裂闪烁
       const ids = order._subOrderIds;
       setFilteredOrders(prev => prev.filter(o => !ids.includes(o.id)));
-      setLocalOrders(prev => prev.filter(o => !ids.includes(o.id)));
       removeOrders(ids);
       return;
     }
 
     // Optimistic: remove from display state immediately, before OrderContext propagates
     setFilteredOrders(prev => prev.filter(o => o.id !== order.id));
-    setLocalOrders(prev => prev.filter(o => o.id !== order.id));
 
     removeOrder(order.id);
 
@@ -276,10 +272,6 @@ export default function HomeScreen() {
       // 虚拟合并订单：把剩余产品集合回写到每个子订单
       const remainingProductIds = new Set(updatedOrder.products.map(p => p.id));
       updatedOrder._subOrderIds.forEach(subId => {
-        setLocalOrders(prev => prev.map(o => {
-          if (o.id !== subId) return o;
-          return { ...o, products: o.products.filter(p => remainingProductIds.has(p.id)) };
-        }));
         setFilteredOrders(prev => prev.map(o => {
           if (o.id !== subId) return o;
           return { ...o, products: o.products.filter(p => remainingProductIds.has(p.id)) };
@@ -290,10 +282,6 @@ export default function HomeScreen() {
       return;
     }
 
-    // 更新 localOrders 中的订单
-    setLocalOrders((prev) =>
-      prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
-    );
     // 更新 filteredOrders 中的订单
     setFilteredOrders((prev) =>
       prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
@@ -354,7 +342,7 @@ export default function HomeScreen() {
       recallingItemsRef.current.add(itemId);
 
       // 检查订单是否存在
-      const existingOrder = localOrders.find(o => o.id === orderId);
+      const existingOrder = localOrdersRef.current.find(o => o.id === orderId);
       
       if (existingOrder) {
         // 订单存在，检查 item 是否已在其中
@@ -371,9 +359,6 @@ export default function HomeScreen() {
           products: [...(existingOrder.products || []), item],
         };
 
-        setLocalOrders(prev =>
-          prev.map(order => order.id === orderId ? updatedOrder : order)
-        );
         setFilteredOrders(prev =>
           prev.map(order => order.id === orderId ? updatedOrder : order)
         );
@@ -398,7 +383,6 @@ export default function HomeScreen() {
           isRecalled: true,
         };
 
-        setLocalOrders(prev => [...prev, newOrder]);
         setFilteredOrders(prev => [...prev, newOrder]);
 
         OrderService.recallOrder(newOrder).catch(error => {
@@ -436,7 +420,7 @@ export default function HomeScreen() {
         recallingItemsRef.current.delete(itemId);
       }, 50);
     }
-  }, [localOrders, removeCompletedOrder, refreshOrders, filteredOrders]);
+  }, [removeCompletedOrder, refreshOrders, filteredOrders]);
 
   // 处理 Undo（从 Toast）
   const handleItemUndoCompletion = useCallback(async () => {
@@ -500,7 +484,7 @@ export default function HomeScreen() {
         return;
       }
 
-      const existingOrder = localOrders.find((o) => o.id === orderId);
+      const existingOrder = localOrdersRef.current.find((o) => o.id === orderId);
 
       let recalledOrder: FormattedOrder;
       if (existingOrder) {
@@ -513,9 +497,6 @@ export default function HomeScreen() {
           completedItemIds: baseOrder.completedItemIds || existingOrder.completedItemIds || [],
         };
 
-        setLocalOrders((prev) =>
-          prev.map((order) => (order.id === orderId ? recalledOrder : order))
-        );
         setFilteredOrders((prev) =>
           prev.map((order) => (order.id === orderId ? recalledOrder : order))
         );
@@ -527,7 +508,6 @@ export default function HomeScreen() {
           completedItemIds: baseOrder.completedItemIds || [],
         };
 
-        setLocalOrders((prev) => [...prev, recalledOrder]);
         setFilteredOrders((prev) => [...prev, recalledOrder]);
 
         // 仅在 home 没有卡片时刷新
@@ -570,7 +550,7 @@ export default function HomeScreen() {
         recallingOrdersRef.current.delete(orderId);
       }, 80);
     }
-  }, [localOrders, filteredOrders, refreshOrders, removeCompletedOrder]);
+  }, [filteredOrders, refreshOrders, removeCompletedOrder]);
 
   // 处理整单 Recall（从菜单）
   const handleRecallOrder = useCallback(async (completedOrder: CompletedOrder) => {

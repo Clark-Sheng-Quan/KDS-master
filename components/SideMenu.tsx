@@ -116,7 +116,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
     Animated.timing(slideAnim, {
       toValue: isOpen ? 0 : -menuWidth,
       duration: 300,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [isOpen, slideAnim, menuWidth]);
 
