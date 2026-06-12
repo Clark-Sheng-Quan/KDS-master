@@ -99,19 +99,6 @@ export const getProductDetail = async (productId: string): Promise<ProductDetail
   }
 };
 
-/**
- * 获取产品准备时间
- */
-export const getProductPrepareTime = async (productId: string): Promise<number> => {
-  try {
-    const productDetails = await getProductDetail(productId);
-    // 直接从响应根级获取 prepare_time
-    return productDetails.prepare_time || 0;
-  } catch (error) {
-    console.error(`获取产品 ${productId} 准备时间失败:`, error);
-    return 0;
-  }
-};
 
 /**
  * 根据 table_id 获取 table number
@@ -279,30 +266,8 @@ export const fetchOrdersFromNetwork = async (
       for (const order of result.orders) {
         console.log(`[networkService] ========== Raw network order ==========`);
         console.log(`[networkService] Raw order data:`, JSON.stringify(order, null, 2));
-        
-        if (order.products && Array.isArray(order.products)) {
-          let totalPrepareTime = 0;
-          
-          // 为每个商品获取准备时间
-          await Promise.all(order.products.map(async (product: any) => {
-            try {
-              if (product._id) {
-                const prepareTime = await getProductPrepareTime(product._id);
-                product.prepare_time = prepareTime;
-                totalPrepareTime += prepareTime * (product.qty);
-              }
-            } catch (err) {
-              console.error(`获取产品 [${product?.name || product?._id || '未知产品'}] 准备时间失败:`, err);
-              // 使用默认准备时间为0
-              product.prepare_time = 0;
-            }
-          }));
-          
-          // 添加总准备时间到订单
-          order.total_prepare_time = totalPrepareTime;
-        }
       }
-      
+
       // 过滤订单数据，只返回未支付或已派送的订单，排除临时订单
       const filteredOrders = result.orders.filter(
         (order: any) => (order.status === 'unpaid' || order.status === 'dispatch') && 

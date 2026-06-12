@@ -12,15 +12,12 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { colors } from "../constants/theme";
 import { API_BASE_URL } from "@/services/orderService/constants";
 import { getToken } from "@/utils/auth";
-import { getProductPrepareTime } from "@/services/orderService/networkService";
-
 // 产品详情接口
 export interface ProductDetail {
   id: string;
   name: string;
   ingredients: string[];
   instructions: string[];
-  prepare_time?: number;
 }
 
 interface ProductDetailPopupProps {
@@ -131,26 +128,19 @@ const fetchRecipeData = async (productId: string) => {
 const getProductDetail = async (productId: string): Promise<ProductDetail> => {
   try {
     const data = await fetchRecipeData(productId);
-    const prepTime = await getProductPrepareTime(productId);
-
-    // 适配新的API返回数据格式
-    const finalData = {
+    return {
       id: data.product_id || productId,
-      name: "Product Details", // This will be overridden by the passed productName
+      name: "Product Details",
       ingredients: Array.isArray(data.recipe) ? data.recipe : [],
       instructions: data.instruction ? [data.instruction] : [],
-      prepare_time: prepTime,
     };
-    return finalData;
   } catch (error) {
     console.error("Failed to fetch product details:", error);
-    // 返回一个基本的默认数据
     return {
       id: productId,
       name: "error",
       ingredients: ["error"],
       instructions: ["error"],
-      prepare_time: 0,
     };
   }
 };
@@ -268,17 +258,6 @@ export const ProductDetailPopup: React.FC<ProductDetailPopupProps> = ({
           </View>
 
           <ScrollView style={styles.contentScroll}>
-            {productDetail.prepare_time && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t("prepTime")}</Text>
-                <View style={styles.contentContainer}>
-                  <Text style={styles.prepTimeValue}>
-                    {productDetail.prepare_time}{" "}{t("minutes")}
-                  </Text>
-                </View>
-              </View>
-            )}
-
             {productDetail.ingredients && productDetail.ingredients.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("ingredients")}</Text>

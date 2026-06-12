@@ -92,9 +92,6 @@ export const printFormattedOrder = async (order: FormattedOrder, silentMode: boo
         // 选项/加菜信息
         options: product.options || [],
         
-        // 准备时间
-        prepare_time: product.prepare_time || 0,
-        
         // 分类
         category: product.category || "default",
         
@@ -155,9 +152,6 @@ export const printSingleItem = async (order: FormattedOrder, item: any, silentMo
         
         // 选项/加菜信息
         options: item.options || [],
-        
-        // 准备时间
-        prepare_time: item.prepare_time || 0,
         
         // 分类
         category: item.category || "default",

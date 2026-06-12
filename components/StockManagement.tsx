@@ -45,9 +45,6 @@ const StockManagementScreen = () => {
   const [refillModalVisible, setRefillModalVisible] = useState(false);
   const [refillQuantity, setRefillQuantity] = useState("");
 
-  // 添加准备时间相关状态
-  const [prepTimeModalVisible, setPrepTimeModalVisible] = useState(false);
-  const [prepareTime, setPrepareTime] = useState("");
 
   // 添加商品详情弹窗状态
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -58,7 +55,6 @@ const StockManagementScreen = () => {
 
   // 动画值
   const refillFadeAnim = new Animated.Value(refillModalVisible ? 1 : 0);
-  const prepTimeFadeAnim = new Animated.Value(prepTimeModalVisible ? 1 : 0);
 
   // 动画 useEffect
   useEffect(() => {
@@ -68,14 +64,6 @@ const StockManagementScreen = () => {
       useNativeDriver: true,
     }).start();
   }, [refillModalVisible]);
-
-  useEffect(() => {
-    Animated.timing(prepTimeFadeAnim, {
-      toValue: prepTimeModalVisible ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [prepTimeModalVisible]);
 
   // 修改仓库相关状态类型
   const [warehouses, setWarehouses] = useState<{ [key: string]: string }>({});
@@ -186,22 +174,7 @@ const StockManagementScreen = () => {
           category
         );
 
-        // 为每个产品获取准备时间
-        const productsWithPrepTime = await Promise.all(
-          categoryProducts.map(async (product) => {
-            try {
-              const prepareTime = await StockService.getProductPrepareTime(
-                product.product_id
-              );
-              return { ...product, prepare_time: prepareTime };
-            } catch (error) {
-              console.error(`获取商品 ${product.name} 准备时间失败:`, error);
-              return product;
-            }
-          })
-        );
-
-        setProducts(productsWithPrepTime);
+        setProducts(categoryProducts);
       }
     } catch (err) {
       setError(`加载${category}分类产品失败`);
@@ -567,13 +540,6 @@ const StockManagementScreen = () => {
               {item.qty}
             </Text>
           </Text>
-          {/* {item.prepare_time !== undefined && (
-            <Text style={styles.prepTimeText}>
-              {" | "}
-              {t("prepTime")}:{" "}
-              <Text style={styles.prepTimeValue}>{item.prepare_time} {t("minutes")}</Text>
-            </Text>
-          )} */}
         </View>
       </View>
     </TouchableOpacity>
@@ -587,75 +553,6 @@ const StockManagementScreen = () => {
   );
 
   // 更新准备时间 - 显示输入对话框
-  const handleUpdatePrepTime = () => {
-    // 获取选中商品的第一个
-    if (selectedProducts.size > 0) {
-      const selectedProductId = Array.from(selectedProducts)[0];
-      const selectedProduct = products.find(
-        (p) => p.product_id === selectedProductId
-      );
-
-      if (selectedProduct && selectedProduct.prepare_time !== undefined) {
-        setPrepareTime(selectedProduct.prepare_time.toString());
-      } else {
-        setPrepareTime("0");
-      }
-
-      setPrepTimeModalVisible(true);
-    }
-  };
-
-  // 执行准备时间更新
-  const submitPrepTimeUpdate = async () => {
-    const time = parseInt(prepareTime);
-
-    if (isNaN(time) || time < 0) {
-      Alert.alert(t("error"), t("enterValidPrepTime"));
-      return;
-    }
-
-    setPrepTimeModalVisible(false);
-
-    try {
-      setLoading(true);
-      const selectedProductIds = Array.from(selectedProducts);
-
-      if (selectedProductIds.length === 0) {
-        return;
-      }
-
-      // 只处理第一个选中的商品
-      const productId = selectedProductIds[0];
-
-      // 更新准备时间
-      await StockService.updateProductPrepareTime(productId, time);
-
-      // 更新本地数据
-      setProducts((prevProducts) =>
-        prevProducts.map((product) =>
-          product.product_id === productId
-            ? { ...product, prepare_time: time }
-            : product
-        )
-      );
-
-      // 更新全局数据
-      setAllProducts((prevProducts) =>
-        prevProducts.map((product) =>
-          product.product_id === productId
-            ? { ...product, prepare_time: time }
-            : product
-        )
-      );
-
-      Alert.alert(t("success"), t("prepTimeUpdated"));
-    } catch (error) {
-      console.error("更新准备时间错误:", error);
-      setError(t("updatePrepTimeFailed"));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 首次加载数据
   useEffect(() => {
@@ -721,59 +618,6 @@ const StockManagementScreen = () => {
         </Animated.View>
       </>
 
-      {/* 准备时间更新弹窗 */}
-      <>
-        <Animated.View
-          style={[
-            styles.backdrop,
-            { opacity: prepTimeFadeAnim },
-            prepTimeModalVisible && styles.backdropVisible,
-          ]}
-          pointerEvents={prepTimeModalVisible ? "auto" : "none"}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => setPrepTimeModalVisible(false)}
-            style={{ flex: 1 }}
-          />
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.animatedModalContainer,
-            { opacity: prepTimeFadeAnim },
-            prepTimeModalVisible && styles.animatedModalVisible,
-          ]}
-          pointerEvents={prepTimeModalVisible ? "auto" : "none"}
-        >
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>{t("updatePrepTime")}</Text>
-            <Text style={styles.modalSubtitle}>{t("enterPrepTime")}:</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={prepareTime}
-              onChangeText={setPrepareTime}
-              keyboardType="numeric"
-              autoFocus={prepTimeModalVisible}
-              placeholder={t("enterPrepTime")}
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setPrepTimeModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>{t("cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={submitPrepTimeUpdate}
-              >
-                <Text style={styles.modalButtonText}>{t("update")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Animated.View>
-      </>
-
       {/* 添加商品详情弹窗 */}
       {selectedProductDetail && (
         <ProductDetailPopup
@@ -827,18 +671,6 @@ const StockManagementScreen = () => {
       <View style={styles.actionButtons}>
         {/* 右侧按钮容器 */}
         <View style={styles.rightActionButtons}>
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              styles.prepTimeButton,
-              selectedProducts.size !== 1 && styles.disabledButton,
-            ]}
-            onPress={handleUpdatePrepTime}
-            disabled={selectedProducts.size !== 1}
-          >
-            <Text style={styles.actionButtonText}>{t("updatePrepTime")}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.actionButton,
@@ -1069,9 +901,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
-  },
-  prepTimeButton: {
-    backgroundColor: colors.secondary || "#4CAF50",
   },
   refillButton: {
     backgroundColor: colors.primary,

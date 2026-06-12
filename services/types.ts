@@ -33,7 +33,6 @@ export interface ProductDetailResponse {
   name: string;
   product_id: string;
   status_code: number;
-  prepare_time?: number; // 直接从根级获取 prepare_time
   active?: boolean;
   business_id?: string;
   calorie?: number;
@@ -61,7 +60,6 @@ export interface OrderItem {
   price?: number;
   category?: string;
   options?: OrderOption[];
-  prepare_time?: number;
   itemState?: 'PROCESSED' | 'VOIDED'; // POS item state
   isUpdated?: boolean;                 // 标记此item是否在本次订单更新中被修改或新增
   isValidKds?: boolean;                // POS标记：此item是否对当前KDS有效 (true才处理，false或无值则跳过)
@@ -88,7 +86,6 @@ export interface FormattedOrder {
   notes?: string;
   isRecalled?: boolean;                  // 标记是否为撤回的订单
   products: OrderItem[];
-  total_prepare_time?: number;
   targetCategory?: string;
   updatedAt?: number;                    // 更新时间戳
   updateCount?: number;                  // 全局更新次数 (所有分类)

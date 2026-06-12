@@ -173,13 +173,6 @@ export const translations = {
     saveShopFailed: "保存店铺信息失败",
     unauthorizedError: "未授权，请重新登录",
     
-    // 准备时间更新相关
-    updatePrepTime: "更新准备时间",
-    enterPrepTime: "输入准备时间",
-    enterValidPrepTime: "请输入有效的准备时间",
-    prepTimeUpdated: "准备时间已更新",
-    updatePrepTimeFailed: "更新准备时间失败",
-    
     // 商品详情相关
     ingredients: "配料",
     instructions: "制作方法",
@@ -218,10 +211,7 @@ export const translations = {
     categoryColors: "分类颜色",
     resetColors: "重置颜色",
     
-    // 准备时间相关
-    totalPrepareTime: "总准备时间",
     seconds: "秒",
-    prepTime: "准备时间",
     remaining: "剩余时间",
     
     // 分类颜色名称
@@ -561,13 +551,6 @@ export const translations = {
     saveShopFailed: "Failed to save shop information",
     unauthorizedError: "Unauthorized, please login again",
     
-    // 准备时间更新相关
-    updatePrepTime: "Update Prep Time",
-    enterPrepTime: "Enter preparation time",
-    enterValidPrepTime: "Please enter a valid preparation time",
-    prepTimeUpdated: "Preparation time updated",
-    updatePrepTimeFailed: "Failed to update preparation time",
-    
     // Product detail related
     ingredients: "Ingredients",
     instructions: "Instructions",
@@ -698,10 +681,7 @@ export const translations = {
     notSet: "Not Set",
     masterIPNotSet: "POS System IP address not set",
     
-    // 准备时间相关
-    totalPrepareTime: "Total Prepare Time",
     seconds: "Seconds",
-    prepTime: "Prep Time",
     remaining: "Remaining Time",
     
 

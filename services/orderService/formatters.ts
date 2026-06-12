@@ -101,7 +101,6 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
         price: product.price || 0,
         options,
         category: productCategory,
-        prepare_time: product.prepare_time || 0,
         itemState,
         isValidKds: item.isValidKds,
         notes: item.Notes || '',  // Item-level notes from POS
@@ -109,9 +108,6 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       };
     });
 
-    // const totalPrepareTimeFromItems = formattedItems.reduce((sum: number, item: any) => {
-    //   return sum + (item.prepare_time || 0);
-    // }, 0);
 
     const rawOrderTime = String(orderData.timestamp || orderData.createdAt || new Date().toISOString());
     let localOrderTime = rawOrderTime;
@@ -142,15 +138,6 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       typeof orderData.notes === 'string'
         ? orderData.notes.trim()
         : '';
-
-    // Extract total prepare time
-    // let totalPrepareTime = totalPrepareTimeFromItems;
-    // if (typeof orderData.total_prepare_time === 'number') {
-    //   totalPrepareTime = orderData.total_prepare_time;
-    // } else if (typeof orderData.total_prepare_time === 'string') {
-    //   const parsed = parseInt(orderData.total_prepare_time, 10);
-    //   totalPrepareTime = isNaN(parsed) ? totalPrepareTimeFromItems : parsed;
-    // }
 
     let tableNumber = '';
     if (typeof orderData.tableNumber === 'string' && orderData.tableNumber) {
@@ -197,7 +184,6 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       num: (orderData.orderNumber || fallbackId).toString().slice(-4),
       products: [],
       source: 'tcp',
-      // total_prepare_time: 0,
     };
   }
 };
@@ -234,7 +220,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
         price: product.price || 0,
         options: options,
         category: productCategory, // Use determined category
-        prepare_time: product.prepare_time || 0, // Keep prepare time field but don't display
       };
     });
 
@@ -277,7 +262,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       products: formattedItems,
       source: order.source,
       notes: orderNotes,
-      total_prepare_time: order.total_prepare_time || 0,
       tableNumber,
       ...(order.table_id && { tableId: order.table_id }),
       ...(tableSessionId && { tableSessionId }),
@@ -301,7 +285,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       kdsReceiveTime: new Date().toISOString(), 
       source: 'network',
       notes: typeof order.notes === 'string' ? order.notes.trim() : '',
-      total_prepare_time: 0,
       tableNumber: 'n/a',
     };
   }
