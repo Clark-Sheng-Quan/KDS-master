@@ -946,7 +946,30 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       </View>
     </CardWrapper>
   );
-})
+}, (prev, next) => {
+  const po = prev.order;
+  const no = next.order;
+  if (po.id !== no.id) return false;
+  if (po.num !== no.num) return false;
+  if (po.tableNumber !== no.tableNumber) return false;
+  if (po.tableSessionId !== no.tableSessionId) return false;
+  if (po.notes !== no.notes) return false;
+  if (po.pickupMethod !== no.pickupMethod) return false;
+  if (po.status !== no.status) return false;
+  if (po.source !== no.source) return false;
+  if (po.isRecalled !== no.isRecalled) return false;
+  if (po.updateCount !== no.updateCount) return false;
+  if (po.orderTime !== no.orderTime) return false;
+  if (po.kdsReceiveTime !== no.kdsReceiveTime) return false;
+  if (po.originalKdsReceiveTime !== no.originalKdsReceiveTime) return false;
+  if (po.products.length !== no.products.length) return false;
+  if (po.products.map(p => p.id).join(',') !== no.products.map(p => p.id).join(',')) return false;
+  if ((po.completedItemIds ?? []).join(',') !== (no.completedItemIds ?? []).join(',')) return false;
+  if ((po._subOrderIds ?? []).join(',') !== (no._subOrderIds ?? []).join(',')) return false;
+  if (prev.style !== next.style) return false;
+  if (prev.enableDelayEffects !== next.enableDelayEffects) return false;
+  return true;
+});
 
 export default OrderCard;
 

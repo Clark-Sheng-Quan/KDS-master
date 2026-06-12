@@ -692,6 +692,7 @@ export default function HomeScreen() {
           windowSize={5}
           maxToRenderPerBatch={3}
           initialNumToRender={Math.ceil(cardsPerColumn) + 1}
+          removeClippedSubviews={true}
           getItemLayout={getItemLayout}
           renderItem={renderItem}
         />
