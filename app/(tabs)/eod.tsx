@@ -108,12 +108,8 @@ export default function EODScreen() {
     return m.includes("dine") || m === "dinein" || m === "table";
   };
 
-  // ── Live stats (from today's completed orders) ──
-  const todayOrders = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return completedOrders.filter((co) => new Date(co.completedAt) >= today);
-  }, [completedOrders]);
+  // ── Live stats (all orders since last EOD submit, cleared on submit) ──
+  const todayOrders = completedOrders;
 
   const countDelayedDishes = useCallback((threshold: number) => {
     let count = 0;
@@ -442,7 +438,7 @@ export default function EODScreen() {
             <View style={styles.statRow}>
               <View>
                 <Text style={styles.statLabel}>ITEMS SET OUT OF STOCK</Text>
-                <Text style={styles.statSubLabel}>Today</Text>
+                <Text style={styles.statSubLabel}>Current session</Text>
               </View>
               <Text style={styles.statValue}>
                 {displayOutOfStock !== null ? displayOutOfStock : "—"}
@@ -500,7 +496,7 @@ export default function EODScreen() {
 
             {categoryStats.length === 0 ? (
               <View style={styles.emptyRow}>
-                <Text style={styles.emptyText}>No data for today</Text>
+                <Text style={styles.emptyText}>No data for this session</Text>
               </View>
             ) : (
               categoryStats.map((row, i) => {

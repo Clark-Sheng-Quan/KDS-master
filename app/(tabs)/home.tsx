@@ -623,6 +623,31 @@ export default function HomeScreen() {
     );
   }
 
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: cardHeight + CARD_MARGIN,
+    offset: (cardHeight + CARD_MARGIN) * index,
+    index,
+  }), [cardHeight]);
+
+  const renderItem = useCallback(({ item: rowOrders }: { item: FormattedOrder[] }) => (
+    <View style={{ flexDirection: 'row', marginBottom: CARD_MARGIN }}>
+      {rowOrders.map((order, colIndex) => (
+        <OrderCard
+          key={order.id}
+          order={order}
+          style={mergedCardStyles[colIndex]}
+          onOrderComplete={handleOrderRemove}
+          onOrderCancel={handleOrderRemove}
+          onItemRemoved={handleItemRemoved}
+          onItemCompleted={handleItemCompleted}
+          showDateInDue={true}
+          selectable={false}
+          enableDelayEffects={showTimerHighlight}
+        />
+      ))}
+    </View>
+  ), [mergedCardStyles, handleOrderRemove, handleItemRemoved, handleItemCompleted, showTimerHighlight]);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -687,29 +712,8 @@ export default function HomeScreen() {
           windowSize={5}
           maxToRenderPerBatch={3}
           initialNumToRender={Math.ceil(cardsPerColumn) + 1}
-          getItemLayout={(_, index) => ({
-            length: cardHeight + CARD_MARGIN,
-            offset: (cardHeight + CARD_MARGIN) * index,
-            index,
-          })}
-          renderItem={({ item: rowOrders, index: rowIndex }) => (
-            <View style={{ flexDirection: 'row', marginBottom: CARD_MARGIN }}>
-              {rowOrders.map((order, colIndex) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  style={mergedCardStyles[colIndex]}
-                  onOrderComplete={handleOrderRemove}
-                  onOrderCancel={handleOrderRemove}
-                  onItemRemoved={handleItemRemoved}
-                  onItemCompleted={handleItemCompleted}
-                  showDateInDue={true}
-                  selectable={false}
-                  enableDelayEffects={showTimerHighlight}
-                />
-              ))}
-            </View>
-          )}
+          getItemLayout={getItemLayout}
+          renderItem={renderItem}
         />
       )}
 
