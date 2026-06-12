@@ -271,7 +271,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
                 onPress={() => navigateTo("/(tabs)/eod")}
               >
                 <Ionicons name="bar-chart" size={navIconSize} color="white" />
-                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>EOD</Text>
+                <Text style={[styles.menuItemText, isPortraitMode && styles.menuItemTextPortrait]}>{t("eodMenuLabel")}</Text>
               </TouchableOpacity>
             </View>
 

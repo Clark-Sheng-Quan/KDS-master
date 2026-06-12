@@ -19,6 +19,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useCompletedOrders } from "../../contexts/CompletedOrderContext";
 import { useOrders } from "../../contexts/OrderContext";
 import { useSettings } from "../../contexts/SettingsContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 import { StockService } from "../../services/stockService";
 
@@ -73,6 +74,7 @@ function formatTimeRange(startIso: string | undefined, endIso: string): string {
 export default function EODScreen() {
   const router = useRouter();
 
+  const { t } = useLanguage();
   const { completedOrders, addCompletedOrder, clearCompletedOrders } = useCompletedOrders();
   const { orders, removeOrders } = useOrders();
   const { mergeTableOrders } = useSettings();
@@ -251,13 +253,13 @@ export default function EODScreen() {
     const activeCount = visibleCardCount;
     const message =
       activeCount > 0
-        ? `There are still ${activeCount} active order${activeCount === 1 ? "" : "s"}. Confirming will complete all of them.`
-        : "No active orders on the board.";
+        ? t("eodActiveOrdersWarning").replace("{n}", String(activeCount))
+        : t("eodNoActiveOrders");
 
-    Alert.alert("End of Day", message, [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("eodTitle"), message, [
+      { text: t("cancel"), style: "cancel" },
       {
-        text: "Confirm & Submit",
+        text: t("eodConfirmSubmit"),
         style: "destructive",
         onPress: async () => {
           const report = buildReport();
@@ -273,7 +275,7 @@ export default function EODScreen() {
           } finally {
             setIsProcessing(false);
           }
-          Alert.alert("Submitted", "EOD report saved.");
+          Alert.alert(t("eodSubmitted"), t("eodReportSaved"));
         },
       },
     ]);
@@ -288,7 +290,7 @@ export default function EODScreen() {
         <View style={styles.processingOverlay}>
           <View style={styles.processingBox}>
             <ActivityIndicator size="large" color="#1a1a1a" />
-            <Text style={styles.processingText}>Processing...</Text>
+            <Text style={styles.processingText}>{t("eodProcessing")}</Text>
           </View>
         </View>
       </Modal>
@@ -298,7 +300,7 @@ export default function EODScreen() {
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowHistoryModal(false)}>
           <View style={styles.historySheet} onStartShouldSetResponder={() => true}>
             <View style={styles.historyHeader}>
-              <Text style={styles.historyTitle}>Reports</Text>
+              <Text style={styles.historyTitle}>{t("eodReports")}</Text>
               <TouchableOpacity onPress={() => setShowHistoryModal(false)} style={styles.historyCloseBtn}>
                 <Ionicons name="close" size={22} color="#555" />
               </TouchableOpacity>
@@ -313,17 +315,17 @@ export default function EODScreen() {
               <View style={styles.liveRowTop}>
                 <View style={styles.liveBadge}>
                   <View style={styles.liveIndicator} />
-                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                  <Text style={styles.liveBadgeText}>{t("eodLive")}</Text>
                 </View>
-                <Text style={styles.liveRowTitle}>Current Session</Text>
+                <Text style={styles.liveRowTitle}>{t("eodCurrentSession")}</Text>
                 {isLive && <Ionicons name="checkmark-circle" size={20} color="#22c55e" style={{ marginLeft: "auto" }} />}
               </View>
               {savedReports[0]?.timestamp ? (
                 <Text style={styles.liveRowStart}>
-                  From  {formatReportLabel(savedReports[0].timestamp)}
+                  {t("eodFrom")}  {formatReportLabel(savedReports[0].timestamp)}
                 </Text>
               ) : (
-                <Text style={styles.liveRowStart}>No previous report</Text>
+                <Text style={styles.liveRowStart}>{t("eodNoPreviousReport")}</Text>
               )}
             </TouchableOpacity>
 
@@ -331,7 +333,7 @@ export default function EODScreen() {
 
             {savedReports.length === 0 ? (
               <View style={styles.historyEmpty}>
-                <Text style={styles.historyEmptyText}>No saved reports yet</Text>
+                <Text style={styles.historyEmptyText}>{t("eodNoSavedReports")}</Text>
               </View>
             ) : (
               <FlatList
@@ -352,7 +354,7 @@ export default function EODScreen() {
                             {formatTimeRange(item.startTime, item.timestamp)}
                           </Text>
                           <Text style={styles.historyRowSub}>
-                            {item.totalDishes} dishes · {item.dineInCount} dine in · {item.takeawayCount} takeaway
+                            {item.totalDishes} {t("eodDishes")} · {item.dineInCount} {t("eodDineInShort")} · {item.takeawayCount} {t("eodTakeawayShort")}
                           </Text>
                         </View>
                       </View>
@@ -386,7 +388,7 @@ export default function EODScreen() {
           {isLive ? (
             <>
               <View style={styles.liveDot} />
-              <Text style={styles.headerContextText}>Current Session</Text>
+              <Text style={styles.headerContextText}>{t("eodCurrentSession")}</Text>
             </>
           ) : (
             <>
@@ -413,7 +415,7 @@ export default function EODScreen() {
         <View style={styles.mainRow}>
           {/* ── LEFT PANEL ── */}
           <View style={styles.leftPanel}>
-            <Text style={styles.dashTitle}>KDS DASHBOARD</Text>
+            <Text style={styles.dashTitle}>{t("eodDashboard")}</Text>
             {selectedReport ? (
               <Text style={styles.periodText}>
                 {formatTimeRange(selectedReport.startTime, selectedReport.timestamp)}
@@ -423,22 +425,22 @@ export default function EODScreen() {
                 <View style={styles.liveDotSmall} />
                 <Text style={styles.periodText}>
                   {savedReports[0]?.timestamp
-                    ? `From  ${formatReportLabel(savedReports[0].timestamp)}`
-                    : "Session start not recorded"}
+                    ? `${t("eodFrom")}  ${formatReportLabel(savedReports[0].timestamp)}`
+                    : t("eodSessionStartNotRecorded")}
                 </Text>
               </View>
             )}
             <View style={styles.dashDivider} />
 
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>DISHES COMPLETED</Text>
+              <Text style={styles.statLabel}>{t("eodDishesCompleted")}</Text>
               <Text style={styles.statValue}>{totalDishes}</Text>
             </View>
 
             <View style={styles.statRow}>
               <View>
-                <Text style={styles.statLabel}>ITEMS SET OUT OF STOCK</Text>
-                <Text style={styles.statSubLabel}>Current session</Text>
+                <Text style={styles.statLabel}>{t("eodOutOfStock")}</Text>
+                <Text style={styles.statSubLabel}>{t("eodCurrentSession")}</Text>
               </View>
               <Text style={styles.statValue}>
                 {displayOutOfStock !== null ? displayOutOfStock : "—"}
@@ -447,16 +449,16 @@ export default function EODScreen() {
 
             <View style={styles.statRow}>
               <View>
-                <Text style={[styles.statLabel, { color: "#f59e0b" }]}>DISHES URGENT</Text>
-                <Text style={styles.statSubLabel}>&gt; 10 min</Text>
+                <Text style={[styles.statLabel, { color: "#f59e0b" }]}>{t("eodDishesUrgent")}</Text>
+                <Text style={styles.statSubLabel}>{t("eodOver10min")}</Text>
               </View>
               <Text style={[styles.statValue, { color: "#f59e0b" }]}>{urgentCount}</Text>
             </View>
 
             <View style={styles.statRow}>
               <View>
-                <Text style={[styles.statLabel, { color: "#e74c3c" }]}>DISHES DELAYED</Text>
-                <Text style={styles.statSubLabel}>&gt; 20 min</Text>
+                <Text style={[styles.statLabel, { color: "#e74c3c" }]}>{t("eodDishesDelayed")}</Text>
+                <Text style={styles.statSubLabel}>{t("eodOver20min")}</Text>
               </View>
               <Text style={[styles.statValue, { color: "#e74c3c" }]}>{delayedCount}</Text>
             </View>
@@ -466,18 +468,18 @@ export default function EODScreen() {
             <View style={styles.orderTypeRow}>
               <View style={styles.orderTypeChip}>
                 <Ionicons name="restaurant" size={14} color="#2196F3" />
-                <Text style={styles.orderTypeLabel}>Dine In</Text>
+                <Text style={styles.orderTypeLabel}>{t("dineIn")}</Text>
                 <Text style={styles.orderTypeCount}>{dineInCount}</Text>
               </View>
               <View style={styles.orderTypeChip}>
                 <Ionicons name="bag-handle" size={14} color="#9c27b0" />
-                <Text style={styles.orderTypeLabel}>Takeaway</Text>
+                <Text style={styles.orderTypeLabel}>{t("eodTakeaway")}</Text>
                 <Text style={styles.orderTypeCount}>{takeawayCount}</Text>
               </View>
               {otherCount > 0 && (
                 <View style={styles.orderTypeChip}>
                   <Ionicons name="apps" size={14} color="#607d8b" />
-                  <Text style={styles.orderTypeLabel}>Others</Text>
+                  <Text style={styles.orderTypeLabel}>{t("eodOthers")}</Text>
                   <Text style={styles.orderTypeCount}>{otherCount}</Text>
                 </View>
               )}
@@ -487,16 +489,16 @@ export default function EODScreen() {
           {/* ── RIGHT TABLE ── */}
           <View style={styles.rightPanel}>
             <View style={styles.tableHeader}>
-              <Text style={[styles.colCategory, styles.tableHeaderText]}>Categories</Text>
-              <Text style={[styles.colOrders, styles.tableHeaderText]}>Orders</Text>
+              <Text style={[styles.colCategory, styles.tableHeaderText]}>{t("eodCategories")}</Text>
+              <Text style={[styles.colOrders, styles.tableHeaderText]}>{t("eodOrdersHeader")}</Text>
               <View style={styles.colTime}>
-                <Text style={styles.tableHeaderText}>Avg completion time per dish</Text>
+                <Text style={styles.tableHeaderText}>{t("eodAvgTime")}</Text>
               </View>
             </View>
 
             {categoryStats.length === 0 ? (
               <View style={styles.emptyRow}>
-                <Text style={styles.emptyText}>No data for this session</Text>
+                <Text style={styles.emptyText}>{t("eodNoData")}</Text>
               </View>
             ) : (
               categoryStats.map((row, i) => {
@@ -518,7 +520,7 @@ export default function EODScreen() {
             {isLive && (
               <View style={styles.submitRow}>
                 <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} activeOpacity={0.8}>
-                  <Text style={styles.submitButtonText}>Submit</Text>
+                  <Text style={styles.submitButtonText}>{t("eodSubmit")}</Text>
                 </TouchableOpacity>
               </View>
             )}
