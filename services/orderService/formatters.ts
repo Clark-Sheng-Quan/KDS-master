@@ -6,7 +6,7 @@
 import { DateTime } from 'luxon';
 import { FormattedOrder } from '../types';
 import { convertToLocalTime } from './timeConfig';
-import { getTableNumber } from './networkService';
+import { getTableNumber, getTableSessionId } from './networkService';
 
 /**
  * 将 UTC 时间转换为本地时区时间（向后兼容包装器）
@@ -159,10 +159,10 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       tableNumber = String(orderData.tableNumber);
     }
 
-    // Session ID lookup disabled — re-enable when API is confirmed
-    // const rawTableId = orderData.tableID || orderData.table_id || orderData.tableId;
-    // if (rawTableId) tableSessionId = (await getTableSessionId(rawTableId)) ?? undefined;
-
+    const rawTableId = orderData.tableID || orderData.table_id || orderData.tableId;
+    let tableSessionId: string | undefined;
+    if (rawTableId) tableSessionId = (await getTableSessionId(rawTableId)) ?? undefined;
+    
     const formattedOrder: FormattedOrder = {
       id: orderId,
       _id: orderData.id || orderId,
@@ -176,6 +176,8 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       source: 'tcp',
       notes: orderNotes,
       tableNumber,
+      ...(rawTableId && { tableId: rawTableId }),
+      ...(tableSessionId && { tableSessionId }),
       // 保留原始的 kdsReceiveTime（如果存在），用于被召回的订单
       ...(orderData.originalKdsReceiveTime && { originalKdsReceiveTime: orderData.originalKdsReceiveTime }),
     };
@@ -251,18 +253,18 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
     
     // 获取桌号信息
     let tableNumber = order.tableNumber || '';
+    let tableSessionId: string | undefined;
     if (order.table_id) {
       try {
         const fetchedTableNumber = await getTableNumber(order.table_id);
         if (fetchedTableNumber) tableNumber = fetchedTableNumber;
-        // Session ID lookup disabled — re-enable when API is confirmed
-        // const fetchedSessionId = await getTableSessionId(order.table_id);
-        // if (fetchedSessionId) tableSessionId = fetchedSessionId;
+        const fetchedSessionId = await getTableSessionId(order.table_id);
+        if (fetchedSessionId) tableSessionId = fetchedSessionId;
       } catch (err) {
         console.error(`[Format] 获取桌号信息失败 for order ${orderNum}:`, err);
       }
     }
-
+    
     return {
       id: order._id.toString(),
       _id: order._id || order._id.toString(),
@@ -278,6 +280,7 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       total_prepare_time: order.total_prepare_time || 0,
       tableNumber,
       ...(order.table_id && { tableId: order.table_id }),
+      ...(tableSessionId && { tableSessionId }),
       // 保留原始的 kdsReceiveTime（如果存在），用于被召回的订单
       ...(order.originalKdsReceiveTime && { originalKdsReceiveTime: order.originalKdsReceiveTime }),
     };

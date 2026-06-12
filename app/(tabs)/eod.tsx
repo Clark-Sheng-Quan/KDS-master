@@ -34,7 +34,8 @@ interface CategoryStat {
 
 interface EODReport {
   id: string;
-  timestamp: string; // ISO
+  timestamp: string;   // end time (ISO)
+  startTime?: string;  // start time = previous report's timestamp (ISO)
   totalDishes: number;
   urgentCount: number;
   delayedCount: number;
@@ -63,6 +64,12 @@ function formatReportLabel(iso: string): string {
   return `${hh}:${mm}, ${dd}/${mo}/${yyyy}`;
 }
 
+
+function formatTimeRange(startIso: string | undefined, endIso: string): string {
+  if (!startIso) return formatReportLabel(endIso);
+  return `${formatReportLabel(startIso)} – ${formatReportLabel(endIso)}`;
+}
+
 export default function EODScreen() {
   const router = useRouter();
 
@@ -79,9 +86,10 @@ export default function EODScreen() {
 
   const selectedReport = selectedIndex !== null ? savedReports[selectedIndex] ?? null : null;
 
-  // Load saved reports on focus
+  // Load saved reports on focus and always reset to live view
   useFocusEffect(
     useCallback(() => {
+      setSelectedIndex(null);
       (async () => {
         try {
           const raw = await AsyncStorage.getItem(STORAGE_KEY_EOD_REPORTS);
@@ -203,6 +211,7 @@ export default function EODScreen() {
   const buildReport = (): EODReport => ({
     id: Date.now().toString(),
     timestamp: new Date().toISOString(),
+    startTime: savedReports[0]?.timestamp,
     totalDishes: liveTotalDishes,
     urgentCount: liveUrgent,
     delayedCount: liveDelayed,
@@ -221,7 +230,7 @@ export default function EODScreen() {
   };
 
   const shareReport = (report: EODReport) => {
-    const label = formatReportLabel(report.timestamp);
+    const label = formatTimeRange(report.startTime, report.timestamp);
     const lines = [
       `KDS EOD Report — ${label}`,
       `─────────────────────────`,
@@ -301,17 +310,25 @@ export default function EODScreen() {
 
             {/* Live row */}
             <TouchableOpacity
-              style={[styles.historyRow, isLive && styles.historyRowSelected]}
+              style={[styles.liveRow, isLive && styles.liveRowSelected]}
               onPress={() => { setSelectedIndex(null); setShowHistoryModal(false); }}
+              activeOpacity={0.75}
             >
-              <View style={styles.historyRowLeft}>
-                <View style={[styles.liveIndicator, !isLive && { backgroundColor: "#ccc" }]} />
-                <View>
-                  <Text style={[styles.historyRowTitle, isLive && styles.historyRowTitleSelected]}>Current Session</Text>
-                  <Text style={styles.historyRowSub}>Live data</Text>
+              <View style={styles.liveRowTop}>
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveIndicator} />
+                  <Text style={styles.liveBadgeText}>LIVE</Text>
                 </View>
+                <Text style={styles.liveRowTitle}>Current Session</Text>
+                {isLive && <Ionicons name="checkmark-circle" size={20} color="#22c55e" style={{ marginLeft: "auto" }} />}
               </View>
-              {isLive && <Ionicons name="checkmark" size={18} color="#1a1a1a" />}
+              {savedReports[0]?.timestamp ? (
+                <Text style={styles.liveRowStart}>
+                  From  {formatReportLabel(savedReports[0].timestamp)}
+                </Text>
+              ) : (
+                <Text style={styles.liveRowStart}>No previous report</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.historySeparator} />
@@ -333,10 +350,10 @@ export default function EODScreen() {
                       onPress={() => { setSelectedIndex(index); setShowHistoryModal(false); }}
                     >
                       <View style={styles.historyRowLeft}>
-                        <Ionicons name="document-text-outline" size={18} color={isSelected ? "#1a1a1a" : "#888"} style={{ marginRight: 10 }} />
+                        <Ionicons name="document-text-outline" size={22} color={isSelected ? "#1a1a1a" : "#aaa"} style={{ marginRight: 12 }} />
                         <View>
                           <Text style={[styles.historyRowTitle, isSelected && styles.historyRowTitleSelected]}>
-                            {formatReportLabel(item.timestamp)}
+                            {formatTimeRange(item.startTime, item.timestamp)}
                           </Text>
                           <Text style={styles.historyRowSub}>
                             {item.totalDishes} dishes · {item.dineInCount} dine in · {item.takeawayCount} takeaway
@@ -344,13 +361,13 @@ export default function EODScreen() {
                         </View>
                       </View>
                       <View style={styles.historyRowRight}>
-                        {isSelected && <Ionicons name="checkmark" size={18} color="#1a1a1a" />}
+                        {isSelected && <Ionicons name="checkmark-circle" size={22} color="#1a1a1a" />}
                         <TouchableOpacity
                           style={styles.historyShareBtn}
                           onPress={(e) => { e.stopPropagation(); shareReport(item); }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="share-outline" size={16} color="#2196F3" />
+                          <Ionicons name="share-outline" size={20} color="#2196F3" />
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
@@ -369,21 +386,21 @@ export default function EODScreen() {
         </TouchableOpacity>
 
         {/* Centre: current view badge */}
-        <TouchableOpacity style={styles.headerContextBtn} onPress={() => setShowHistoryModal(true)}>
+        <TouchableOpacity style={styles.headerContextBtn} onPress={() => setShowHistoryModal(true)} activeOpacity={0.75}>
           {isLive ? (
             <>
               <View style={styles.liveDot} />
-              <Text style={styles.headerContextText}>Live</Text>
+              <Text style={styles.headerContextText}>Current Session</Text>
             </>
           ) : (
             <>
-              <Ionicons name="document-text-outline" size={14} color="#555" />
+              <Ionicons name="document-text-outline" size={16} color="#555" />
               <Text style={styles.headerContextText} numberOfLines={1}>
-                {selectedReport ? formatReportLabel(selectedReport.timestamp) : "—"}
+                {selectedReport ? formatTimeRange(selectedReport.startTime, selectedReport.timestamp) : "—"}
               </Text>
             </>
           )}
-          <Ionicons name="chevron-down" size={14} color="#888" />
+          <Ionicons name="chevron-down" size={16} color="#555" />
         </TouchableOpacity>
 
         {/* Right: share (only when viewing a saved report) */}
@@ -401,6 +418,20 @@ export default function EODScreen() {
           {/* ── LEFT PANEL ── */}
           <View style={styles.leftPanel}>
             <Text style={styles.dashTitle}>KDS DASHBOARD</Text>
+            {selectedReport ? (
+              <Text style={styles.periodText}>
+                {formatTimeRange(selectedReport.startTime, selectedReport.timestamp)}
+              </Text>
+            ) : (
+              <View style={styles.periodRow}>
+                <View style={styles.liveDotSmall} />
+                <Text style={styles.periodText}>
+                  {savedReports[0]?.timestamp
+                    ? `From  ${formatReportLabel(savedReports[0].timestamp)}`
+                    : "Session start not recorded"}
+                </Text>
+              </View>
+            )}
             <View style={styles.dashDivider} />
 
             <View style={styles.statRow}>
@@ -521,62 +552,87 @@ const styles = StyleSheet.create({
   headerContextBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 8,
     backgroundColor: "#f0f2f5",
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    maxWidth: 240,
+    borderRadius: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: "#dde1e7",
+    maxWidth: 420,
   },
-  headerContextText: { fontSize: 13, fontWeight: "600", color: "#333", flexShrink: 1 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
+  headerContextText: { fontSize: 15, fontWeight: "600", color: "#222", flexShrink: 1 },
+  liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#22c55e" },
 
   // History modal
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
   historySheet: {
     backgroundColor: "white",
-    borderRadius: 16,
-    width: 420,
-    maxHeight: 520,
+    borderRadius: 20,
+    width: 540,
+    maxHeight: 640,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 16,
     overflow: "hidden",
   },
   historyHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
-  historyTitle: { fontSize: 17, fontWeight: "700", color: "#1a1a1a" },
-  historyCloseBtn: { padding: 4 },
-  historyList: { maxHeight: 360 },
+  historyTitle: { fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
+  historyCloseBtn: { padding: 6 },
+  historyList: { maxHeight: 440 },
   historyRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 18,
     borderBottomWidth: 1,
     borderBottomColor: "#f8f8f8",
   },
   historyRowSelected: { backgroundColor: "#f5f7fa" },
   historyRowLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
-  historyRowRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  liveIndicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e", marginRight: 10 },
-  historyRowTitle: { fontSize: 14, fontWeight: "600", color: "#444" },
+  historyRowRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  liveIndicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
+  liveRow: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: "#f9fff9",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e8f5e9",
+  },
+  liveRowSelected: { backgroundColor: "#e8f5e9" },
+  liveRowTop: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#dcfce7",
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#86efac",
+  },
+  liveBadgeText: { fontSize: 12, fontWeight: "800", color: "#16a34a", letterSpacing: 0.5 },
+  liveRowTitle: { fontSize: 17, fontWeight: "700", color: "#1a1a1a" },
+  liveRowStart: { fontSize: 13, color: "#333", paddingLeft: 2 },
+  historyRowTitle: { fontSize: 15, fontWeight: "600", color: "#1a1a1a" },
   historyRowTitleSelected: { color: "#1a1a1a" },
-  historyRowSub: { fontSize: 12, color: "#999", marginTop: 2 },
-  historyShareBtn: { padding: 4 },
-  historySeparator: { height: 1, backgroundColor: "#ebebeb", marginHorizontal: 0 },
-  historyEmpty: { padding: 32, alignItems: "center" },
-  historyEmptyText: { fontSize: 14, color: "#aaa" },
+  historyRowSub: { fontSize: 13, color: "#555", marginTop: 3 },
+  historyShareBtn: { padding: 6 },
+  historySeparator: { height: 2, backgroundColor: "#e8e8e8", marginHorizontal: 0 },
+  historyEmpty: { padding: 40, alignItems: "center" },
+  historyEmptyText: { fontSize: 15, color: "#aaa" },
 
   scrollContent: { padding: 20, flexGrow: 1 },
   mainRow: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
@@ -593,7 +649,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  dashTitle: { fontSize: 20, fontWeight: "800", color: "#1a1a1a", letterSpacing: 1, marginBottom: 10 },
+  dashTitle: { fontSize: 20, fontWeight: "800", color: "#1a1a1a", letterSpacing: 1, marginBottom: 6 },
+  periodRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  liveDotSmall: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#22c55e" },
+  periodText: { fontSize: 11, color: "#333", marginBottom: 0 },
   dashDivider: { height: 1.5, backgroundColor: "#1a1a1a", marginVertical: 12 },
   statRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   statLabel: { fontSize: 12, fontWeight: "700", color: "#333", letterSpacing: 0.3, flex: 1, marginRight: 8 },
