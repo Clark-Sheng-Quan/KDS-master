@@ -71,7 +71,7 @@ export const printFormattedOrder = async (order: FormattedOrder, silentMode: boo
       // 基本信息
       shopName: "KDS Restaurant",
       orderId: order.num,
-      orderTime: order.pickupTime || new Date().toLocaleString(),
+      orderTime: order.orderTime || new Date().toLocaleString(),
       method: order.pickupMethod || "取餐",
       tableNumber: order.tableNumber || null,
       
@@ -133,7 +133,7 @@ export const printSingleItem = async (order: FormattedOrder, item: any, silentMo
       // 基本信息
       shopName: "KDS Restaurant",
       orderId: order.num,
-      orderTime: order.pickupTime || new Date().toLocaleString(),
+      orderTime: order.orderTime || new Date().toLocaleString(),
       method: order.pickupMethod || "取餐",
       tableNumber: order.tableNumber || null,
       

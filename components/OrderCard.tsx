@@ -1194,15 +1194,15 @@ const styles = StyleSheet.create({
   },
   itemNotes: {
     fontSize: 11,
-    color: "#666666",
-    fontWeight: "500" as const,
+    color: "#999999",
+    fontWeight: "400" as const,
     fontStyle: "italic" as const,
     flex: 1,
   },
   notesLabel: {
     fontSize: 11,
-    color: "#666666",
-    fontWeight: "700" as const,
+    color: "#999999",
+    fontWeight: "600" as const,
   },
   notesTitle: {
     fontWeight: "700" as const,

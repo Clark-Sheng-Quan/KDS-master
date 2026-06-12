@@ -155,7 +155,6 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       _id: orderData.id || orderId,
       orderTime: localOrderTime,
       pickupMethod,
-      pickupTime: localOrderTime,
       kdsReceiveTime: new Date().toISOString(),
       num: finalOrderNum,
       status: orderData.status,
@@ -179,7 +178,6 @@ export const formatTCPOrder = async (orderData: any): Promise<FormattedOrder> =>
       _id: fallbackId,
       orderTime: new Date().toISOString(),
       pickupMethod: 'n/a',
-      pickupTime: new Date().toISOString(),
       kdsReceiveTime: new Date().toISOString(),
       num: (orderData.orderNumber || fallbackId).toString().slice(-4),
       products: [],
@@ -223,8 +221,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       };
     });
 
-    // Convert pickupTime to local timezone
-    const localPickupTime = convertToLocalTimeFormatted(order.pick_time);
     const localOrderTime = convertToLocalTimeFormatted(order.time);
 
     const orderNum = order.order_num 
@@ -255,7 +251,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       _id: order._id || order._id.toString(),
       orderTime: localOrderTime,
       pickupMethod: order.pick_method,
-      pickupTime: localPickupTime,
       kdsReceiveTime: new Date().toISOString(),
       num: orderNum,
       status: order.status,
@@ -278,7 +273,6 @@ export const formatNetworkOrder = async (order: any): Promise<FormattedOrder> =>
       _id: order._id || (order.order_num || Date.now()).toString(),
       orderTime: order.time || new Date().toISOString(),
       pickupMethod: order.pick_method || 'unknown',
-      pickupTime: order.pick_time || new Date().toISOString(),
       num: (order.order_num ? order.order_num.toString() : fallbackId.slice(-4)),    // 订单号
       status: order.status || 'unknown',
       products: [],

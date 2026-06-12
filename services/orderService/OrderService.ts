@@ -726,6 +726,56 @@ export class OrderService {
   }
 
   /**
+   * 把 table_id_from 的所有活跃订单移动到 table_id_to
+   */
+  static async moveTable(tableIdFrom: string, tableIdTo: string): Promise<void> {
+    try {
+      const [sessionIdTo, tableNumberTo] = await Promise.all([
+        NetworkService.getTableSessionId(tableIdTo),
+        NetworkService.getTableNumber(tableIdTo),
+      ]);
+
+      const allTableIds = [...this.networkOrders, ...this.tcpOrders].map(o => `${o.num}:${o.tableId ?? 'NO_TABLE'}`).join(', ');
+      console.log(`[moveTable] current orders tableIds: ${allTableIds}`);
+
+      let movedCount = 0;
+
+      this.networkOrders = this.networkOrders.map(o => {
+        if (o.tableId === tableIdFrom) {
+          console.log(`[moveTable] order ${o.id} (num=${o.num}): table ${o.tableNumber} → ${tableNumberTo}`);
+          movedCount++;
+          return { ...o, tableId: tableIdTo, tableSessionId: sessionIdTo ?? undefined, tableNumber: tableNumberTo || o.tableNumber };
+        }
+        return o;
+      });
+
+      this.tcpOrders = this.tcpOrders.map(o => {
+        if (o.tableId === tableIdFrom) {
+          console.log(`[moveTable] order ${o.id} (num=${o.num}): table ${o.tableNumber} → ${tableNumberTo}`);
+          movedCount++;
+          return { ...o, tableId: tableIdTo, tableSessionId: sessionIdTo ?? undefined, tableNumber: tableNumberTo || o.tableNumber };
+        }
+        return o;
+      });
+
+      if (movedCount === 0) {
+        console.log(`[moveTable] no matching orders for table ${tableIdFrom}`);
+        return;
+      }
+
+      await Promise.all([
+        StorageService.saveNetworkOrders(this.networkOrders),
+        StorageService.saveTCPOrders(this.tcpOrders),
+      ]);
+
+      this.emitOrderUpdate();
+      AudioService.playUpdateOrderAlert().catch(() => {});
+    } catch (error) {
+      console.error('[moveTable] failed:', error);
+    }
+  }
+
+  /**
    * 从指定订单中静默移除一个产品（item-level 完成时调用）。
    * 只更新内存 + 持久化，不触发 emitOrderUpdate，避免 home.tsx 的 useEffect 重置本地状态。
    */

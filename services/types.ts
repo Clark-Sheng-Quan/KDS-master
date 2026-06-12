@@ -75,7 +75,6 @@ export interface FormattedOrder {
   num: number | string;                  // 订单号 (用于显示，来自order_num)
   orderTime: string;
   pickupMethod: string;
-  pickupTime: string;
   kdsReceiveTime: string;                // KDS接收到订单的时间 (用于计时器的起始时间)
   originalKdsReceiveTime?: string;       // 原始 KDS 接收时间 (订单被召回时保留原始时间，用于计算完成耗时)
   tableNumber?: string;

@@ -587,22 +587,6 @@ export default function HomeScreen() {
     loadShopInfo();
   }, []);
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#333" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContent}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
-
   const getItemLayout = useCallback((_: any, index: number) => ({
     length: cardHeight + CARD_MARGIN,
     offset: (cardHeight + CARD_MARGIN) * index,
@@ -627,6 +611,22 @@ export default function HomeScreen() {
       ))}
     </View>
   ), [mergedCardStyles, handleOrderRemove, handleItemRemoved, handleItemCompleted, showTimerHighlight]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#333" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContent}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

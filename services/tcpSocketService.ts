@@ -1,6 +1,7 @@
 import TcpSocket from 'react-native-tcp-socket';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatTCPOrder } from './orderService/formatters';
+import { OrderService } from './orderService/OrderService';
 
 // TCP server configuration - default port
 const DEFAULT_TCP_PORT = 8080;
@@ -490,7 +491,15 @@ export class TCPSocketService {
       }
       
       this.executeOrderCallbacks(formattedOrder);
-      
+
+    } else if (jsonData.type === 'move_table') {
+      const { table_id_from, table_id_to } = jsonData;
+      if (table_id_from && table_id_to) {
+        console.log(`[TCP] move_table: ${table_id_from} → ${table_id_to}`);
+        OrderService.moveTable(table_id_from, table_id_to);
+      } else {
+        console.warn('[TCP] move_table missing table_id_from or table_id_to');
+      }
     }
   }
 
