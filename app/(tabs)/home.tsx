@@ -141,10 +141,10 @@ export default function HomeScreen() {
     const noTableOrders: FormattedOrder[] = [];
 
     for (const order of activeFilteredOrders) {
-      const tbl = order.tableNumber?.trim();
-      if (tbl) {
-        // Group key: include sessionId when available so different sessions at the same table become separate cards
-        const groupKey = order.tableSessionId ? `${tbl}:${order.tableSessionId}` : tbl;
+      const tblKey = order.tableId || order.tableNumber?.trim();
+      if (tblKey) {
+        // Group key: tableId (or tableNumber fallback) + sessionId so different sessions are separate cards
+        const groupKey = order.tableSessionId ? `${tblKey}:${order.tableSessionId}` : tblKey;
         if (!tableGroups.has(groupKey)) tableGroups.set(groupKey, []);
         tableGroups.get(groupKey)!.push(order);
       } else {
