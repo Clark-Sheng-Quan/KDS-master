@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Updates from 'expo-updates'; // 需要先安装这个包
 import { BASE_API } from '../config/api';
 
 const API_URL = BASE_API;
@@ -103,10 +102,23 @@ export const auth = {
     }
   },
 
-  // 检查是否已登录
+  // 检查是否已登录（带重试，防止 AsyncStorage 队列繁忙时误判为未登录）
   async isAuthenticated() {
-    const token = await AsyncStorage.getItem('token');
-    return !!token;
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        return !!token;
+      } catch (error) {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
+        } else {
+          console.error("isAuthenticated 多次读取失败，视为未登录:", error);
+          return false;
+        }
+      }
+    }
+    return false;
   },
 
   // 导出getToken方法

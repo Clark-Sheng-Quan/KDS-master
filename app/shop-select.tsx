@@ -36,8 +36,26 @@ export default function ShopSelectScreen() {
       const token = await getToken();
 
       if (!token) {
-        Alert.alert(t("error"), t("unauthorizedError"));
-        router.replace("/login" as any);
+        // token 为 null 可能是 AsyncStorage 临时错误，不直接跳转 login
+        // 让用户选择重试或手动登出
+        Alert.alert(
+          t("error"),
+          t("unauthorizedError"),
+          [
+            {
+              text: t("logout") || "Logout",
+              style: "destructive",
+              onPress: async () => {
+                await auth.logout();
+                router.replace("/login" as any);
+              },
+            },
+            {
+              text: t("retry") || "Retry",
+              onPress: () => fetchShops(),
+            },
+          ]
+        );
         return;
       }
 
@@ -53,6 +71,10 @@ export default function ShopSelectScreen() {
 
       if (data.status_code === 200 && data.shops) {
         setShops(data.shops);
+      } else if (data.status_code === 401) {
+        // 真正的 token 失效才跳转到 login
+        await auth.logout();
+        router.replace("/login" as any);
       } else {
         Alert.alert(t("error"), t("shopSelectError"));
       }

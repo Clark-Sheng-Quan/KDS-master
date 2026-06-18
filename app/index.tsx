@@ -9,13 +9,26 @@ export default function Index() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const authStatus = await auth.isAuthenticated();
-      setIsAuthenticated(authStatus);
+      try {
+        const authStatus = await auth.isAuthenticated();
+        setIsAuthenticated(authStatus);
 
-      if (authStatus) {
-        // 如果已登录，检查是否选择了店铺
-        const shopId = await AsyncStorage.getItem("selectedShopId");
-        setHasSelectedShop(!!shopId);
+        if (authStatus) {
+          // 如果已登录，检查是否选择了店铺（也加重试，防止队列繁忙）
+          let shopId: string | null = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              shopId = await AsyncStorage.getItem("selectedShopId");
+              break;
+            } catch {
+              if (attempt < 2) await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+            }
+          }
+          setHasSelectedShop(!!shopId);
+        }
+      } catch (error) {
+        console.error("认证检查失败:", error);
+        setIsAuthenticated(false);
       }
     };
     checkAuth();
