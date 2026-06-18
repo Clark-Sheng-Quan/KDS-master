@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { OrderProvider, useOrders } from "../contexts/OrderContext";
 import { LanguageProvider } from "../contexts/LanguageContext";
 import { CategoryColorProvider } from "../contexts/CategoryColorContext";
@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenOrientationModule from "expo-screen-orientation";
 import * as SystemUI from "expo-system-ui";
 import { StatusBar } from "expo-status-bar";
+import { auth } from "../utils/auth";
 
 // 内部组件：显示网络连接 banner
 function NetworkConnectionBanner() {
@@ -48,6 +49,18 @@ function NetworkConnectionBanner() {
 }
 
 export default function RootLayout() {
+  const router = useRouter();
+
+  // 全局监听 auth 状态，任何地方调用 auth.logout() 都会跳转到登录页
+  useEffect(() => {
+    const unsubscribe = auth.addAuthStateListener((isAuthenticated) => {
+      if (!isAuthenticated) {
+        router.replace("/login" as any);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // 应用启动时恢复保存的屏幕方向并设置全屏模式
   useEffect(() => {
     const initializeFullscreen = async () => {

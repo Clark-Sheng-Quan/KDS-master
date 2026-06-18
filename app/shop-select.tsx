@@ -76,8 +76,11 @@ export default function ShopSelectScreen() {
         if (refreshed) {
           fetchShops();
         } else {
-          await auth.logout();
-          router.replace("/login" as any);
+          // refresh 失败可能只是网络问题，不强制登出，让用户决定
+          Alert.alert(t("error"), t("unauthorizedError"), [
+            { text: t("logout") || "Logout", style: "destructive", onPress: async () => { await auth.logout(); router.replace("/login" as any); } },
+            { text: t("retry") || "Retry", onPress: () => fetchShops() },
+          ]);
         }
       } else {
         Alert.alert(t("error"), t("shopSelectError"));

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getToken } from '../utils/auth';
 import { BASE_API } from '../config/api';
 
 const API_BASE_URL = BASE_API;
@@ -29,7 +29,7 @@ export interface RawStockResponse {
 
 export class StockService {
   static async getAllWarehouseId(): Promise<{[key: string]: string}|null> {
-    const token = await this.getToken();
+    const token = await getToken();
     const response = await fetch(`${API_BASE_URL}/shop/list_business`, {
       method: 'POST',
       headers: {
@@ -86,7 +86,7 @@ export class StockService {
   }
   // 获取仓库库存
   static async getWarehouseStock(warehouseId: string): Promise<StockResponse> {
-    const token = await this.getToken();
+    const token = await getToken();
     
     if (!token) {
       throw new Error('没有找到令牌');
@@ -213,32 +213,13 @@ export class StockService {
     }
   }
 
-  // 获取Token辅助方法
-  private static async getToken(): Promise<string | null> {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        console.error("token不存在或为空");
-        return null;
-      }
-      return token;
-    } catch (error) {
-      console.error("获取token错误:", error);
-      if (error instanceof Error) {
-        console.error("错误信息:", error.message);
-        console.error("错误堆栈:", error.stack);
-      }
-      return null;
-    }
-  }
-
   // 更新商品库存
   static async updateProductStock(
     warehouseId: string,
     productId: string,
     qty: number
   ): Promise<any> {
-    const token = await this.getToken();
+    const token = await getToken();
     
     if (!token) {
       throw new Error('没有找到令牌');

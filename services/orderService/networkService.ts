@@ -4,7 +4,7 @@
  */
 
 import * as Network from 'expo-network';
-import { getToken } from '../../utils/auth';
+import { getToken, auth } from '../../utils/auth';
 import { API_BASE_URL } from './constants';
 import { ProductDetailResponse, FormattedOrder } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -243,7 +243,15 @@ export const fetchOrdersFromNetwork = async (
     }
     
     const result = await response.json();
-    
+
+    if (result.status_code === 401) {
+      console.warn(`[请求${requestId}] Token 过期，尝试静默刷新...`);
+      await auth.silentRefresh();
+      // 不管成功与否都返回空，下一个轮询周期会用新 token 重试
+      // 网络断开时 silentRefresh 会失败，但不应该登出
+      return [];
+    }
+
     // Check returned order data
     if (result && result.orders && Array.isArray(result.orders)) {
       console.log(`[networkService] 30s Fetched ${result.orders.length} orders from API`);
