@@ -72,9 +72,13 @@ export default function ShopSelectScreen() {
       if (data.status_code === 200 && data.shops) {
         setShops(data.shops);
       } else if (data.status_code === 401) {
-        // 真正的 token 失效才跳转到 login
-        await auth.logout();
-        router.replace("/login" as any);
+        const refreshed = await auth.silentRefresh();
+        if (refreshed) {
+          fetchShops();
+        } else {
+          await auth.logout();
+          router.replace("/login" as any);
+        }
       } else {
         Alert.alert(t("error"), t("shopSelectError"));
       }

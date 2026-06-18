@@ -62,8 +62,9 @@ export const auth = {
       const data: LoginResponse = await response.json();
       
       if (data.status_code === 200) {
-        // 保存 token
+        // 保存 token 和凭据（用于 token 过期时自动重新登录）
         await AsyncStorage.setItem('token', data.token);
+        await AsyncStorage.setItem('credentials', JSON.stringify({ email, password }));
         // 通知状态变化
         auth.notifyAuthStateChange(true);
         return { success: true, data };
@@ -91,13 +92,25 @@ export const auth = {
   // 登出
   async logout() {
     try {
-      // 仅删除 token，而不是清空所有存储
-      await AsyncStorage.removeItem('token');
-      // 通知所有监听器认证状态变为 false
+      await AsyncStorage.multiRemove(['token', 'credentials']);
       auth.notifyAuthStateChange(false);
       return true;
     } catch (error) {
       console.error("Logout error:", error);
+      return false;
+    }
+  },
+
+  // 静默刷新：用保存的账号密码重新登录，token 过期时自动调用
+  async silentRefresh(): Promise<boolean> {
+    try {
+      const credStr = await AsyncStorage.getItem('credentials');
+      if (!credStr) return false;
+      const { email, password } = JSON.parse(credStr);
+      const result = await auth.login(email, password);
+      return result.success;
+    } catch (error) {
+      console.error("silentRefresh 失败:", error);
       return false;
     }
   },
