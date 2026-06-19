@@ -10,10 +10,10 @@ set -e
 # ========================================
 # 手动发布配置（每次发布前请更新）
 # ========================================
-VERSION="1.5.4"
+VERSION="1.5.5"
 
 RELEASE_NOTES=$(cat <<'EOF'
-## Version 1.5.4
+## Version 1.5.5
 
 ### Major Improvements
 - Fix bug

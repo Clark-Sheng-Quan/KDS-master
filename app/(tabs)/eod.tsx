@@ -45,6 +45,8 @@ interface EODReport {
   otherCount: number;
   outOfStockCount: number | null;
   categoryStats: CategoryStat[];
+  clearedOrderCount: number;
+  clearedDishCount: number;
 }
 
 function formatAvgTime(s: number): string {
@@ -228,6 +230,8 @@ export default function EODScreen() {
     otherCount: liveOther,
     outOfStockCount,
     categoryStats: liveCategoryStats,
+    clearedOrderCount: visibleCardCount,
+    clearedDishCount: orders.reduce((sum, o) => sum + (o.products?.length ?? 0), 0),
   });
 
   const saveReport = async (report: EODReport) => {
@@ -243,9 +247,10 @@ export default function EODScreen() {
       `KDS EOD Report — ${label}`,
       `─────────────────────────`,
       `Dishes Completed : ${report.totalDishes}`,
-      `Dishes Urgent    : ${report.urgentCount}  (> 10 min)`,
+      `Dishes Urgent    : ${report.urgentCount}  (10 - 20 min)`,
       `Dishes Delayed   : ${report.delayedCount}  (> 20 min)`,
       `Out of Stock     : ${report.outOfStockCount ?? "—"}`,
+      `Orders Cleared   : ${report.clearedOrderCount}  (${report.clearedDishCount} dishes)`,
       ``,
       `Dine In  : ${report.dineInCount}`,
       `Takeaway : ${report.takeawayCount}`,
@@ -446,6 +451,16 @@ export default function EODScreen() {
               <Text style={styles.statLabel}>{t("eodDishesCompleted")}</Text>
               <Text style={styles.statValue}>{totalDishes}</Text>
             </View>
+
+            {selectedReport && (
+              <View style={styles.statRow}>
+                <View>
+                  <Text style={styles.statLabel}>{t("eodClearedOrders")}</Text>
+                  <Text style={styles.statSubLabel}>{selectedReport.clearedDishCount} {t("eodDishes")}</Text>
+                </View>
+                <Text style={styles.statValue}>{selectedReport.clearedOrderCount}</Text>
+              </View>
+            )}
 
             <View style={styles.statRow}>
               <View>
