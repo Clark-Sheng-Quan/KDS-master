@@ -113,15 +113,13 @@ export default function EODScreen() {
   // ── Live stats (all orders since last EOD submit, cleared on submit) ──
   const todayOrders = completedOrders;
 
-  const countDelayedDishes = useCallback((threshold: number) => {
+  const countDishesInRange = useCallback((minSeconds: number, maxSeconds?: number) => {
     let count = 0;
     todayOrders.forEach((co) => {
-      const orderMax = Math.max(0, ...co.completedItems.map((i) => i.completedElapsedSeconds ?? 0));
-      if (orderMax > threshold) {
-        co.completedItems.forEach((i) => {
-          if ((i.completedElapsedSeconds ?? 0) > threshold) count++;
-        });
-      }
+      co.completedItems.forEach((i) => {
+        const elapsed = i.completedElapsedSeconds ?? 0;
+        if (elapsed > minSeconds && (maxSeconds === undefined || elapsed <= maxSeconds)) count++;
+      });
     });
     return count;
   }, [todayOrders]);
@@ -130,19 +128,31 @@ export default function EODScreen() {
     () => todayOrders.reduce((sum, co) => sum + co.completedItems.length, 0),
     [todayOrders]
   );
-  const liveDelayed = useMemo(() => countDelayedDishes(DELAY_THRESHOLD_SECONDS), [todayOrders]);
-  const liveUrgent = useMemo(() => countDelayedDishes(URGENT_THRESHOLD_SECONDS), [todayOrders]);
+  const liveDelayed = useMemo(() => countDishesInRange(DELAY_THRESHOLD_SECONDS), [todayOrders, countDishesInRange]);
+  const liveUrgent = useMemo(() => countDishesInRange(URGENT_THRESHOLD_SECONDS, DELAY_THRESHOLD_SECONDS), [todayOrders, countDishesInRange]);
+  const countUniqueBySession = useCallback((predicate: (co: typeof todayOrders[0]) => boolean) => {
+    const sessions = new Set<string>();
+    let noSessionCount = 0;
+    todayOrders.forEach((co) => {
+      if (!predicate(co)) return;
+      const sid = co.order.tableSessionId;
+      if (sid) sessions.add(sid);
+      else noSessionCount++;
+    });
+    return sessions.size + noSessionCount;
+  }, [todayOrders]);
+
   const liveDineIn = useMemo(
-    () => todayOrders.filter((co) => isDineIn(co.order.pickupMethod)).length,
-    [todayOrders]
+    () => countUniqueBySession((co) => isDineIn(co.order.pickupMethod)),
+    [todayOrders, countUniqueBySession]
   );
   const liveTakeaway = useMemo(
-    () => todayOrders.filter((co) => isTakeaway(co.order.pickupMethod)).length,
-    [todayOrders]
+    () => countUniqueBySession((co) => isTakeaway(co.order.pickupMethod)),
+    [todayOrders, countUniqueBySession]
   );
   const liveOther = useMemo(
-    () => todayOrders.filter((co) => !isDineIn(co.order.pickupMethod) && !isTakeaway(co.order.pickupMethod)).length,
-    [todayOrders]
+    () => countUniqueBySession((co) => !isDineIn(co.order.pickupMethod) && !isTakeaway(co.order.pickupMethod)),
+    [todayOrders, countUniqueBySession]
   );
   const liveCategoryStats = useMemo(() => {
     const map = new Map<string, { orders: number; totalSeconds: number; count: number }>();
