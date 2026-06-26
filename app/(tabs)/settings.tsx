@@ -493,6 +493,83 @@ export default function SettingsScreen() {
     console.log('[Settings] 发出 print_mode 设置变化事件，值:', value);
   }, []);
 
+  const handlePrintTestLabel = useCallback(async () => {
+    const { LabelPrinter } = NativeModules;
+    if (!LabelPrinter) {
+      Alert.alert('Error', 'Label printer module not available');
+      return;
+    }
+    try {
+      const result = await LabelPrinter.printLabel({
+        widthMm: 40,
+        heightMm: 30,
+        gapMm: 2,
+        elements: [
+          // border / decoration bars
+          { type: 'bar', x: 0,   y: 39,  width: 320, height: 2 },
+          { type: 'bar', x: 0,   y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 32,  y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 64,  y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 96,  y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 128, y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 160, y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 192, y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 224, y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 256, y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 288, y: 181, width: 16,  height: 2 },
+          { type: 'bar', x: 0,   y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 16,  y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 32,  y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 48,  y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 64,  y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 80,  y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 96,  y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 112, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 128, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 144, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 160, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 176, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 192, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 208, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 224, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 240, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 256, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 272, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 288, y: 219, width: 8,   height: 2 },
+          { type: 'bar', x: 304, y: 219, width: 8,   height: 2 },
+          // text fields
+          { type: 'text',   x: 10,  y: 9,   content: 'PCMarket',                                             fontSize: 32, maxWidth: 220 },
+          { type: 'text',   x: 170, y: 81,  content: '#$9.9',                                                fontSize: 26, maxWidth: 90  },
+          { type: 'text',   x: 10,  y: 81,  content: 'White Peach Oolong Milk Tea 白桃乌龙奶茶',              fontSize: 22, maxWidth: 310 },
+          { type: 'text',   x: 10,  y: 120, content: 'Sweetness: 0%, Upsize: Large, Ice Level: Standard Ice', fontSize: 18, maxWidth: 310 },
+          // QR code
+          { type: 'qrcode', x: 240, y: 81,  content: 'sku123|S0,UL,I1' },
+        ],
+      });
+      if (result) {
+        Alert.alert('Success', 'Test label printed');
+      } else {
+        Alert.alert('Failed', 'Print failed — check printer connection');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? String(e));
+    }
+  }, []);
+
+  const handleQueryPrinterFonts = useCallback(async () => {
+    const { LabelPrinter } = NativeModules;
+    if (!LabelPrinter) {
+      Alert.alert('Error', 'Label printer module not available');
+      return;
+    }
+    try {
+      const result = await LabelPrinter.queryFonts();
+      Alert.alert('Label Printer Fonts', result || '(empty response)');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? String(e));
+    }
+  }, []);
+
   // 处理计时器显示开关
   const handleShowOrderTimerChange = useCallback(async (value: boolean) => {
     setShowOrderTimer(value);
@@ -1295,6 +1372,24 @@ export default function SettingsScreen() {
           )}
 
           <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Print Test Label</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={styles.testLabelButton}
+                onPress={handlePrintTestLabel}
+              >
+                <Text style={styles.testLabelButtonText}>Print</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.testLabelButton, { backgroundColor: '#555' }]}
+                onPress={handleQueryPrinterFonts}
+              >
+                <Text style={styles.testLabelButtonText}>Query Fonts</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t("showOrderTimer")}</Text>
             <TouchableOpacity
               style={[
@@ -1906,6 +2001,17 @@ const styles = StyleSheet.create({
   },
   completionModeButtonTextActive: {
     color: "white",
+  },
+  testLabelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: "#1a1a1a",
+  },
+  testLabelButtonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
   },
   callingButtonRow: {
     borderTopWidth: 1,

@@ -3,8 +3,8 @@ package com.anonymous.KDS;
 
 import net.posprinter.POSConnect;
 import com.facebook.react.bridge.ReactApplicationContext;
-import net.posprinter.POSPrinter; // Adjust this based on the actual package structure of the library
-import net.posprinter.IDeviceConnection; // Ensure this import is present
+import net.posprinter.POSPrinter;
+import net.posprinter.IDeviceConnection;
 import net.posprinter.IConnectListener;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -305,8 +305,7 @@ public class  Printer_K1215 extends ReactContextBaseJavaModule{
                         if (code == POSConnect.CONNECT_SUCCESS) {
                             Log.d("kdsapp_log", "打印机连接成功: " + connectInfo);
                             Log.d("kdsapp_log", device.getConnectInfo());
-                            
-                            // 初始化打印机
+
                             printer = new POSPrinter(device);
                             printer.isConnect(
                                 (int status) -> {
